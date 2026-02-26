@@ -100,5 +100,6 @@ yarn-1.22.5.js
 # Ignore redis dump file
 dump.rdb
 
-# Ignore build files
-/app/assets/builds
+# Ignore build files but keep directory
+/app/assets/builds/*
+!/app/assets/builds/.keep
