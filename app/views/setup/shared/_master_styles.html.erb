@@ -1,0 +1,45 @@
+<%# app/views/setup/shared/_master_styles.html.erb %>
+<style>
+  /* ── SETUP TABS ── */
+  .setup-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 28px;
+    width: fit-content;
+  }
+  .setup-tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 16px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--text-dim);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .setup-tab:hover { color: var(--text); background: var(--border); }
+  .setup-tab.active { background: var(--accent-dim); color: var(--accent); }
+  .setup-tab svg { opacity: 0.7; }
+  .setup-tab.active svg { opacity: 1; }
+  .setup-tab-count {
+    background: var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+  }
+  .setup-tab.active .setup-tab-count {
+    background: rgba(79,142,247,0.2);
+    color: var(--accent);
+  }
+</style>

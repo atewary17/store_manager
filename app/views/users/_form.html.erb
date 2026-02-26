@@ -1,0 +1,216 @@
+<% is_new = user.new_record? %>
+
+<% if user.errors.any? %>
+  <div class="flash alert" style="margin:20px 24px 0">
+    <strong><%= user.errors.count %> error(s) prevented saving:</strong>
+    <ul style="margin-top:6px;padding-left:16px">
+      <% user.errors.full_messages.each do |msg| %>
+        <li style="margin-top:2px"><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<div class="form-section">
+  <div class="form-section-title">Personal Information</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :first_name, "First Name" %>
+      <%= f.text_field :first_name, placeholder: 'e.g. Anish' %>
+      <% if user.errors[:first_name].any? %>
+        <div class="form-error"><%= user.errors[:first_name].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :last_name, "Last Name" %>
+      <%= f.text_field :last_name, placeholder: 'e.g. Tewary' %>
+      <% if user.errors[:last_name].any? %>
+        <div class="form-error"><%= user.errors[:last_name].first %></div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :phone_number, "Phone Number" %>
+      <div style="position:relative">
+        <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none"
+             width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6.29 6.29l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+        <%= f.telephone_field :phone_number,
+              placeholder: '+91 98765 43210',
+              style: 'padding-left:36px;font-family:var(--mono);letter-spacing:0.04em' %>
+      </div>
+      <div class="form-hint">Include country code (optional)</div>
+      <% if user.errors[:phone_number].any? %>
+        <div class="form-error"><%= user.errors[:phone_number].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :email, "Email Address *" %>
+      <%= f.email_field :email, placeholder: 'user@example.com', autocomplete: 'off' %>
+      <% if user.errors[:email].any? %>
+        <div class="form-error"><%= user.errors[:email].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Account Details</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :role, "Role *" %>
+      <%= f.select :role,
+            [['Staff',       'staff'],
+             ['Admin',       'admin'],
+             ['Owner',       'owner'],
+             ['Super Admin', 'super_admin']],
+            { include_blank: '— Select role —' } %>
+      <div class="form-hint">Determines access level in the system</div>
+      <% if user.errors[:role].any? %>
+        <div class="form-error"><%= user.errors[:role].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :status, "Status" %>
+      <%= f.select :status, [['Active', 'active'], ['Inactive', 'inactive']] %>
+      <div class="form-hint">Inactive users cannot sign in</div>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">
+    <%= is_new ? 'Set Password' : 'Change Password' %>
+  </div>
+
+  <% unless is_new %>
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;
+                background:rgba(79,142,247,0.07);border:1px solid rgba(79,142,247,0.2);
+                border-radius:6px;margin-bottom:16px;font-size:13px;color:var(--text-dim)">
+      <svg width="14" height="14" fill="none" stroke="var(--accent)" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      Leave password fields blank to keep the current password unchanged.
+    </div>
+  <% end %>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :password, is_new ? "Password *" : "New Password" %>
+      <div style="position:relative">
+        <%= f.password_field :password,
+              autocomplete: 'new-password',
+              placeholder: is_new ? 'Min. 8 characters' : 'Leave blank to keep current',
+              id: 'user_password_field' %>
+        <button type="button" class="pwd-toggle-btn" onclick="togglePwd('user_password_field', 'eye1')" tabindex="-1">
+          <svg id="eye1" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <% if user.errors[:password].any? %>
+        <div class="form-error"><%= user.errors[:password].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :password_confirmation, "Confirm Password" %>
+      <div style="position:relative">
+        <%= f.password_field :password_confirmation,
+              autocomplete: 'new-password',
+              placeholder: 'Re-enter password',
+              id: 'user_password_confirmation_field' %>
+        <button type="button" class="pwd-toggle-btn" onclick="togglePwd('user_password_confirmation_field', 'eye2')" tabindex="-1">
+          <svg id="eye2" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <% if user.errors[:password_confirmation].any? %>
+        <div class="form-error"><%= user.errors[:password_confirmation].first %></div>
+      <% end %>
+    </div>
+  </div>
+
+  <% if is_new %>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:13px;color:var(--text-dim)">
+      <input type="checkbox" id="auto_password" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer">
+      <label for="auto_password" style="cursor:pointer">Auto-generate a secure temporary password</label>
+    </div>
+  <% end %>
+</div>
+
+<!-- Role Reference -->
+<div class="form-section">
+  <div class="form-section-title">Role Reference</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <% [
+      ['Staff',       'staff',       'View inventory, create orders, manage own profile'],
+      ['Admin',       'admin',       'Manage inventory, orders, and view team members'],
+      ['Owner',       'owner',       'Full access to own organisation including billing'],
+      ['Super Admin', 'super_admin', 'Platform-wide access across all organisations']
+    ].each do |label, value, desc| %>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px">
+      <div style="margin-bottom:4px"><span class="badge badge-role"><%= label %></span></div>
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.5"><%= desc %></div>
+    </div>
+    <% end %>
+  </div>
+</div>
+
+<style>
+  .pwd-toggle-btn {
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    background:none; border:none; cursor:pointer;
+    color:var(--text-muted); padding:4px; display:flex; align-items:center;
+    transition:color 0.2s;
+  }
+  .pwd-toggle-btn:hover { color:var(--text-dim); }
+</style>
+
+<script>
+  function togglePwd(fieldId, iconId) {
+    const input = document.getElementById(fieldId);
+    const icon  = document.getElementById(iconId);
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>`;
+    } else {
+      input.type = 'password';
+      icon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+    }
+  }
+
+  // Auto-generate password checkbox (new user only)
+  const autoCb = document.getElementById('auto_password');
+  if (autoCb) {
+    autoCb.addEventListener('change', function() {
+      const pwdField  = document.getElementById('user_password_field');
+      const confField = document.getElementById('user_password_confirmation_field');
+      if (this.checked) {
+        const pwd = Array.from(crypto.getRandomValues(new Uint8Array(12)))
+          .map(b => 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$'[b % 58])
+          .join('');
+        pwdField.value  = pwd;
+        confField.value = pwd;
+        pwdField.type   = 'text';
+        confField.type  = 'text';
+      } else {
+        pwdField.value  = '';
+        confField.value = '';
+        pwdField.type   = 'password';
+        confField.type  = 'password';
+      }
+    });
+  }
+</script>

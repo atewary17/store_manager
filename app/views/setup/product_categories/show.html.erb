@@ -1,0 +1,116 @@
+<%# app/views/setup/product_categories/show.html.erb %>
+<% content_for :title, @category.name %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Product Categories', setup_product_categories_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @category.name %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title"><%= @category.name %></div>
+    <div class="page-subtitle" style="margin-top:6px">
+      <span class="badge <%= @category.active? ? 'badge-active' : 'badge-inactive' %>">
+        <%= @category.active? ? 'active' : 'inactive' %>
+      </span>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to 'Edit', edit_setup_product_category_path(@category), class: 'btn btn-secondary' %>
+    <%= link_to '+ Add Product', new_setup_product_path(category_id: @category.id), class: 'btn btn-primary' %>
+    <% if @category.can_delete? %>
+      <%= button_to 'Delete', setup_product_category_path(@category),
+            method: :delete,
+            class: 'btn btn-danger',
+            form: { style: 'margin:0' },
+            data: { confirm: "Delete \"#{@category.name}\"?" } %>
+    <% end %>
+  </div>
+</div>
+
+<div class="detail-card" style="margin-bottom:24px">
+  <div class="detail-section">
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Category Name</label>
+        <div class="value"><%= @category.name %></div>
+      </div>
+      <div class="detail-field">
+        <label>Total Products</label>
+        <div class="value"><%= @category.products.count %></div>
+      </div>
+      <div class="detail-field">
+        <label>Created</label>
+        <div class="value mono"><%= @category.created_at.strftime('%d %b %Y') %></div>
+      </div>
+      <div class="detail-field" style="grid-column:span 2">
+        <label>Description</label>
+        <div class="value"><%= @category.description.presence || '—' %></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Products in this category -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  <div style="font-size:14px;font-weight:600">
+    Products in this Category
+    <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);font-weight:400;margin-left:6px">
+      <%= @products.count %>
+    </span>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <% if @products.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Brand</th><th>Description</th><th>Pack</th>
+          <th>HSN</th><th>GST</th><th>UOM</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @products.each do |product| %>
+        <tr>
+          <td style="font-weight:500"><%= product.brand %></td>
+          <td><%= link_to product.description.truncate(50), setup_product_path(product) %></td>
+          <td style="font-family:var(--mono);font-size:12px"><%= product.pack_code.presence || '—' %></td>
+          <td style="font-family:var(--mono);font-size:12px"><%= product.hsn_code.presence || '—' %></td>
+          <td style="font-family:var(--mono);font-size:12px"><%= product.gst_rate %>%</td>
+          <td>
+            <span style="font-family:var(--mono);font-size:11px;background:var(--bg);
+                         border:1px solid var(--border);padding:2px 6px;border-radius:4px">
+              <%= product.base_uom.short_name %>
+            </span>
+          </td>
+          <td>
+            <span class="badge <%= product.active? ? 'badge-active' : 'badge-inactive' %>">
+              <%= product.active? ? 'active' : 'inactive' %>
+            </span>
+          </td>
+          <td>
+            <div class="actions">
+              <%= link_to 'View', setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
+              <%= link_to 'Edit', edit_setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
+            </div>
+          </td>
+        </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>No products in this category yet.</p>
+      <div style="margin-top:16px">
+        <%= link_to '+ Add Product', new_setup_product_path(category_id: @category.id), class: 'btn btn-primary' %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<div style="margin-top:20px">
+  <%= link_to '← Back to Categories', setup_product_categories_path, class: 'btn btn-secondary' %>
+</div>

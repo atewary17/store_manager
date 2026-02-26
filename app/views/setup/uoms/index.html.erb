@@ -1,0 +1,131 @@
+<%# app/views/setup/uoms/index.html.erb %>
+<% content_for :title, "Units of Measure" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Units of Measure</span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Master Data</div>
+  </div>
+  <%= link_to new_setup_uom_path, class: 'btn btn-primary' do %>
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    New UOM
+  <% end %>
+</div>
+
+<%= render 'setup/shared/nav_tabs' %>
+
+<!-- Search bar -->
+<div class="filter-bar">
+  <div class="search-input-wrap">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" class="search-input" placeholder="Search UOMs..." id="uomSearch">
+  </div>
+  <select id="uomStatusFilter" style="background:var(--surface);border:1px solid var(--border);
+          border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;outline:none">
+    <option value="">All Statuses</option>
+    <option value="active">Active</option>
+    <option value="inactive">Inactive</option>
+  </select>
+</div>
+
+<div class="table-wrap">
+  <% if @uoms.any? %>
+    <table id="uomTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Short Name</th>
+          <th>Products Using</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @uoms.each do |uom| %>
+        <tr>
+          <td style="font-family:var(--mono);color:var(--text-dim);font-size:12px"><%= uom.id %></td>
+          <td>
+            <div style="font-weight:500"><%= link_to uom.name, setup_uom_path(uom) %></div>
+          </td>
+          <td>
+            <span style="font-family:var(--mono);font-size:12px;background:var(--bg);
+                         border:1px solid var(--border);padding:2px 8px;border-radius:4px">
+              <%= uom.short_name %>
+            </span>
+          </td>
+          <td style="font-family:var(--mono);font-size:13px">
+            <% count = uom.products.count %>
+            <% if count > 0 %>
+              <span style="color:var(--accent)"><%= count %></span>
+              <span style="color:var(--text-dim);font-size:11px"> products</span>
+            <% else %>
+              <span style="color:var(--text-muted)">—</span>
+            <% end %>
+          </td>
+          <td>
+            <span class="badge <%= uom.active? ? 'badge-active' : 'badge-inactive' %>"
+                  data-status="<%= uom.active? ? 'active' : 'inactive' %>">
+              <%= uom.active? ? 'active' : 'inactive' %>
+            </span>
+          </td>
+          <td style="color:var(--text-dim);font-size:12px;font-family:var(--mono)">
+            <%= uom.created_at.strftime('%d %b %Y') %>
+          </td>
+          <td>
+            <div class="actions">
+              <%= link_to 'View', setup_uom_path(uom), class: 'btn btn-secondary btn-sm' %>
+              <%= link_to 'Edit', edit_setup_uom_path(uom), class: 'btn btn-secondary btn-sm' %>
+              <% if uom.can_delete? %>
+                <%= button_to 'Delete', setup_uom_path(uom),
+                      method: :delete,
+                      class: 'btn btn-danger btn-sm',
+                      form: { style: 'margin:0' },
+                      data: { confirm: "Delete \"#{uom.name}\"? This cannot be undone." } %>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1"
+           viewBox="0 0 24 24" style="color:var(--muted);margin:0 auto 12px;display:block">
+        <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
+      </svg>
+      <p>No units of measure yet.</p>
+      <div style="margin-top:16px">
+        <%= link_to 'Add first UOM', new_setup_uom_path, class: 'btn btn-primary' %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  function filterUoms() {
+    const q      = document.getElementById('uomSearch').value.toLowerCase();
+    const status = document.getElementById('uomStatusFilter').value;
+    document.querySelectorAll('#uomTable tbody tr').forEach(row => {
+      const text      = row.textContent.toLowerCase();
+      const rowStatus = row.querySelector('[data-status]')?.dataset.status || '';
+      const matchQ      = !q      || text.includes(q);
+      const matchStatus = !status || rowStatus === status;
+      row.style.display = matchQ && matchStatus ? '' : 'none';
+    });
+  }
+  document.getElementById('uomSearch').addEventListener('input', filterUoms);
+  document.getElementById('uomStatusFilter').addEventListener('change', filterUoms);
+</script>

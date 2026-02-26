@@ -1,0 +1,29 @@
+<% content_for :title, "New User" %>
+<% content_for :breadcrumb do %>
+  <%= link_to 'Organisations', organisations_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @organisation.name, organisation_path(@organisation) %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Users', organisation_users_path(@organisation) %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New User</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">New User</div>
+    <div class="page-subtitle">
+      Add a member to <strong style="color:var(--text)"><%= @organisation.name %></strong>
+    </div>
+  </div>
+</div>
+
+<%= form_with model: [@organisation, @user], local: true do |f| %>
+  <div class="form-card">
+    <%= render 'form', user: @user, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Create User', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', organisation_users_path(@organisation), class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,52 @@
+<% content_for :title, "Edit User" %>
+<% content_for :breadcrumb do %>
+  <%= link_to 'Organisations', organisations_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @organisation.name, organisation_path(@organisation) %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Users', organisation_users_path(@organisation) %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @user.email.split('@').first, organisation_user_path(@organisation, @user) %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Edit</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Edit User</div>
+    <div class="page-subtitle">Updating <strong style="color:var(--text)"><%= @user.email %></strong></div>
+  </div>
+</div>
+
+<%= form_with model: [@organisation, @user], local: true do |f| %>
+  <div class="form-card">
+    <%= render 'form', user: @user, f: f %>
+
+    <div class="form-actions">
+      <%= f.submit 'Save Changes', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', organisation_user_path(@organisation, @user), class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>
+
+<!-- Danger Zone -->
+<div style="margin-top:24px;max-width:680px">
+  <div style="border:1px solid rgba(247,97,79,0.25);border-radius:10px;padding:20px;background:rgba(247,97,79,0.04)">
+    <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--danger);margin-bottom:10px">Danger Zone</div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:13.5px;font-weight:500">Deactivate this account</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:3px">The user will no longer be able to sign in</div>
+      </div>
+      <% if @user.active? && @user != current_user %>
+        <%= link_to 'Deactivate', edit_organisation_user_path(@organisation, @user),
+              class: 'btn btn-danger btn-sm',
+              data: { confirm: 'Are you sure you want to deactivate this user?' } %>
+      <% elsif @user == current_user %>
+        <span style="font-size:12px;color:var(--text-dim);font-family:var(--mono)">Cannot deactivate yourself</span>
+      <% else %>
+        <span style="font-size:12px;color:var(--text-dim);font-family:var(--mono)">Already inactive</span>
+      <% end %>
+    </div>
+  </div>
+</div>

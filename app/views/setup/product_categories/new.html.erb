@@ -1,0 +1,26 @@
+<%# app/views/setup/product_categories/new.html.erb %>
+<% content_for :title, "New Category" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Product Categories', setup_product_categories_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">New Product Category</div>
+    <div class="page-subtitle">Add a new category to organise your products</div>
+  </div>
+</div>
+
+<%= form_with model: [:setup, @category], local: true do |f| %>
+  <div class="form-card">
+    <%= render 'form', category: @category, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Create Category', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', setup_product_categories_path, class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StoreERP — <%= content_for?(:title) ? yield(:title) : 'Dashboard' %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <%= csrf_meta_tags %>
+  <%= csp_meta_tag %>
+
+  <%# Apply theme + sidebar state before first paint to prevent flash %>
+  <script>
+    (function() {
+      var t = localStorage.getItem('storeerp_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      // Sidebar state applied after DOM ready (needs element ref)
+    })();
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── DARK THEME (default) ── */
+    :root {
+      --sidebar-w:           240px;
+      --sidebar-collapsed-w: 56px;
+      --bg:        #0f1117;
+      --surface:   #181c27;
+      --border:    #252a38;
+      --muted:     #3a4155;
+      --text:      #e2e6f0;
+      --text-dim:  #7a8399;
+      --text-muted:#3d4a6a;
+      --accent:    #4f8ef7;
+      --accent-dim:#1e3a6e;
+      --success:   #34d98b;
+      --danger:    #f7614f;
+      --warning:   #f7c34f;
+      --mono:      'IBM Plex Mono', monospace;
+      --sans:      'IBM Plex Sans', sans-serif;
+      --shadow:    0 1px 3px rgba(0,0,0,0.4);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    /* ── LIGHT THEME ── */
+    html[data-theme="light"] {
+      --bg:        #f4f6fb;
+      --surface:   #ffffff;
+      --border:    #e2e6f0;
+      --muted:     #c8cfe0;
+      --text:      #1a2033;
+      --text-dim:  #6b7799;
+      --text-muted:#b0bac8;
+      --accent:    #2d6ef0;
+      --accent-dim:#dce8ff;
+      --success:   #0ea860;
+      --danger:    #e5381f;
+      --warning:   #d4860a;
+      --shadow:    0 1px 4px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+    }
+
+    /* Light theme table row hover */
+    html[data-theme="light"] tbody tr:hover {
+      background: rgba(0,0,0,0.02);
+    }
+    html[data-theme="light"] .form-group input,
+    html[data-theme="light"] .form-group select,
+    html[data-theme="light"] .form-group textarea {
+      background: #f8f9fd;
+    }
+    html[data-theme="light"] .search-input {
+      background: #fff;
+    }
+    html[data-theme="light"] .sign-out-link:hover {
+      color: var(--danger);
+    }
+
+    /* ── THEME TOGGLE BUTTON ── */
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px 5px 8px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .theme-toggle:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .theme-toggle-track {
+      width: 28px; height: 16px;
+      background: var(--border);
+      border-radius: 8px;
+      position: relative;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .theme-toggle-track.on { background: var(--accent); }
+    .theme-toggle-thumb {
+      width: 12px; height: 12px;
+      background: #fff;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px; left: 2px;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .theme-toggle-track.on .theme-toggle-thumb {
+      transform: translateX(12px);
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ─── SIDEBAR ─── */
+    .sidebar {
+      width: 240px;
+      min-height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      z-index: 100;
+      transition: width 0.22s cubic-bezier(0.4,0,0.2,1);
+      overflow: hidden;
+    }
+
+    /* ── Collapsed state ── */
+    .sidebar.collapsed { width: 56px; }
+
+    .sidebar.collapsed .logo-mark,
+    .sidebar.collapsed .logo-name,
+    .sidebar.collapsed .nav-section-label,
+    .sidebar.collapsed .nav-link-text,
+    .sidebar.collapsed .nav-soon,
+    .sidebar.collapsed .user-info,
+    .sidebar.collapsed .sign-out-link { display: none !important; }
+
+    .sidebar.collapsed .sidebar-logo { padding: 14px 0; justify-content: center; }
+    .sidebar.collapsed .nav-link { justify-content: center; padding: 10px 0; gap: 0; }
+    .sidebar.collapsed .nav-link svg { opacity: 0.85; }
+    .sidebar.collapsed .sidebar-nav { padding: 12px 4px; }
+    .sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; background: transparent; }
+    .sidebar.collapsed .sidebar-footer { padding: 12px 4px; }
+    .sidebar.collapsed .collapse-btn { justify-content: center; padding: 10px 0; }
+    .sidebar.collapsed .collapse-btn .collapse-label { display: none; }
+    .sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
+
+    /* Tooltips on icon-only collapsed sidebar */
+    .sidebar.collapsed .nav-link { position: relative; }
+    .sidebar.collapsed .nav-link::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 62px;
+      top: 50%; transform: translateY(-50%);
+      background: var(--text);
+      color: var(--bg);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s;
+      z-index: 300;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
+
+    /* Collapse button */
+    .collapse-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 14px;
+      background: none;
+      border: none;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      transition: color 0.15s, background 0.15s;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .collapse-btn:hover { color: var(--accent); background: var(--accent-dim); }
+    .collapse-btn svg { flex-shrink: 0; transition: transform 0.22s; }
+
+    .sidebar-logo {
+      padding: 22px 18px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .sidebar-logo .logo-mark {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .sidebar-logo .logo-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .sidebar-nav { padding: 16px 12px; flex: 1; overflow: hidden; }
+    .nav-section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      padding: 8px 8px 6px;
+    }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: 6px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 400;
+      transition: all 0.15s;
+      margin-bottom: 2px;
+    }
+    .nav-link:hover { background: var(--border); color: var(--text); }
+    .nav-link.active { background: var(--accent-dim); color: var(--accent); font-weight: 500; }
+    .nav-link svg { flex-shrink: 0; opacity: 0.7; }
+    .nav-link.active svg { opacity: 1; }
+    .nav-link-disabled {
+      pointer-events: none;
+      opacity: 0.4;
+      cursor: default;
+    }
+    .nav-soon {
+      font-family: var(--mono);
+      font-size: 9px;
+      margin-left: auto;
+      background: var(--border);
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid var(--border);
+    }
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: var(--border);
+    }
+    .user-avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .user-info { flex: 1; overflow: hidden; }
+    .user-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .sign-out-link {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-decoration: none;
+      font-family: var(--mono);
+      display: block;
+      text-align: center;
+      margin-top: 8px;
+      padding: 4px;
+      transition: color 0.15s;
+    }
+    .sign-out-link:hover { color: var(--danger); }
+
+    /* ─── MAIN CONTENT ─── */
+    .main {
+      margin-left: 240px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: margin-left 0.22s cubic-bezier(0.4,0,0.2,1);
+    }
+    body.sidebar-collapsed .main { margin-left: 56px; }
+
+    .topbar {
+      height: 56px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      gap: 8px;
+    }
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb-sep { color: var(--muted); }
+    .breadcrumb-current { color: var(--text); }
+
+    .page-content { padding: 32px; flex: 1; }
+
+    /* ─── FLASH MESSAGES ─── */
+    .flash { padding: 10px 16px; border-radius: 6px; font-size: 13px; margin-bottom: 20px; border-left: 3px solid; }
+    .flash.notice { background: rgba(52,217,139,0.08); border-color: var(--success); color: var(--success); }
+    .flash.alert  { background: rgba(247,97,79,0.08);  border-color: var(--danger);  color: var(--danger); }
+
+    /* ─── PAGE HEADER ─── */
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; }
+    .page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .page-subtitle { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+    /* ─── BUTTONS ─── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 6px;
+      font-size: 13px; font-weight: 500;
+      text-decoration: none; cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: #3a78e8; }
+    .btn-secondary { background: transparent; color: var(--text-dim); border-color: var(--border); }
+    .btn-secondary:hover { border-color: var(--muted); color: var(--text); background: var(--surface); }
+    .btn-danger { background: transparent; color: var(--danger); border-color: rgba(247,97,79,0.3); }
+    .btn-danger:hover { background: rgba(247,97,79,0.1); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ─── TABLE ─── */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--bg); }
+    thead th {
+      padding: 12px 16px;
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+    td { padding: 14px 16px; font-size: 13.5px; vertical-align: middle; }
+    td a { color: var(--accent); text-decoration: none; }
+    td a:hover { text-decoration: underline; }
+
+    /* ─── BADGES ─── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px; border-radius: 100px;
+      font-family: var(--mono); font-size: 11px; font-weight: 500;
+    }
+    .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .badge-active  { background: rgba(52,217,139,0.12); color: var(--success); }
+    .badge-inactive{ background: rgba(247,97,79,0.12);  color: var(--danger); }
+    .badge-role    { background: rgba(79,142,247,0.12); color: var(--accent); }
+    .badge-plan    { background: rgba(247,195,79,0.12); color: var(--warning); }
+
+    /* ─── DETAIL CARD ─── */
+    .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .detail-section { padding: 24px; border-bottom: 1px solid var(--border); }
+    .detail-section:last-child { border-bottom: none; }
+    .detail-section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+    .detail-field label {
+      display: block;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+    }
+    .detail-field .value { font-size: 14px; color: var(--text); }
+    .detail-field .value.mono { font-family: var(--mono); }
+
+    /* ─── FORM ─── */
+    .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; max-width: 680px; }
+    .form-section { padding: 24px; border-bottom: 1px solid var(--border); }
+    .form-section:last-child { border-bottom: none; }
+    .form-section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 18px;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13.5px;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group select,
+    .form-group textarea:focus { border-color: var(--accent); }
+    .form-group select option { background: var(--surface); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-hint { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; }
+    .form-error { font-size: 11.5px; color: var(--danger); margin-top: 4px; }
+    .form-actions { padding: 20px 24px; display: flex; gap: 10px; align-items: center; }
+
+    /* ─── STATS ROW ─── */
+    .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .stat-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+    .stat-value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+    .stat-value.accent { color: var(--accent); }
+    .stat-value.success { color: var(--success); }
+
+    /* ─── SEARCH / FILTER BAR ─── */
+    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
+    .search-input-wrap { position: relative; flex: 1; max-width: 320px; }
+    .search-input-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
+    .search-input {
+      width: 100%; padding: 8px 12px 8px 34px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: 13px;
+      outline: none; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--muted); }
+    .empty-state { padding: 60px 24px; text-align: center; }
+    .empty-state p { color: var(--text-dim); font-size: 14px; }
+
+    /* ─── ACTION LINKS ─── */
+    .actions { display: flex; gap: 8px; align-items: center; }
+  </style>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="mainSidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-mark">v1.0.0</div>
+        <div class="logo-name">StoreERP</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <!-- Home -->
+      <%= link_to dashboard_path, class: "nav-link #{controller_name == 'dashboard' ? 'active' : ''}", data: {tooltip: "Dashboard"} do %>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <span class="nav-link-text">Dashboard</span>
+      <% end %>
+
+      <!-- Setup -->
+      <div class="nav-section-label" style="margin-top:14px">Setup</div>
+
+      <% if current_user&.super_admin? %>
+        <%= link_to organisations_path, class: "nav-link #{controller_name == 'organisations' ? 'active' : ''}", data: {tooltip: "Organisations"} do %>
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span class="nav-link-text">Organisations</span>
+        <% end %>
+      <% end %>
+
+      <% if current_user&.organisation %>
+        <%= link_to organisation_users_path(current_user.organisation),
+              class: "nav-link #{controller_name == 'users' ? 'active' : ''}", data: {tooltip: "Users"} do %>
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span class="nav-link-text">Users</span>
+        <% end %>
+      <% end %>
+
+      <% if current_user&.super_admin? || current_user&.owner? || current_user&.admin? %>
+        <%= link_to setup_uoms_path,
+              class: "nav-link #{ %w[uoms product_categories products].include?(controller_name) ? 'active' : '' }", data: {tooltip: "Master Data"} do %>
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            <path d="M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/>
+          </svg>
+          <span class="nav-link-text">Master Data</span>
+        <% end %>
+      <% end %>
+
+      <!-- Inventory Management -->
+      <div class="nav-section-label" style="margin-top:14px">Inventory</div>
+
+      <a href="#" class="nav-link nav-link-disabled" data-tooltip="Products (soon)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+        <span class="nav-link-text">Products</span>
+        <span class="nav-soon">soon</span>
+      </a>
+      <a href="#" class="nav-link nav-link-disabled" data-tooltip="Orders (soon)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 01-8 0"/>
+        </svg>
+        <span class="nav-link-text">Orders</span>
+        <span class="nav-soon">soon</span>
+      </a>
+
+      <!-- Locked Modules -->
+      <div class="nav-section-label" style="margin-top:14px">Other Modules</div>
+
+      <a href="#" class="nav-link nav-link-disabled" data-tooltip="Accounting (soon)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <line x1="12" y1="1" x2="12" y2="23"/>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        <span class="nav-link-text">Accounting</span>
+        <span class="nav-soon">soon</span>
+      </a>
+      <a href="#" class="nav-link nav-link-disabled" data-tooltip="Customers (soon)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+        </svg>
+        <span class="nav-link-text">Customers</span>
+        <span class="nav-soon">soon</span>
+      </a>
+      <a href="#" class="nav-link nav-link-disabled" data-tooltip="Reports (soon)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6"  y1="20" x2="6"  y2="14"/>
+          <line x1="2"  y1="20" x2="22" y2="20"/>
+        </svg>
+        <span class="nav-link-text">Reports</span>
+        <span class="nav-soon">soon</span>
+      </a>
+
+    </nav>
+
+    <% if user_signed_in? %>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar"><%= current_user.initials %></div>
+        <div class="user-info">
+          <div class="user-name"><%= current_user.full_name %></div>
+          <div class="user-role"><%= current_user.role.humanize %></div>
+        </div>
+      </div>
+      <%= link_to 'sign out', destroy_user_session_path, method: :delete, class: 'sign-out-link' %>
+    </div>
+    <% end %>
+
+    <!-- Collapse toggle -->
+    <button class="collapse-btn" onclick="toggleSidebar()" id="collapseBtn" title="Toggle sidebar">
+      <svg id="collapseIcon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <span class="collapse-label">Collapse</span>
+    </button>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="breadcrumb">
+        <%= yield :breadcrumb %>
+      </div>
+
+      <!-- Theme Toggle -->
+      <button class="theme-toggle" onclick="toggleTheme()" id="themeToggle" title="Toggle light/dark theme">
+        <div class="theme-toggle-track" id="themeTrack">
+          <div class="theme-toggle-thumb"></div>
+        </div>
+        <span id="themeLabel">Light</span>
+      </button>
+    </div>
+
+    <div class="page-content">
+      <% if notice %>
+        <div class="flash notice"><%= notice %></div>
+      <% end %>
+      <% if alert %>
+        <div class="flash alert"><%= alert %></div>
+      <% end %>
+
+      <%= yield %>
+    </div>
+  </main>
+
+<script>
+  // ── Theme persistence via localStorage ──
+  const THEME_KEY   = 'storeerp_theme';
+  const SIDEBAR_KEY = 'storeerp_sidebar';
+
+  // ── Sidebar collapse ──
+  function applySidebar(collapsed) {
+    const sidebar = document.getElementById('mainSidebar');
+    const body    = document.body;
+    if (collapsed) {
+      sidebar.classList.add('collapsed');
+      body.classList.add('sidebar-collapsed');
+    } else {
+      sidebar.classList.remove('collapsed');
+      body.classList.remove('sidebar-collapsed');
+    }
+  }
+
+  function toggleSidebar() {
+    const isCollapsed = document.getElementById('mainSidebar').classList.contains('collapsed');
+    const next = !isCollapsed;
+    localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0');
+    applySidebar(next);
+  }
+
+  // Restore sidebar state on load
+  (function() {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    if (saved === '1') applySidebar(true);
+  })();
+
+  function applyTheme(theme) {
+    const isLight = theme === 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('themeTrack').classList.toggle('on', isLight);
+    document.getElementById('themeLabel').textContent = isLight ? 'Dark' : 'Light';
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next    = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  }
+
+  // Apply saved theme immediately on load (avoids flash)
+  (function() {
+    const saved = localStorage.getItem(THEME_KEY) || 'dark';
+    applyTheme(saved);
+  })();
+</script>
+</body>
+</html>

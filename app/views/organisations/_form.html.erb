@@ -1,0 +1,63 @@
+<% if organisation.errors.any? %>
+  <div class="flash alert" style="margin:20px 24px 0">
+    <strong><%= organisation.errors.count %> error(s) prevented saving:</strong>
+    <ul style="margin-top:6px;padding-left:16px">
+      <% organisation.errors.full_messages.each do |msg| %>
+        <li style="margin-top:2px"><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<div class="form-section">
+  <div class="form-section-title">Organisation Details</div>
+
+  <div class="form-group">
+    <%= f.label :name, "Organisation Name *" %>
+    <%= f.text_field :name, placeholder: 'e.g. Acme Stores Pvt Ltd' %>
+    <% if organisation.errors[:name].any? %>
+      <div class="form-error"><%= organisation.errors[:name].first %></div>
+    <% end %>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :gst_number, "GST Number" %>
+      <%= f.text_field :gst_number,
+            placeholder: 'e.g. 29ABCDE1234F1Z5',
+            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            maxlength: 15 %>
+      <div class="form-hint">15-digit GSTIN (optional)</div>
+      <% if organisation.errors[:gst_number].any? %>
+        <div class="form-error"><%= organisation.errors[:gst_number].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :subscription_plan, "Subscription Plan" %>
+      <%= f.select :subscription_plan,
+            [['Basic',      'basic'],
+             ['Standard',   'standard'],
+             ['Premium',    'premium'],
+             ['Enterprise', 'enterprise']],
+            { include_blank: '— Select plan —' } %>
+      <% if organisation.errors[:subscription_plan].any? %>
+        <div class="form-error"><%= organisation.errors[:subscription_plan].first %></div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :address, "Business Address" %>
+    <%= f.text_area :address, placeholder: 'Street, City, State, PIN', rows: 3 %>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Account Status</div>
+  <div class="form-group" style="max-width:240px">
+    <%= f.label :status, "Status" %>
+    <%= f.select :status, [['Active', 'active'], ['Inactive', 'inactive']] %>
+    <div class="form-hint">Inactive organisations cannot log in</div>
+  </div>
+</div>

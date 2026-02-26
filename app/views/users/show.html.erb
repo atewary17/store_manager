@@ -1,0 +1,135 @@
+<% content_for :title, @user.email %>
+<% content_for :breadcrumb do %>
+  <%= link_to 'Organisations', organisations_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @organisation.name, organisation_path(@organisation) %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Users', organisation_users_path(@organisation) %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @user.email.split('@').first %></span>
+<% end %>
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div style="width:52px;height:52px;border-radius:50%;background:var(--accent-dim);
+                color:var(--accent);display:flex;align-items:center;justify-content:center;
+                font-family:var(--mono);font-size:20px;font-weight:600;flex-shrink:0;
+                border:2px solid var(--accent)">
+      <%= @user.initials %>
+    </div>
+    <div>
+      <div class="page-title"><%= @user.full_name %></div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:2px;font-family:var(--mono)">
+        <%= @user.email %>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <span class="badge badge-role"><%= @user.role.humanize %></span>
+        <span class="badge <%= @user.active? ? 'badge-active' : 'badge-inactive' %>"><%= @user.status %></span>
+        <% if @user == current_user %>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">(you)</span>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to 'Edit User', edit_organisation_user_path(@organisation, @user), class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<div class="detail-card">
+  <div class="detail-section">
+    <div class="detail-section-title">Personal Information</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>First Name</label>
+        <div class="value"><%= @user.first_name.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Last Name</label>
+        <div class="value"><%= @user.last_name.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Phone Number</label>
+        <div class="value mono"><%= @user.phone_number.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Email Address</label>
+        <div class="value mono"><%= @user.email %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Account Information</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Role</label>
+        <div class="value"><span class="badge badge-role"><%= @user.role.humanize %></span></div>
+      </div>
+      <div class="detail-field">
+        <label>Account Status</label>
+        <div class="value">
+          <span class="badge <%= @user.active? ? 'badge-active' : 'badge-inactive' %>">
+            <%= @user.status %>
+          </span>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Organisation</label>
+        <div class="value"><%= link_to @organisation.name, organisation_path(@organisation) %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Record Info</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>User ID</label>
+        <div class="value mono">#<%= @user.id %></div>
+      </div>
+      <div class="detail-field">
+        <label>Member Since</label>
+        <div class="value mono"><%= @user.created_at.strftime('%d %b %Y, %H:%M') %></div>
+      </div>
+      <div class="detail-field">
+        <label>Last Updated</label>
+        <div class="value mono"><%= @user.updated_at.strftime('%d %b %Y, %H:%M') %></div>
+      </div>
+      <% if @user.respond_to?(:last_sign_in_at) %>
+      <div class="detail-field">
+        <label>Last Sign In</label>
+        <div class="value mono"><%= @user.last_sign_in_at&.strftime('%d %b %Y, %H:%M') || '—' %></div>
+      </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Role Permissions</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+      <%
+        permissions = {
+          'super_admin' => ['All organisations', 'All users', 'Billing', 'System config'],
+          'owner'       => ['Own org settings',  'Manage users', 'View reports', 'Billing'],
+          'admin'       => ['Manage inventory',  'Manage orders', 'View users'],
+          'staff'       => ['View inventory',    'Create orders', 'Own profile']
+        }
+        role_perms = permissions[@user.role] || permissions['staff']
+      %>
+      <% role_perms.each do |perm| %>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--bg);
+                    border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:13px">
+          <svg width="14" height="14" fill="none" stroke="var(--success)" stroke-width="2.5" viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <%= perm %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:20px">
+  <%= link_to '← Back to Users', organisation_users_path(@organisation), class: 'btn btn-secondary' %>
+</div>

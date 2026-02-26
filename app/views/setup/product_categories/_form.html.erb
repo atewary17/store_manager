@@ -1,0 +1,64 @@
+<%# app/views/setup/product_categories/_form.html.erb %>
+<% if category.errors.any? %>
+  <div class="flash alert" style="margin:20px 24px 0">
+    <strong><%= category.errors.count %> error(s):</strong>
+    <ul style="margin-top:6px;padding-left:16px">
+      <% category.errors.full_messages.each do |msg| %>
+        <li style="margin-top:2px"><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<div class="form-section">
+  <div class="form-section-title">Category Details</div>
+
+  <div class="form-group">
+    <%= f.label :name, "Category Name *" %>
+    <%= f.text_field :name, placeholder: 'e.g. Paints, Pipes, Bathroom Accessories' %>
+    <% if category.errors[:name].any? %>
+      <div class="form-error"><%= category.errors[:name].first %></div>
+    <% end %>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :description, "Description" %>
+    <%= f.text_area :description,
+          placeholder: 'Brief description of what products belong in this category',
+          rows: 3 %>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Status</div>
+  <div class="form-group" style="max-width:240px">
+    <%= f.label :active, "Status" %>
+    <%= f.select :active, [['Active', true], ['Inactive', false]] %>
+    <div class="form-hint">Inactive categories won't appear in product forms</div>
+  </div>
+</div>
+
+<!-- Quick add common categories -->
+<div class="form-section">
+  <div class="form-section-title">Common Categories Reference</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px">
+    <% ['Paints', 'Pipes & Fittings', 'Bathroom Accessories', 'Electrical',
+        'Hardware', 'Adhesives & Sealants', 'Tools', 'Plumbing', 'Flooring',
+        'Roofing', 'Waterproofing', 'Safety Equipment'].each do |cat| %>
+      <div onclick="fillCategory('<%= cat %>')"
+           style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                  padding:6px 12px;font-size:12px;cursor:pointer;transition:all 0.15s;color:var(--text-dim)"
+           onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--text)'"
+           onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">
+        <%= cat %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  function fillCategory(name) {
+    const field = document.querySelector('input[name="product_category[name]"]');
+    if (field && !field.value) field.value = name;
+  }
+</script>

@@ -1,0 +1,28 @@
+<%# app/views/setup/uoms/edit.html.erb %>
+<% content_for :title, "Edit #{@uom.name}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Units of Measure', setup_uoms_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @uom.name, setup_uom_path(@uom) %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Edit</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Edit UOM</div>
+    <div class="page-subtitle">Updating <strong style="color:var(--text)"><%= @uom.name %></strong></div>
+  </div>
+</div>
+
+<%= form_with model: [:setup, @uom], local: true do |f| %>
+  <div class="form-card">
+    <%= render 'form', uom: @uom, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Save Changes', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', setup_uom_path(@uom), class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,28 @@
+<%# app/views/setup/product_categories/edit.html.erb %>
+<% content_for :title, "Edit #{@category.name}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Product Categories', setup_product_categories_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @category.name, setup_product_category_path(@category) %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Edit</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Edit Category</div>
+    <div class="page-subtitle">Updating <strong style="color:var(--text)"><%= @category.name %></strong></div>
+  </div>
+</div>
+
+<%= form_with model: [:setup, @category], local: true do |f| %>
+  <div class="form-card">
+    <%= render 'form', category: @category, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Save Changes', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', setup_product_category_path(@category), class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,111 @@
+<% content_for :title, @product.display_name %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Products', setup_products_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @product.brand %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <span class="badge badge-plan"><%= @product.product_category.name %></span>
+      <span class="badge <%= @product.active? ? 'badge-active' : 'badge-inactive' %>">
+        <%= @product.active? ? 'active' : 'inactive' %>
+      </span>
+    </div>
+    <div class="page-title"><%= @product.brand %></div>
+    <div class="page-subtitle" style="font-size:14px;margin-top:4px;max-width:560px">
+      <%= @product.description %>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to 'Edit', edit_setup_product_path(@product), class: 'btn btn-secondary' %>
+    <%= button_to 'Delete', setup_product_path(@product),
+          method: :delete,
+          class: 'btn btn-danger',
+          form: { style: 'margin:0' },
+          data: { confirm: "Delete this product? This cannot be undone." } %>
+  </div>
+</div>
+
+<div class="detail-card">
+  <div class="detail-section">
+    <div class="detail-section-title">Classification</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Category</label>
+        <div class="value">
+          <%= link_to @product.product_category.name,
+                setup_product_category_path(@product.product_category) %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Base UOM</label>
+        <div class="value">
+          <%= @product.base_uom.name %>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-left:4px">
+            (<%= @product.base_uom.short_name %>)
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Product Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Brand</label>
+        <div class="value"><%= @product.brand %></div>
+      </div>
+      <div class="detail-field">
+        <label>Pack Code</label>
+        <div class="value mono"><%= @product.pack_code.presence || '—' %></div>
+      </div>
+      <div class="detail-field" style="grid-column:span 2">
+        <label>Description</label>
+        <div class="value"><%= @product.description %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Codes & Identifiers</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Material Code</label>
+        <div class="value mono"><%= @product.material_code.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Product Code</label>
+        <div class="value mono"><%= @product.product_code.presence || '—' %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Tax Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>HSN Code</label>
+        <div class="value mono"><%= @product.hsn_code.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>GST Rate</label>
+        <div class="value">
+          <span style="font-family:var(--mono);font-size:14px;font-weight:600;
+                       color:<%= @product.gst_rate == 0 ? 'var(--success)' : 'var(--warning)' %>">
+            <%= @product.gst_rate %>%
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px">
+  <%= link_to '← Back to Products', setup_products_path, class: 'btn btn-secondary' %>
+</div>

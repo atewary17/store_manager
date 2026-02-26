@@ -1,0 +1,142 @@
+<%# app/views/setup/products/_form.html.erb %>
+<% if product.errors.any? %>
+  <div class="flash alert" style="margin:20px 24px 0">
+    <strong><%= product.errors.count %> error(s):</strong>
+    <ul style="margin-top:6px;padding-left:16px">
+      <% product.errors.full_messages.each do |msg| %>
+        <li style="margin-top:2px"><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<div class="form-section">
+  <div class="form-section-title">Classification</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :product_category_id, "Category *" %>
+      <%= f.select :product_category_id,
+            options_from_collection_for_select(@categories, :id, :name,
+              product.product_category_id),
+            { include_blank: '— Select category —' } %>
+      <% if product.errors[:product_category].any? %>
+        <div class="form-error"><%= product.errors[:product_category].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :base_uom_id, "Base Unit of Measure *" %>
+      <%= f.select :base_uom_id,
+            options_from_collection_for_select(@uoms, :id, :display,
+              product.base_uom_id),
+            { include_blank: '— Select UOM —' } %>
+      <div class="form-hint">Default unit this product is sold/purchased in</div>
+      <% if product.errors[:base_uom].any? %>
+        <div class="form-error"><%= product.errors[:base_uom].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Product Details</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :brand, "Brand *" %>
+      <%= f.text_field :brand, placeholder: 'e.g. Asian Paints, Finolex' %>
+      <% if product.errors[:brand].any? %>
+        <div class="form-error"><%= product.errors[:brand].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :pack_code, "Pack Code" %>
+      <%= f.text_field :pack_code,
+            placeholder: 'e.g. 1L, 4L, 20L, 50Kg',
+            style: 'font-family:var(--mono)' %>
+      <div class="form-hint">Size or pack variant of this product</div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :description, "Description *" %>
+    <%= f.text_area :description,
+          placeholder: 'Full product description (colour, finish, grade, etc.)',
+          rows: 3 %>
+    <% if product.errors[:description].any? %>
+      <div class="form-error"><%= product.errors[:description].first %></div>
+    <% end %>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Codes & Identifiers</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :material_code, "Material Code" %>
+      <%= f.text_field :material_code,
+            placeholder: 'Manufacturer\'s code',
+            style: 'font-family:var(--mono);letter-spacing:0.04em' %>
+      <div class="form-hint">Unique code from manufacturer (optional)</div>
+      <% if product.errors[:material_code].any? %>
+        <div class="form-error"><%= product.errors[:material_code].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :product_code, "Product Code" %>
+      <%= f.text_field :product_code,
+            placeholder: 'Your internal code',
+            style: 'font-family:var(--mono);letter-spacing:0.04em' %>
+      <div class="form-hint">Your own internal reference code (optional)</div>
+      <% if product.errors[:product_code].any? %>
+        <div class="form-error"><%= product.errors[:product_code].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Tax Details</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :hsn_code, "HSN Code" %>
+      <%= f.text_field :hsn_code,
+            placeholder: 'e.g. 3208, 3209',
+            style: 'font-family:var(--mono);letter-spacing:0.08em',
+            maxlength: 8 %>
+      <div class="form-hint">
+        Harmonised System of Nomenclature code for GST
+        <a href="https://www.cbic.gov.in" target="_blank"
+           style="color:var(--accent);margin-left:4px;font-size:11px">lookup ↗</a>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :gst_rate, "GST Rate *" %>
+      <%= f.select :gst_rate,
+            [['0% — Exempt', 0.0],
+             ['5% — Essential goods', 5.0],
+             ['12% — Standard goods', 12.0],
+             ['18% — Standard goods', 18.0],
+             ['28% — Luxury goods', 28.0]],
+            { selected: product.gst_rate || 18.0 } %>
+      <% if product.errors[:gst_rate].any? %>
+        <div class="form-error"><%= product.errors[:gst_rate].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Status</div>
+  <div class="form-group" style="max-width:240px">
+    <%= f.label :active, "Status" %>
+    <%= f.select :active, [['Active', true], ['Inactive', false]] %>
+    <div class="form-hint">Inactive products won't appear on invoices</div>
+  </div>
+</div>

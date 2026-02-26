@@ -1,0 +1,83 @@
+<%# app/views/setup/uoms/_form.html.erb %>
+<% if uom.errors.any? %>
+  <div class="flash alert" style="margin:20px 24px 0">
+    <strong><%= uom.errors.count %> error(s):</strong>
+    <ul style="margin-top:6px;padding-left:16px">
+      <% uom.errors.full_messages.each do |msg| %>
+        <li style="margin-top:2px"><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<div class="form-section">
+  <div class="form-section-title">UOM Details</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :name, "Name *" %>
+      <%= f.text_field :name, placeholder: 'e.g. Litre, Kilogram, Piece' %>
+      <div class="form-hint">Full name of the unit</div>
+      <% if uom.errors[:name].any? %>
+        <div class="form-error"><%= uom.errors[:name].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :short_name, "Short Name *" %>
+      <%= f.text_field :short_name,
+            placeholder: 'e.g. Ltr, Kg, Pcs',
+            style: 'font-family:var(--mono);letter-spacing:0.04em' %>
+      <div class="form-hint">Abbreviation shown on invoices</div>
+      <% if uom.errors[:short_name].any? %>
+        <div class="form-error"><%= uom.errors[:short_name].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Status</div>
+  <div class="form-group" style="max-width:240px">
+    <%= f.label :active, "Status" %>
+    <%= f.select :active, [['Active', true], ['Inactive', false]] %>
+    <div class="form-hint">Inactive UOMs won't appear in product forms</div>
+  </div>
+</div>
+
+<!-- Common UOM Reference -->
+<div class="form-section">
+  <div class="form-section-title">Common UOMs Reference</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+    <% [
+      ['Piece',     'Pcs'],
+      ['Litre',     'Ltr'],
+      ['Millilitre','Ml'],
+      ['Kilogram',  'Kg'],
+      ['Gram',      'Gm'],
+      ['Metre',     'Mtr'],
+      ['Box',       'Box'],
+      ['Pack',      'Pk'],
+      ['Dozen',     'Doz'],
+      ['Set',       'Set'],
+    ].each do |name, short| %>
+      <div onclick="fillUom('<%= name %>', '<%= short %>')"
+           style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                  padding:8px 12px;cursor:pointer;transition:border-color 0.15s"
+           onmouseover="this.style.borderColor='var(--accent)'"
+           onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:13px;font-weight:500"><%= name %></div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= short %></div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  function fillUom(name, short) {
+    const nameField  = document.querySelector('input[name="uom[name]"]');
+    const shortField = document.querySelector('input[name="uom[short_name]"]');
+    if (nameField && !nameField.value)  nameField.value  = name;
+    if (shortField && !shortField.value) shortField.value = short;
+  }
+</script>

@@ -1,0 +1,26 @@
+<%# ─── new.html.erb ─── %>
+<% content_for :title, "New UOM" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Units of Measure', setup_uoms_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">New Unit of Measure</div>
+    <div class="page-subtitle">Add a new unit that products can be measured in</div>
+  </div>
+</div>
+
+<%= form_with model: [:setup, @uom], local: true do |f| %>
+  <div class="form-card">
+    <%= render 'form', uom: @uom, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Create UOM', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', setup_uoms_path, class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>

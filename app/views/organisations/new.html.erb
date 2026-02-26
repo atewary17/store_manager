@@ -1,0 +1,23 @@
+<% content_for :title, "New Organisation" %>
+<% content_for :breadcrumb do %>
+  <%= link_to 'Organisations', organisations_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New Organisation</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">New Organisation</div>
+    <div class="page-subtitle">Register a new tenant on the platform</div>
+  </div>
+</div>
+
+<%= form_with model: @organisation, local: true do |f| %>
+  <div class="form-card">
+    <%= render 'form', organisation: @organisation, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Create Organisation', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', organisations_path, class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>
