@@ -1,1 +1,2 @@
-// Configure your import map in config/importmap.rb. Read more: https://github.com/rails/importmap-rails
+// Entry point for jsbundling-rails
+// All app JS is currently inline in the layout — nothing to bundle here.

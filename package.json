@@ -1,0 +1,10 @@
+{
+  "name": "store_manager",
+  "private": true,
+  "scripts": {
+    "build": "esbuild app/javascript/application.js --bundle --sourcemap --outdir=app/assets/builds --public-path=/assets"
+  },
+  "dependencies": {
+    "esbuild": "^0.27.3"
+  }
+}
