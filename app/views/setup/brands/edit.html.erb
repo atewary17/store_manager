@@ -1,0 +1,18 @@
+<%# app/views/setup/brands/edit.html.erb %>
+<% content_for :title, "Edit Brand" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Brands', setup_brands_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @brand.name %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Edit Brand</div>
+    <div class="page-subtitle"><%= @brand.name %></div>
+  </div>
+</div>
+
+<%= render 'form', brand: @brand %>

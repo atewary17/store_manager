@@ -1,0 +1,153 @@
+<%# app/views/setup/shade_catalogues/index.html.erb %>
+<% content_for :title, "Shade Catalogue" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Shade Catalogue</span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+
+<%= render 'setup/shared/nav_tabs' %>
+
+<div class="actions" style="margin-bottom:24px">
+  <%= link_to 'Export Excel', export_setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+  <%= link_to '+ New Shade', new_setup_shade_catalogue_path, class: 'btn btn-primary' %>
+</div>
+
+<%# ── Stats row ── %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Shades</div>
+    <div class="stat-value accent"><%= @active_count + @inactive_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active</div>
+    <div class="stat-value" style="color:var(--success)"><%= @active_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Inactive</div>
+    <div class="stat-value" style="color:var(--text-dim)"><%= @inactive_count %></div>
+  </div>
+</div>
+
+<%# ── Filters ── %>
+<div class="filter-bar" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <div class="search-input-wrap">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" class="search-input"
+           placeholder="Search shade code, name, brand…" id="shadeSearch">
+  </div>
+
+  <%= form_with url: setup_shade_catalogues_path, method: :get, local: true,
+        style: 'display:flex;gap:8px;align-items:center' do |f| %>
+    <%= f.select :category_id,
+          options_from_collection_for_select(@paint_categories, :id, :name, params[:category_id]),
+          { include_blank: 'All Categories' },
+          { class: 'form-control', style: 'width:180px' } %>
+
+    <%= f.select :brand_id,
+          options_from_collection_for_select(@brands, :id, :name, params[:brand_id]),
+          { include_blank: 'All Brands' },
+          { class: 'form-control', style: 'width:160px' } %>
+
+    <%= f.select :status,
+          [['Active', 'active'], ['Inactive', 'inactive']],
+          { selected: params[:status] || 'active' },
+          { class: 'form-control', style: 'width:120px' } %>
+
+    <%= f.submit 'Filter', class: 'btn btn-secondary' %>
+    <% if params[:category_id].present? || params[:brand_id].present? || params[:status] == 'inactive' %>
+      <%= link_to 'Clear', setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+    <% end %>
+  <% end %>
+</div>
+
+<%# ── Table ── %>
+<div class="table-wrap">
+  <% if @shades.any? %>
+    <table id="shadeTable">
+      <thead>
+        <tr>
+          <th>Shade Code</th>
+          <th>Shade Name</th>
+          <th>Brand</th>
+          <th>Colour Family</th>
+          <th>Category</th>
+          <th>Notes</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @shades.each do |shade| %>
+          <tr>
+            <td>
+              <span style="font-family:var(--mono);font-size:13px;font-weight:600;
+                           color:var(--accent);letter-spacing:0.05em">
+                <%= shade.shade_code %>
+              </span>
+            </td>
+            <td style="font-weight:500"><%= shade.shade_name %></td>
+            <td style="color:var(--text-dim);font-size:13px"><%= shade.brand&.name || '—' %></td>
+            <td>
+              <% if shade.colour_family.present? %>
+                <span class="badge" style="background:var(--accent-dim);color:var(--accent);
+                                           font-size:11px;padding:2px 8px;border-radius:12px">
+                  <%= shade.colour_family %>
+                </span>
+              <% else %>
+                <span style="color:var(--text-dim)">—</span>
+              <% end %>
+            </td>
+            <td style="font-size:13px;color:var(--text-dim)">
+              <%= shade.product_category&.name %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim);max-width:180px;
+                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              <%= shade.notes.presence || '—' %>
+            </td>
+            <td>
+              <% if shade.active? %>
+                <span class="badge badge-active">Active</span>
+              <% else %>
+                <span class="badge badge-inactive">Inactive</span>
+              <% end %>
+            </td>
+            <td>
+              <div class="actions">
+                <%= link_to 'Edit', edit_setup_shade_catalogue_path(shade), class: 'btn btn-secondary btn-sm' %>
+                <%= button_to 'Delete', setup_shade_catalogue_path(shade), method: :delete,
+                      class: 'btn btn-danger btn-sm',
+                      form: { style: 'margin:0;display:inline' },
+                      data: { turbo_confirm: "Delete shade #{shade.shade_code}? This cannot be undone." } %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>
+        No shades found.
+        <% if params[:category_id].present? || params[:brand_id].present? %>
+          Try clearing your filters, or
+        <% end %>
+        <%= link_to 'add the first shade', new_setup_shade_catalogue_path %>.
+      </p>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  document.getElementById('shadeSearch').addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#shadeTable tbody tr').forEach(function(row) {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+</script>
+

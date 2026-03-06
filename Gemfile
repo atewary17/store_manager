@@ -20,6 +20,7 @@ gem 'matrix'
 gem 'prawn'
 gem 'prawn-table'
 gem 'pundit'
+gem 'cancancan'
 gem 'good_job'
 gem 'roo'           # Excel parsing
 gem 'caxlsx'        # Excel generation (error reports)

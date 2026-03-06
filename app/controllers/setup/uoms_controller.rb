@@ -3,9 +3,10 @@ class Setup::UomsController < Setup::BaseController
   before_action :set_uom, only: [:show, :edit, :update, :destroy]
 
   def index
-    @uoms = Uom.ordered
-    @active_count   = @uoms.count(&:active?)
-    @inactive_count = @uoms.count { |u| !u.active? }
+    @uoms = Uom.ordered.limit(20)
+    @total_count    = Uom.count
+    @active_count   = Uom.where(active: true).count
+    @inactive_count = Uom.where(active: false).count
   end
 
   def show; end

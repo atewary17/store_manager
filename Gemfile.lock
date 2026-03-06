@@ -90,6 +90,7 @@ GEM
     bootsnap (1.23.0)
       msgpack (~> 1.2)
     builder (3.3.0)
+    cancancan (3.6.1)
     caxlsx (4.4.1)
       htmlentities (~> 4.3, >= 4.3.4)
       marcel (~> 1.0)
@@ -342,6 +343,7 @@ PLATFORMS
 
 DEPENDENCIES
   bootsnap
+  cancancan
   caxlsx
   caxlsx_rails
   debug

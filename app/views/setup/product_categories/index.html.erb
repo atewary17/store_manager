@@ -8,19 +8,26 @@
 
 <%= render 'setup/shared/master_styles' %>
 
-<div class="page-header">
-  <div>
-    <div class="page-title">Master Data</div>
-  </div>
-  <%= link_to new_setup_product_category_path, class: 'btn btn-primary' do %>
-    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-    New Category
-  <% end %>
+<%= render 'setup/shared/nav_tabs' %>
+
+<div class="actions" style="margin-bottom:24px">
+  <%= link_to '+ New Category', new_setup_product_category_path, class: 'btn btn-primary' %>
 </div>
 
-<%= render 'setup/shared/nav_tabs' %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Categories</div>
+    <div class="stat-value accent"><%= @total_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active</div>
+    <div class="stat-value" style="color:var(--success)"><%= @active_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Inactive</div>
+    <div class="stat-value" style="color:var(--text-dim)"><%= @inactive_count %></div>
+  </div>
+</div>
 
 <div class="filter-bar">
   <div class="search-input-wrap">
@@ -29,8 +36,7 @@
     </svg>
     <input type="text" class="search-input" placeholder="Search categories..." id="catSearch">
   </div>
-  <select id="catStatusFilter" style="background:var(--surface);border:1px solid var(--border);
-          border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;outline:none">
+  <select id="catStatusFilter" class="form-control" style="width:140px">
     <option value="">All Statuses</option>
     <option value="active">Active</option>
     <option value="inactive">Inactive</option>
@@ -90,10 +96,6 @@
     </table>
   <% else %>
     <div class="empty-state">
-      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1"
-           viewBox="0 0 24 24" style="color:var(--muted);margin:0 auto 12px;display:block">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-      </svg>
       <p>No product categories yet.</p>
       <div style="margin-top:16px">
         <%= link_to 'Add first category', new_setup_product_category_path, class: 'btn btn-primary' %>

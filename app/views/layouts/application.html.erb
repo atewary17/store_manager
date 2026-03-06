@@ -66,7 +66,8 @@
     }
     html[data-theme="light"] .form-group input,
     html[data-theme="light"] .form-group select,
-    html[data-theme="light"] .form-group textarea {
+    html[data-theme="light"] .form-group textarea,
+    html[data-theme="light"] .form-control {
       background: #f8f9fd;
     }
     html[data-theme="light"] .search-input {
@@ -320,7 +321,7 @@
       align-items: center;
       gap: 6px;
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 14px;
       color: var(--text-dim);
     }
     .breadcrumb a { color: var(--text-dim); text-decoration: none; }
@@ -470,7 +471,21 @@
     .stat-value.success { color: var(--success); }
 
     /* ─── SEARCH / FILTER BAR ─── */
-    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
+    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .form-control {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    .form-control:focus { border-color: var(--accent); }
+    .form-control option { background: var(--surface); }
     .search-input-wrap { position: relative; flex: 1; max-width: 320px; }
     .search-input-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
     .search-input {

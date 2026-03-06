@@ -138,7 +138,7 @@ class ProductImportJob < ApplicationJob
     attrs = {
       product_category: category,
       base_uom:         uom,
-      brand:            row['brand'].to_s.strip,
+      brand:            Brand.where('LOWER(name) = LOWER(?)', row['brand'].to_s.strip).first,
       pack_code:        row['pack_code'].to_s.strip.presence,
       description:      row['description'].to_s.strip,
       material_code:    row['material_code'].to_s.strip.presence,

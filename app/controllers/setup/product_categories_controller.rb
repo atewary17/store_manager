@@ -3,9 +3,10 @@ class Setup::ProductCategoriesController < Setup::BaseController
   before_action :set_category, only: [:show, :edit, :update, :destroy]
 
   def index
-    @categories     = ProductCategory.includes(:products).ordered
-    @active_count   = @categories.count(&:active?)
-    @inactive_count = @categories.count { |c| !c.active? }
+    @categories     = ProductCategory.includes(:products).ordered.limit(20)
+    @total_count    = ProductCategory.count
+    @active_count   = ProductCategory.where(active: true).count
+    @inactive_count = ProductCategory.where(active: false).count
   end
 
   def show
@@ -54,6 +55,9 @@ class Setup::ProductCategoriesController < Setup::BaseController
   end
 
   def category_params
-    params.require(:product_category).permit(:name, :description, :active, :import_key, :import_key_label)
+    allowed = %i[name description active is_paint_type]
+    allowed << :import_key       if ProductCategory.column_names.include?('import_key')
+    allowed << :import_key_label if ProductCategory.column_names.include?('import_key_label')
+    params.require(:product_category).permit(*allowed)
   end
 end

@@ -30,6 +30,26 @@
 </div>
 
 <div class="form-section">
+  <div class="form-section-title">Category Type</div>
+  <div class="form-group" style="max-width:420px">
+    <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer">
+      <% is_paint = category.respond_to?(:is_paint_type) && category.is_paint_type? %>
+      <%= f.check_box :is_paint_type,
+            style: "margin-top:3px;width:16px;height:16px;accent-color:var(--accent)",
+            checked: is_paint %>
+      <span>
+        <span style="font-weight:600;display:block;margin-bottom:2px">Paint-type category</span>
+        <span style="color:var(--text-dim);font-size:13px">
+          Enable the shade catalogue workflow for this category. When enabled,
+          sales invoices will allow selecting a shade code + base product instead
+          of a direct product. Use for: Paints, Tinting products.
+        </span>
+      </span>
+    </label>
+  </div>
+</div>
+
+<div class="form-section">
   <div class="form-section-title">Import Settings</div>
   <div class="form-group" style="max-width:320px">
     <%= f.label :import_key, "Unique Import Key" %>

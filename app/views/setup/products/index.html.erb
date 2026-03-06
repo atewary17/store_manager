@@ -8,30 +8,12 @@
 
 <%= render 'setup/shared/master_styles' %>
 
-<div class="page-header">
-  <div>
-    <div class="page-title">Master Data</div>
-    <div class="page-subtitle">Platform-wide shared reference data used across all organisations</div>
-  </div>
-  <div class="actions">
-    <%= link_to export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' do %>
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      Export Excel
-    <% end %>
-    <%= link_to new_setup_product_path, class: 'btn btn-primary' do %>
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      New Product
-    <% end %>
-  </div>
-</div>
-
 <%= render 'setup/shared/nav_tabs' %>
+
+<div class="actions" style="margin-bottom:24px">
+  <%= link_to 'Export Excel', export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' %>
+  <%= link_to '+ New Product', new_setup_product_path, class: 'btn btn-primary' %>
+</div>
 
 <div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
   <div class="stat-card">
@@ -65,13 +47,18 @@
           { include_blank: 'All Categories' },
           style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
                   padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
+    <%= f.select :brand_id,
+          options_from_collection_for_select(@brands, :id, :name, params[:brand_id]),
+          { include_blank: 'All Brands' },
+          style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
+                  padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
     <%= f.select :status,
           [['All Statuses', ''], ['Active', 'active'], ['Inactive', 'inactive']],
           { selected: params[:status] },
           style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
                   padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
     <%= f.submit 'Filter', class: 'btn btn-secondary btn-sm' %>
-    <% if params[:category_id].present? || params[:status].present? %>
+    <% if params[:category_id].present? || params[:brand_id].present? || params[:status].present? %>
       <%= link_to 'Clear', setup_products_path, class: 'btn btn-secondary btn-sm' %>
     <% end %>
   <% end %>
@@ -102,7 +89,7 @@
             <%= product.id %>
           </td>
           <td style="max-width:220px">
-            <div style="font-weight:500"><%= product.brand %></div>
+            <div style="font-weight:500"><%= product.brand&.name %></div>
             <div style="font-size:12px;color:var(--text-dim);margin-top:2px;line-height:1.4">
               <%= link_to product.description.truncate(60), setup_product_path(product),
                     style: 'color:inherit;text-decoration:none' %>
