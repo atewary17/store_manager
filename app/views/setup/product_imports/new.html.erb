@@ -1,0 +1,59 @@
+<%# app/views/setup/product_imports/new.html.erb %>
+<%= render 'setup/shared/master_styles' %>
+<% content_for :title, "New Import" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Imports', setup_product_imports_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New Import</span>
+<% end %>
+
+<div class="page-header">
+  <div class="page-title">Import Products</div>
+  <%= link_to '← Back', setup_product_imports_path, class: 'btn btn-secondary' %>
+</div>
+
+<div class="detail-card" style="max-width:600px">
+
+  <div style="margin-bottom:20px;padding:14px;background:var(--accent-dim);border-radius:8px;border:1px solid var(--border)">
+    <div style="font-size:13px;color:var(--text);margin-bottom:8px;font-weight:500">Before uploading</div>
+    <ul style="font-size:12px;color:var(--text-dim);padding-left:16px;line-height:1.8">
+      <li>Download the <%= link_to 'import template', template_setup_product_imports_path %> first</li>
+      <li>Column <code>category</code> must match an existing category name exactly</li>
+      <li>Column <code>uom</code> must match a UOM short name or name exactly</li>
+      <li>Existing records are matched by each category's configured import key</li>
+      <li>Leave <code>active</code> as <code>true</code> or <code>false</code></li>
+    </ul>
+  </div>
+
+  <%= form_with url: setup_product_imports_path, multipart: true do |f| %>
+    <div class="form-group">
+      <label>Excel File (.xlsx)</label>
+      <input type="file" name="file" accept=".xlsx" required
+             style="display:block;width:100%;padding:10px;background:var(--bg);
+                    border:1px solid var(--border);border-radius:6px;color:var(--text);
+                    font-family:var(--mono);font-size:13px;cursor:pointer">
+      <div class="form-hint">Maximum recommended: 5,000 rows per file</div>
+    </div>
+
+    <% if @categories.any? %>
+    <div style="margin-top:12px;padding:12px;background:var(--bg);border-radius:6px;border:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;font-family:var(--mono)">Category Import Keys</div>
+      <% @categories.each do |cat| %>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;font-family:var(--mono)">
+          <span style="color:var(--text)"><%= cat.name %></span>
+          →
+          <span style="color:var(--accent)">
+            <%= ProductCategory::IMPORT_KEY_OPTIONS[cat.read_attribute(:import_key)] || 'Material Code' %>
+          </span>
+        </div>
+      <% end %>
+    </div>
+    <% end %>
+
+    <div style="margin-top:20px">
+      <%= f.submit 'Upload & Process', class: 'btn btn-primary' %>
+    </div>
+  <% end %>
+</div>

@@ -142,10 +142,7 @@
       transition: width 0.22s cubic-bezier(0.4,0,0.2,1);
       overflow: hidden;
     }
-
-    /* ── Collapsed state ── */
     .sidebar.collapsed { width: 56px; }
-
     .sidebar.collapsed .logo-mark,
     .sidebar.collapsed .logo-name,
     .sidebar.collapsed .nav-section-label,
@@ -153,61 +150,26 @@
     .sidebar.collapsed .nav-soon,
     .sidebar.collapsed .user-info,
     .sidebar.collapsed .sign-out-link { display: none !important; }
-
     .sidebar.collapsed .sidebar-logo { padding: 14px 0; justify-content: center; }
     .sidebar.collapsed .nav-link { justify-content: center; padding: 10px 0; gap: 0; }
-    .sidebar.collapsed .nav-link svg { opacity: 0.85; }
     .sidebar.collapsed .sidebar-nav { padding: 12px 4px; }
     .sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; background: transparent; }
     .sidebar.collapsed .sidebar-footer { padding: 12px 4px; }
     .sidebar.collapsed .collapse-btn { justify-content: center; padding: 10px 0; }
-    .sidebar.collapsed .collapse-btn .collapse-label { display: none; }
+    .sidebar.collapsed .collapse-label { display: none; }
     .sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
-
-    /* Tooltips on icon-only collapsed sidebar */
     .sidebar.collapsed .nav-link { position: relative; }
     .sidebar.collapsed .nav-link::after {
       content: attr(data-tooltip);
       position: absolute;
-      left: 62px;
-      top: 50%; transform: translateY(-50%);
-      background: var(--text);
-      color: var(--bg);
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 5px 10px;
-      border-radius: 5px;
-      white-space: nowrap;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.12s;
-      z-index: 300;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      left: 62px; top: 50%; transform: translateY(-50%);
+      background: var(--text); color: var(--bg);
+      font-family: var(--mono); font-size: 11px;
+      padding: 5px 10px; border-radius: 5px;
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity 0.12s; z-index: 300;
     }
     .sidebar.collapsed .nav-link:hover::after { opacity: 1; }
-
-    /* Collapse button */
-    .collapse-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      padding: 10px 14px;
-      background: none;
-      border: none;
-      border-top: 1px solid var(--border);
-      color: var(--text-dim);
-      cursor: pointer;
-      font-family: var(--mono);
-      font-size: 11px;
-      letter-spacing: 0.05em;
-      transition: color 0.15s, background 0.15s;
-      overflow: hidden;
-      white-space: nowrap;
-    }
-    .collapse-btn:hover { color: var(--accent); background: var(--accent-dim); }
-    .collapse-btn svg { flex-shrink: 0; transition: transform 0.22s; }
-
     .sidebar-logo {
       padding: 22px 18px 18px;
       border-bottom: 1px solid var(--border);
@@ -230,9 +192,8 @@
       font-weight: 600;
       color: var(--text);
       letter-spacing: -0.02em;
-      white-space: nowrap;
     }
-    .sidebar-nav { padding: 16px 12px; flex: 1; overflow: hidden; }
+    .sidebar-nav { padding: 16px 12px; flex: 1; }
     .nav-section-label {
       font-family: var(--mono);
       font-size: 10px;
@@ -304,7 +265,9 @@
       color: var(--text-dim);
       text-transform: uppercase;
     }
-    .sign-out-link {
+    .sign-out-link,
+    .sign-out-link button,
+    input.sign-out-link {
       font-size: 11px;
       color: var(--text-dim);
       text-decoration: none;
@@ -314,8 +277,24 @@
       margin-top: 8px;
       padding: 4px;
       transition: color 0.15s;
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 100%;
     }
     .sign-out-link:hover { color: var(--danger); }
+    .collapse-btn {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; padding: 10px 14px;
+      background: none; border: none; border-top: 1px solid var(--border);
+      color: var(--text-dim); cursor: pointer;
+      font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em;
+      transition: color 0.15s, background 0.15s;
+      overflow: hidden; white-space: nowrap;
+    }
+    .collapse-btn:hover { color: var(--accent); background: var(--accent-dim); }
+    .collapse-btn svg { flex-shrink: 0; transition: transform 0.22s; }
+
 
     /* ─── MAIN CONTENT ─── */
     .main {
@@ -534,10 +513,10 @@
         <span class="nav-link-text">Dashboard</span>
       <% end %>
 
-      <!-- Setup -->
-      <div class="nav-section-label" style="margin-top:14px">Setup</div>
-
+      <!-- Setup — super_admin only -->
       <% if current_user&.super_admin? %>
+        <div class="nav-section-label" style="margin-top:14px">Setup</div>
+
         <%= link_to organisations_path, class: "nav-link #{controller_name == 'organisations' ? 'active' : ''}", data: {tooltip: "Organisations"} do %>
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -545,21 +524,7 @@
           </svg>
           <span class="nav-link-text">Organisations</span>
         <% end %>
-      <% end %>
 
-      <% if current_user&.organisation %>
-        <%= link_to organisation_users_path(current_user.organisation),
-              class: "nav-link #{controller_name == 'users' ? 'active' : ''}", data: {tooltip: "Users"} do %>
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-          <span class="nav-link-text">Users</span>
-        <% end %>
-      <% end %>
-
-      <% if current_user&.super_admin? || current_user&.owner? || current_user&.admin? %>
         <%= link_to setup_uoms_path,
               class: "nav-link #{ %w[uoms product_categories products].include?(controller_name) ? 'active' : '' }", data: {tooltip: "Master Data"} do %>
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -634,16 +599,16 @@
           <div class="user-role"><%= current_user.role.humanize %></div>
         </div>
       </div>
-      <%= link_to 'sign out', destroy_user_session_path, method: :delete, class: 'sign-out-link' %>
+      <%= button_to 'Sign Out', destroy_user_session_path, method: :delete, class: 'sign-out-link', form: { style: 'margin:0' } %>
     </div>
     <% end %>
 
     <!-- Collapse toggle -->
     <button class="collapse-btn" onclick="toggleSidebar()" id="collapseBtn" title="Toggle sidebar">
-      <svg id="collapseIcon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <polyline points="15 18 9 12 15 6"/>
       </svg>
-      <span class="collapse-label">Collapse</span>
+      <span class="nav-link-text" style="font-size:11px;letter-spacing:0.04em">Collapse</span>
     </button>
   </aside>
 
@@ -674,11 +639,14 @@
       <%= yield %>
     </div>
   </main>
+</body>
 
 <script>
-  // ── Theme persistence via localStorage ──
-  const THEME_KEY   = 'storeerp_theme';
-  const SIDEBAR_KEY = 'storeerp_sidebar';
+  // ─────────────────────────────────────────
+  //  KEYS
+  // ─────────────────────────────────────────
+  var THEME_KEY   = 'storeerp_theme';
+  var SIDEBAR_KEY = 'storeerp_sidebar'; // fresh key, no stale data
 
   // ── Sidebar collapse ──
   function applySidebar(collapsed) {
@@ -726,5 +694,4 @@
     applyTheme(saved);
   })();
 </script>
-</body>
 </html>
