@@ -25,10 +25,13 @@ node_modules
 /storage
 /vendor
 test/reports
-test/fixtures
 /public/packs
 /public/assets
 /public/packs-test
+
+# Test/CI artifacts
+tmp/test-results
+tmp/screenshots
 
 # Ignore master key for decrypting credentials and more
 /config/master.key

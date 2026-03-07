@@ -1,0 +1,18 @@
+# test/fixtures/shade_catalogues.yml
+red_oxide:
+  product_category: interior
+  brand: asian_paints
+  shade_code: RED001
+  shade_name: Red Oxide
+  colour_family: Red
+  notes: Classic red shade
+  active: true
+
+sky_blue:
+  product_category: interior
+  brand: berger
+  shade_code: BLU001
+  shade_name: Sky Blue
+  colour_family: Blue
+  notes: Light blue shade
+  active: false

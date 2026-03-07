@@ -1,0 +1,7 @@
+# test/fixtures/organisations.yml
+acme:
+  name: Acme Paints
+  gst_number: 27AABCU1234F1ZP
+  address: 123 Main St, Mumbai
+  subscription_plan: pro
+  status: 0

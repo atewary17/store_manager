@@ -1,0 +1,12 @@
+# test/fixtures/brands.yml
+asian_paints:
+  name: Asian Paints
+  short_name: AP
+  description: Leading paint manufacturer
+  active: true
+
+berger:
+  name: Berger Paints
+  short_name: BP
+  description: Quality paints
+  active: false

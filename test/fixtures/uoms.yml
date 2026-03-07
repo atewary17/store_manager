@@ -1,0 +1,10 @@
+# test/fixtures/uoms.yml
+litre:
+  name: Litre
+  short_name: LTR
+  active: true
+
+kilogram:
+  name: Kilogram
+  short_name: KG
+  active: false

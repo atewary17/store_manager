@@ -43,6 +43,7 @@ end
 group :test do
   gem 'selenium-webdriver'
   gem 'capybara'
+  gem 'rspec_junit_formatter'
 end
 
 gem "importmap-rails", "~> 2.2"

@@ -1,0 +1,18 @@
+# test/fixtures/users.yml
+super_admin:
+  organisation: acme
+  email: admin@example.com
+  encrypted_password: <%= Devise::Encryptor.digest(User, 'password123') %>
+  role: 3
+  status: 0
+  first_name: Super
+  last_name: Admin
+
+staff_user:
+  organisation: acme
+  email: staff@example.com
+  encrypted_password: <%= Devise::Encryptor.digest(User, 'password123') %>
+  role: 0
+  status: 0
+  first_name: Staff
+  last_name: User

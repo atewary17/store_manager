@@ -1,0 +1,26 @@
+# test/fixtures/products.yml
+royale_lustre:
+  product_category: interior
+  base_uom: litre
+  brand: asian_paints
+  material_code: MAT001
+  product_code: PRD001
+  pack_code: PK10L
+  description: Royale Lustre 10L
+  hsn_code: "32091000"
+  gst_rate: 18.0
+  mrp: 4500.00
+  active: true
+
+weather_coat:
+  product_category: interior
+  base_uom: litre
+  brand: berger
+  material_code: MAT002
+  product_code: PRD002
+  pack_code: PK20L
+  description: Weather Coat 20L
+  hsn_code: "32091000"
+  gst_rate: 18.0
+  mrp: 6000.00
+  active: false
