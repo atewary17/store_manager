@@ -1,5 +1,14 @@
 # app/models/uom.rb
 class Uom < ApplicationRecord
+
+  def self.cached_count
+    Rails.cache.fetch('uom/count', expires_in: 10.minutes) { count }
+  end
+
+  def self.cached_active_count
+    Rails.cache.fetch('uom/active_count', expires_in: 10.minutes) { where(active: true).count }
+  end
+
   has_many :products, foreign_key: :base_uom_id, dependent: :restrict_with_error
 
   scope :active,   -> { where(active: true) }
@@ -25,4 +34,5 @@ class Uom < ApplicationRecord
     self.name       = name.strip       if name.present?
     self.short_name = short_name.strip if short_name.present?
   end
+
 end

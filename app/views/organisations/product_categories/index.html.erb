@@ -1,0 +1,88 @@
+<%# app/views/organisations/product_categories/index.html.erb %>
+<% content_for :title, "Product Categories" %>
+<% content_for :breadcrumb do %>
+  <%= link_to @organisation.name, organisation_path(@organisation) %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Product Categories</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Product Categories</div>
+    <div class="page-subtitle"><%= @organisation.name %></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+  <!-- Assigned -->
+  <div>
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;
+                text-transform:uppercase;color:var(--text-dim);margin-bottom:12px">
+      Assigned (<%= @assigned.count %>)
+    </div>
+    <div class="table-wrap">
+      <% if @assigned.any? %>
+        <table>
+          <tbody>
+            <% @assigned.each do |cat| %>
+            <tr>
+              <td><%= cat.name %></td>
+              <td style="width:60px;text-align:right">
+                <%= button_to 'Remove',
+                      organisation_product_category_path(@organisation, cat),
+                      method: :delete,
+                      class: 'btn btn-danger btn-sm',
+                      form: { style: 'margin:0' },
+                      data: { confirm: "Remove #{cat.name}?" } %>
+              </td>
+            </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <div class="empty-state" style="padding:24px">
+          <p>No categories assigned yet.</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Available to add -->
+  <div>
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;
+                text-transform:uppercase;color:var(--text-dim);margin-bottom:12px">
+      Available (<%= @unassigned.count %>)
+    </div>
+    <div class="table-wrap">
+      <% if @unassigned.any? %>
+        <table>
+          <tbody>
+            <% @unassigned.each do |cat| %>
+            <tr>
+              <td><%= cat.name %></td>
+              <td style="width:60px;text-align:right">
+                <%= button_to 'Add',
+                      organisation_product_categories_path(@organisation,
+                        product_category_id: cat.id),
+                      method: :post,
+                      class: 'btn btn-primary btn-sm',
+                      form: { style: 'margin:0' } %>
+              </td>
+            </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <div class="empty-state" style="padding:24px">
+          <p>All categories assigned.</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px">
+  <%= link_to '← Back', organisation_path(@organisation), class: 'btn btn-secondary' %>
+</div>

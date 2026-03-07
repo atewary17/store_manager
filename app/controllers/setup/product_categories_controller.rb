@@ -54,6 +54,6 @@ class Setup::ProductCategoriesController < Setup::BaseController
   end
 
   def category_params
-    params.require(:product_category).permit(:name, :description, :active)
+    params.require(:product_category).permit(:name, :description, :active, :import_key, :import_key_label)
   end
 end

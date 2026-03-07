@@ -1,4 +1,14 @@
+# app/models/product.rb
 class Product < ApplicationRecord
+
+  def self.cached_count
+    Rails.cache.fetch('product/count', expires_in: 10.minutes) { count }
+  end
+
+  def self.cached_active_count
+    Rails.cache.fetch('product/active_count', expires_in: 10.minutes) { where(active: true).count }
+  end
+
   belongs_to :product_category
   belongs_to :base_uom, class_name: 'Uom', foreign_key: :base_uom_id
 
@@ -8,14 +18,15 @@ class Product < ApplicationRecord
 
   GST_RATES = [0.0, 5.0, 12.0, 18.0, 28.0].freeze
 
-  validates :brand,        presence: true
-  validates :description,  presence: true
-  validates :gst_rate,     inclusion: { in: GST_RATES,
-                             message: "must be one of: #{GST_RATES.join(', ')}%" }
+  validates :brand,            presence: true
+  validates :description,      presence: true
+  validates :gst_rate,         inclusion: { in: GST_RATES,
+                                 message: "must be one of: #{GST_RATES.join(', ')}%" }
   validates :product_category, presence: true
   validates :base_uom,         presence: true
-  validates :material_code, uniqueness: true, allow_blank: true
-  validates :product_code,  uniqueness: true, allow_blank: true
+  validates :material_code,    uniqueness: true, allow_blank: true
+  validates :product_code,     uniqueness: true, allow_blank: true
+  validates :mrp,              numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   before_save :strip_whitespace
   before_save :nullify_blank_codes
@@ -41,4 +52,5 @@ class Product < ApplicationRecord
     self.material_code = nil if material_code.blank?
     self.product_code  = nil if product_code.blank?
   end
+
 end

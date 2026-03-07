@@ -20,6 +20,12 @@ gem 'matrix'
 gem 'prawn'
 gem 'prawn-table'
 gem 'pundit'
+gem 'good_job'
+gem 'roo'           # Excel parsing
+gem 'caxlsx'        # Excel generation (error reports)
+gem 'caxlsx_rails'  # Rails integration
+gem 'redis', '~> 5.0'          # later use
+gem 'hiredis-client'           # faster Redis driver
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]

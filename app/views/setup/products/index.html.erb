@@ -11,17 +11,42 @@
 <div class="page-header">
   <div>
     <div class="page-title">Master Data</div>
-    <div class="page-subtitle"></div>
+    <div class="page-subtitle">Platform-wide shared reference data used across all organisations</div>
   </div>
-  <%= link_to new_setup_product_path, class: 'btn btn-primary' do %>
-    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-    New Product
-  <% end %>
+  <div class="actions">
+    <%= link_to export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Export Excel
+    <% end %>
+    <%= link_to new_setup_product_path, class: 'btn btn-primary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New Product
+    <% end %>
+  </div>
 </div>
 
 <%= render 'setup/shared/nav_tabs' %>
+
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Products</div>
+    <div class="stat-value accent"><%= @active_count + @inactive_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active</div>
+    <div class="stat-value success"><%= @active_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Inactive</div>
+    <div class="stat-value" style="color:var(--danger)"><%= @inactive_count %></div>
+  </div>
+</div>
 
 <!-- Filters -->
 <div class="filter-bar" style="flex-wrap:wrap">
@@ -128,6 +153,10 @@
             <div class="actions">
               <%= link_to 'View', setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
               <%= link_to 'Edit', edit_setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
+              <%= button_to 'Delete', setup_product_path(product), method: :delete,
+                    class: 'btn btn-danger btn-sm',
+                    form: { style: 'margin:0;display:inline' },
+                    data: { turbo_confirm: 'Delete this product? This cannot be undone.' } %>
             </div>
           </td>
         </tr>

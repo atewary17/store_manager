@@ -23,6 +23,56 @@ class Setup::ProductsController < Setup::BaseController
 
   def show; end
 
+  def export
+    @products = Product.includes(:product_category, :base_uom).ordered
+
+    package = Axlsx::Package.new
+    wb      = package.workbook
+    styles  = wb.styles
+
+    hdr  = styles.add_style(bg_color: '1F3864', fg_color: 'FFFFFF', b: true, sz: 11,
+             alignment: { horizontal: :center, vertical: :center })
+    even = styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10)
+    odd  = styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10)
+    num  = styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10,
+             alignment: { horizontal: :right })
+
+    wb.add_worksheet(name: 'Products') do |sheet|
+      sheet.add_row(
+        ['Category', 'UOM', 'Brand', 'Pack Code', 'Description',
+         'Material Code', 'Product Code', 'HSN Code', 'GST Rate', 'MRP', 'Active'],
+        style: hdr, height: 24
+      )
+
+      @products.each_with_index do |p, i|
+        row_style = i.even? ? even : odd
+        sheet.add_row([
+          p.product_category&.name,
+          p.base_uom&.short_name,
+          p.brand,
+          p.pack_code,
+          p.description,
+          p.material_code,
+          p.product_code,
+          p.hsn_code,
+          p.gst_rate,
+          p.mrp,
+          p.active
+        ], style: [row_style, row_style, row_style, row_style, row_style,
+                   row_style, row_style, row_style, num, num, row_style],
+           height: 18)
+      end
+
+      sheet.column_widths 22, 10, 18, 12, 34, 18, 18, 12, 10, 12, 8
+    end
+
+    filename = "products_export_#{Date.today.strftime('%Y%m%d')}.xlsx"
+    send_data package.to_stream.read,
+      filename:    filename,
+      type:        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment'
+  end
+
   def new
     @product    = Product.new(active: true, gst_rate: 18.0)
     @categories = ProductCategory.active.ordered
@@ -70,7 +120,8 @@ class Setup::ProductsController < Setup::BaseController
     params.require(:product).permit(
       :product_category_id, :base_uom_id,
       :brand, :material_code, :product_code, :pack_code,
-      :description, :hsn_code, :gst_rate, :active
+      :description, :hsn_code, :gst_rate, :active,
+      :mrp, :metadata
     )
   end
 end

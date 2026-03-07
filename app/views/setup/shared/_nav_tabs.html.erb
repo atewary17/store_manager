@@ -1,12 +1,13 @@
 <%# app/views/setup/shared/_nav_tabs.html.erb %>
 <div class="setup-tabs">
+
   <%= link_to setup_uoms_path,
         class: "setup-tab #{controller_name == 'uoms' ? 'active' : ''}" do %>
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
       <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>
     </svg>
     Units of Measure
-    <span class="setup-tab-count"><%= Uom.count %></span>
+    <span class="setup-tab-count"><%= Uom.cached_count %></span>
   <% end %>
 
   <%= link_to setup_product_categories_path,
@@ -15,7 +16,7 @@
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
     </svg>
     Product Categories
-    <span class="setup-tab-count"><%= ProductCategory.count %></span>
+    <span class="setup-tab-count"><%= ProductCategory.cached_count %></span>
   <% end %>
 
   <%= link_to setup_products_path,
@@ -26,6 +27,18 @@
       <line x1="12" y1="22.08" x2="12" y2="12"/>
     </svg>
     Products
-    <span class="setup-tab-count"><%= Product.count %></span>
+    <span class="setup-tab-count"><%= Product.cached_count %></span>
   <% end %>
+
+  <%= link_to setup_product_imports_path,
+        class: "setup-tab #{controller_name == 'product_imports' ? 'active' : ''}" do %>
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    Imports
+    <span class="setup-tab-count"><%= ProductImport.count %></span>
+  <% end %>
+
 </div>
