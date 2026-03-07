@@ -1,0 +1,125 @@
+<%# app/views/setup/shade_catalogues/_form.html.erb %>
+<%= render 'setup/shared/master_styles' %>
+
+<div class="form-card">
+
+  <% if shade.errors.any? %>
+    <div class="alert alert-danger" style="margin-bottom:24px">
+      <strong><%= shade.errors.count %> error(s):</strong>
+      <ul style="margin:8px 0 0 16px">
+        <% shade.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form_with model: [:setup, shade], local: true do |f| %>
+
+    <%# ── Category & Brand ── %>
+    <div class="form-section">
+      <div class="form-section-title">Category & Brand</div>
+      <div class="form-row">
+
+        <div class="form-group">
+          <%= f.label :product_category_id, "Paint Category *" %>
+          <% if paint_categories.empty? %>
+            <div class="alert alert-danger" style="margin-top:4px">
+              No paint-type categories found. Please
+              <%= link_to 'create a paint category', setup_product_categories_path %> first
+              and enable the "Paint-type category" flag on it.
+            </div>
+          <% else %>
+            <%= f.select :product_category_id,
+                  options_from_collection_for_select(paint_categories, :id, :name, shade.product_category_id),
+                  { include_blank: '— Select category —' },
+                  { class: shade.errors[:product_category].any? ? 'form-control input-error' : 'form-control' } %>
+            <div class="form-hint">Only paint-type categories are shown</div>
+          <% end %>
+          <% if shade.errors[:product_category].any? %>
+            <div class="form-error"><%= shade.errors[:product_category].first %></div>
+          <% end %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :brand_id, "Brand / Manufacturer" %>
+          <%= f.select :brand_id,
+                options_from_collection_for_select(brands, :id, :name, shade.brand_id),
+                { include_blank: '— Select brand —' },
+                { class: 'form-control' } %>
+          <div class="form-hint">
+            Brand not listed?
+            <%= link_to 'Add it here', new_setup_brand_path, target: '_blank' %> then refresh.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <%# ── Shade Identity ── %>
+    <div class="form-section">
+      <div class="form-section-title">Shade Details</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :shade_code, "Shade Code *" %>
+          <%= f.text_field :shade_code,
+                placeholder: 'e.g. 7711, OW-120',
+                style: 'font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase',
+                class: shade.errors[:shade_code].any? ? 'form-control input-error' : 'form-control' %>
+          <div class="form-hint">Manufacturer's code — will be uppercased automatically</div>
+          <% if shade.errors[:shade_code].any? %>
+            <div class="form-error"><%= shade.errors[:shade_code].first %></div>
+          <% end %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :shade_name, "Shade Name *" %>
+          <%= f.text_field :shade_name,
+                placeholder: 'e.g. Pastel Blue, Ivory White',
+                class: shade.errors[:shade_name].any? ? 'form-control input-error' : 'form-control' %>
+          <% if shade.errors[:shade_name].any? %>
+            <div class="form-error"><%= shade.errors[:shade_name].first %></div>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :colour_family, "Colour Family" %>
+          <%= f.text_field :colour_family,
+                placeholder: 'e.g. Blues, Whites, Pastels, Neutrals',
+                class: 'form-control' %>
+          <div class="form-hint">Used for grouping and filtering</div>
+        </div>
+
+        <div class="form-group" style="flex:0.5">
+          <%= f.label :active, "Status" %>
+          <div class="toggle-wrap" style="margin-top:6px">
+            <%= f.check_box :active, class: 'toggle-input', id: 'shade_active' %>
+            <%= f.label :active, class: 'toggle-label' do %>
+              <span class="toggle-on">Active</span>
+              <span class="toggle-off">Inactive</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :notes, "Notes" %>
+          <%= f.text_area :notes,
+                placeholder: 'e.g. Interior use only. Not available in Deep Base.',
+                rows: 2,
+                class: 'form-control' %>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit shade.new_record? ? 'Add Shade' : 'Update Shade', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+    </div>
+
+  <% end %>
+</div>

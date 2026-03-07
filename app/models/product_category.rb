@@ -9,16 +9,22 @@ class ProductCategory < ApplicationRecord
     Rails.cache.fetch('product_category/active_count', expires_in: 10.minutes) { where(active: true).count }
   end
 
-  has_many :products, dependent: :restrict_with_error
+  # ── Associations ─────────────────────────────────────────────
+  has_many :products,                        dependent: :restrict_with_error
+  has_many :shade_catalogues,                dependent: :restrict_with_error
   has_many :organisation_product_categories, dependent: :destroy
-  has_many :organisations, through: :organisation_product_categories
+  has_many :organisations,                   through: :organisation_product_categories
 
-  scope :active,   -> { where(active: true) }
-  scope :inactive, -> { where(active: false) }
-  scope :ordered,  -> { order(:name) }
+  # ── Scopes ───────────────────────────────────────────────────
+  scope :active,      -> { where(active: true) }
+  scope :inactive,    -> { where(active: false) }
+  scope :ordered,     -> { order(:name) }
+  scope :paint_types, -> { where(is_paint_type: true) }
 
+  # ── Validations ───────────────────────────────────────────────
   validates :name, presence: true, uniqueness: { case_sensitive: false }
 
+  # ── Constants ─────────────────────────────────────────────────
   IMPORT_KEY_OPTIONS = {
     'material_code' => 'Material Code',
     'product_code'  => 'Product Code',
@@ -26,9 +32,11 @@ class ProductCategory < ApplicationRecord
     'hsn_code'      => 'HSN Code'
   }.freeze
 
+  # ── Callbacks ─────────────────────────────────────────────────
   before_save :strip_whitespace
   before_save :sync_import_key_label, if: :import_key_column_exists?
 
+  # ── Display helpers ───────────────────────────────────────────
   def import_key_display
     return 'Material Code' unless import_key_column_exists?
     key = self[:import_key].presence || 'material_code'
@@ -36,7 +44,7 @@ class ProductCategory < ApplicationRecord
   end
 
   def can_delete?
-    products.none?
+    products.none? && shade_catalogues.none?
   end
 
   private

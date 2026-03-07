@@ -1,0 +1,89 @@
+<%# app/views/setup/brands/index.html.erb %>
+<% content_for :title, "Brands" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Brands</span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+
+<%= render 'setup/shared/nav_tabs' %>
+
+<div class="actions" style="margin-bottom:24px">
+  <%= link_to '+ New Brand', new_setup_brand_path, class: 'btn btn-primary' %>
+</div>
+
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Brands</div>
+    <div class="stat-value accent"><%= @total_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active</div>
+    <div class="stat-value" style="color:var(--success)"><%= @active_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Inactive</div>
+    <div class="stat-value" style="color:var(--text-dim)"><%= @inactive_count %></div>
+  </div>
+</div>
+
+<div style="margin-bottom:16px;display:flex;gap:10px;align-items:center">
+  <%= link_to 'Active', setup_brands_path, class: "btn btn-sm #{params[:status] != 'inactive' ? 'btn-primary' : 'btn-secondary'}" %>
+  <%= link_to 'Inactive', setup_brands_path(status: 'inactive'), class: "btn btn-sm #{params[:status] == 'inactive' ? 'btn-primary' : 'btn-secondary'}" %>
+</div>
+
+<div class="table-wrap">
+  <% if @brands.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Brand Name</th>
+          <th>Short Name</th>
+          <th>Description</th>
+          <th>Products</th>
+          <th>Shades</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @brands.each do |brand| %>
+          <tr>
+            <td style="font-weight:600"><%= brand.name %></td>
+            <td style="font-family:var(--mono);font-size:13px;color:var(--accent)">
+              <%= brand.short_name.presence || '—' %>
+            </td>
+            <td style="color:var(--text-dim);font-size:13px;max-width:200px;
+                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              <%= brand.description.presence || '—' %>
+            </td>
+            <td style="font-family:var(--mono)"><%= brand.products.count %></td>
+            <td style="font-family:var(--mono)"><%= brand.shade_catalogues.count %></td>
+            <td>
+              <% if brand.active? %>
+                <span class="badge badge-active">Active</span>
+              <% else %>
+                <span class="badge badge-inactive">Inactive</span>
+              <% end %>
+            </td>
+            <td>
+              <div class="actions">
+                <%= link_to 'Edit', edit_setup_brand_path(brand), class: 'btn btn-secondary btn-sm' %>
+                <%= button_to 'Delete', setup_brand_path(brand), method: :delete,
+                      class: 'btn btn-danger btn-sm',
+                      form: { style: 'margin:0;display:inline' },
+                      data: { turbo_confirm: "Delete #{brand.name}? This cannot be undone." } %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>No brands yet. <%= link_to 'Add the first brand', new_setup_brand_path %>.</p>
+    </div>
+  <% end %>
+</div>

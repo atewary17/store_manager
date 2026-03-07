@@ -1,0 +1,61 @@
+<%# app/views/setup/shade_catalogues/import_new.html.erb %>
+<%= render 'setup/shared/master_styles' %>
+<% content_for :title, "New Shade Import" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Shade Catalogue', setup_shade_catalogues_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Imports', import_setup_shade_catalogues_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New Import</span>
+<% end %>
+
+<div class="page-header">
+  <div class="page-title">Import Shades</div>
+  <%= link_to '← Back', import_setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+</div>
+
+<div class="detail-card" style="max-width:600px">
+
+  <div style="margin-bottom:20px;padding:14px;background:var(--accent-dim);border-radius:8px;border:1px solid var(--border)">
+    <div style="font-size:13px;color:var(--text);margin-bottom:8px;font-weight:500">Before uploading</div>
+    <ul style="font-size:12px;color:var(--text-dim);padding-left:16px;line-height:1.8">
+      <li>Download the <%= link_to 'import template', template_setup_shade_catalogues_path %> first</li>
+      <li>Column <code>shade_code</code> is required and must be unique per category</li>
+      <li>Column <code>shade_name</code> is required</li>
+      <li>Column <code>manufacturer</code> should match an existing Brand name (optional)</li>
+      <li>Existing shades are matched by <code>shade_code</code> (case-insensitive) and updated</li>
+      <li>All shades in the file will belong to the category you select below</li>
+    </ul>
+  </div>
+
+  <%= form_with url: import_create_setup_shade_catalogues_path, multipart: true do |f| %>
+    <div class="form-group">
+      <label>Paint Category *</label>
+      <select name="product_category_id" required
+              style="display:block;width:100%;padding:10px;background:var(--bg);
+                     border:1px solid var(--border);border-radius:6px;color:var(--text);
+                     font-family:var(--mono);font-size:13px">
+        <option value="">— Select a paint category —</option>
+        <% @paint_categories.each do |cat| %>
+          <option value="<%= cat.id %>"><%= cat.name %></option>
+        <% end %>
+      </select>
+      <div class="form-hint">All shades in this file will be assigned to this category</div>
+    </div>
+
+    <div class="form-group">
+      <label>Excel File (.xlsx)</label>
+      <input type="file" name="file" accept=".xlsx" required
+             style="display:block;width:100%;padding:10px;background:var(--bg);
+                    border:1px solid var(--border);border-radius:6px;color:var(--text);
+                    font-family:var(--mono);font-size:13px;cursor:pointer">
+      <div class="form-hint">Maximum recommended: 5,000 rows per file</div>
+    </div>
+
+    <div style="margin-top:20px">
+      <%= f.submit 'Upload & Process', class: 'btn btn-primary' %>
+    </div>
+  <% end %>
+</div>

@@ -1,6 +1,10 @@
 class ApplicationController < ActionController::Base
   layout :set_layout
 
+  rescue_from CanCan::AccessDenied do |exception|
+    redirect_to dashboard_path, alert: 'Access denied. You do not have permission to access this page.'
+  end
+
   private
 
   def set_layout

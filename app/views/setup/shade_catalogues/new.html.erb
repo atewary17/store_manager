@@ -1,0 +1,18 @@
+<%# app/views/setup/shade_catalogues/new.html.erb %>
+<% content_for :title, "New Shade" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Shade Catalogue', setup_shade_catalogues_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New Shade</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">New Shade</div>
+    <div class="page-subtitle">Add a shade to the catalogue</div>
+  </div>
+</div>
+
+<%= render 'form', shade: @shade, paint_categories: @paint_categories, brands: @brands %>

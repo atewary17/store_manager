@@ -17,8 +17,7 @@
     <div class="form-group">
       <%= f.label :product_category_id, "Category *" %>
       <%= f.select :product_category_id,
-            options_from_collection_for_select(@categories, :id, :name,
-              product.product_category_id),
+            options_from_collection_for_select(@categories, :id, :name, product.product_category_id),
             { include_blank: '— Select category —' } %>
       <% if product.errors[:product_category].any? %>
         <div class="form-error"><%= product.errors[:product_category].first %></div>
@@ -28,8 +27,7 @@
     <div class="form-group">
       <%= f.label :base_uom_id, "Base Unit of Measure *" %>
       <%= f.select :base_uom_id,
-            options_from_collection_for_select(@uoms, :id, :display,
-              product.base_uom_id),
+            options_from_collection_for_select(@uoms, :id, :display, product.base_uom_id),
             { include_blank: '— Select UOM —' } %>
       <div class="form-hint">Default unit this product is sold/purchased in</div>
       <% if product.errors[:base_uom].any? %>
@@ -44,8 +42,23 @@
 
   <div class="form-row">
     <div class="form-group">
-      <%= f.label :brand, "Brand *" %>
-      <%= f.text_field :brand, placeholder: 'e.g. Asian Paints, Finolex' %>
+      <%= f.label :brand_id, "Brand *" %>
+      <% if @brands.empty? %>
+        <div class="alert" style="color:var(--warning);background:var(--warning-dim);
+                                  border-radius:6px;padding:8px 12px;font-size:13px;margin-top:4px">
+          No brands set up yet.
+          <%= link_to 'Add a brand first', new_setup_brand_path, target: '_blank' %>
+          then refresh this page.
+        </div>
+      <% else %>
+        <%= f.select :brand_id,
+              options_from_collection_for_select(@brands, :id, :name, product.brand_id),
+              { include_blank: '— Select brand —' },
+              { class: product.errors[:brand].any? ? 'form-control input-error' : 'form-control' } %>
+        <div class="form-hint">
+          Not listed? <%= link_to 'Add brand', new_setup_brand_path, target: '_blank' %> then refresh.
+        </div>
+      <% end %>
       <% if product.errors[:brand].any? %>
         <div class="form-error"><%= product.errors[:brand].first %></div>
       <% end %>
@@ -55,7 +68,8 @@
       <%= f.label :pack_code, "Pack Code" %>
       <%= f.text_field :pack_code,
             placeholder: 'e.g. 1L, 4L, 20L, 50Kg',
-            style: 'font-family:var(--mono)' %>
+            style: 'font-family:var(--mono)',
+            class: 'form-control' %>
       <div class="form-hint">Size or pack variant of this product</div>
     </div>
   </div>
@@ -64,7 +78,8 @@
     <%= f.label :description, "Description *" %>
     <%= f.text_area :description,
           placeholder: 'Full product description (colour, finish, grade, etc.)',
-          rows: 3 %>
+          rows: 3,
+          class: product.errors[:description].any? ? 'form-control input-error' : 'form-control' %>
     <% if product.errors[:description].any? %>
       <div class="form-error"><%= product.errors[:description].first %></div>
     <% end %>
@@ -78,8 +93,9 @@
     <div class="form-group">
       <%= f.label :material_code, "Material Code" %>
       <%= f.text_field :material_code,
-            placeholder: 'Manufacturer\'s code',
-            style: 'font-family:var(--mono);letter-spacing:0.04em' %>
+            placeholder: "Manufacturer's code",
+            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            class: product.errors[:material_code].any? ? 'form-control input-error' : 'form-control' %>
       <div class="form-hint">Unique code from manufacturer (optional)</div>
       <% if product.errors[:material_code].any? %>
         <div class="form-error"><%= product.errors[:material_code].first %></div>
@@ -90,7 +106,8 @@
       <%= f.label :product_code, "Product Code" %>
       <%= f.text_field :product_code,
             placeholder: 'Your internal code',
-            style: 'font-family:var(--mono);letter-spacing:0.04em' %>
+            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            class: product.errors[:product_code].any? ? 'form-control input-error' : 'form-control' %>
       <div class="form-hint">Your own internal reference code (optional)</div>
       <% if product.errors[:product_code].any? %>
         <div class="form-error"><%= product.errors[:product_code].first %></div>
@@ -100,7 +117,7 @@
 </div>
 
 <div class="form-section">
-  <div class="form-section-title">Tax Details</div>
+  <div class="form-section-title">Tax & Pricing</div>
 
   <div class="form-row">
     <div class="form-group">
@@ -108,9 +125,10 @@
       <%= f.text_field :hsn_code,
             placeholder: 'e.g. 3208, 3209',
             style: 'font-family:var(--mono);letter-spacing:0.08em',
-            maxlength: 8 %>
+            maxlength: 8,
+            class: 'form-control' %>
       <div class="form-hint">
-        Harmonised System of Nomenclature code for GST
+        HSN code for GST classification
         <a href="https://www.cbic.gov.in" target="_blank"
            style="color:var(--accent);margin-left:4px;font-size:11px">lookup ↗</a>
       </div>
@@ -124,24 +142,28 @@
              ['12% — Standard goods', 12.0],
              ['18% — Standard goods', 18.0],
              ['28% — Luxury goods', 28.0]],
-            { selected: product.gst_rate || 18.0 } %>
+            { selected: product.gst_rate || 18.0 },
+            { class: 'form-control' } %>
       <% if product.errors[:gst_rate].any? %>
         <div class="form-error"><%= product.errors[:gst_rate].first %></div>
       <% end %>
     </div>
 
-    <div class="form-group">
-      <%= f.label :mrp, "MRP (Max Retail Price)" %>
-      <%= f.number_field :mrp,
-            placeholder: '0.00',
-            step: '0.01',
-            min: '0',
-            style: 'font-family:var(--mono)' %>
-      <div class="form-hint">Optional — maximum retail price in ₹</div>
-      <% if product.errors[:mrp].any? %>
-        <div class="form-error"><%= product.errors[:mrp].first %></div>
-      <% end %>
-    </div>
+    <% if Product.column_names.include?('mrp') %>
+      <div class="form-group">
+        <%= f.label :mrp, "MRP (₹)" %>
+        <%= f.number_field :mrp,
+              placeholder: '0.00',
+              step: '0.01',
+              min: '0',
+              style: 'font-family:var(--mono)',
+              class: 'form-control' %>
+        <div class="form-hint">Max retail price — optional</div>
+        <% if product.errors[:mrp].any? %>
+          <div class="form-error"><%= product.errors[:mrp].first %></div>
+        <% end %>
+      </div>
+    <% end %>
   </div>
 </div>
 
@@ -149,7 +171,9 @@
   <div class="form-section-title">Status</div>
   <div class="form-group" style="max-width:240px">
     <%= f.label :active, "Status" %>
-    <%= f.select :active, [['Active', true], ['Inactive', false]] %>
+    <%= f.select :active, [['Active', true], ['Inactive', false]],
+          { selected: product.active },
+          { class: 'form-control' } %>
     <div class="form-hint">Inactive products won't appear on invoices</div>
   </div>
 </div>

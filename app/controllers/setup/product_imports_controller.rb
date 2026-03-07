@@ -4,7 +4,8 @@ require 'base64'
 
 class Setup::ProductImportsController < Setup::BaseController
   def index
-    @imports = ProductImport.recent.limit(50)
+    @product_imports = ProductImport.recent.limit(5)
+    @shade_imports   = ShadeCatalogueImport.includes(:product_category).recent.limit(5)
   end
 
   def new

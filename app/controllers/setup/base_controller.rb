@@ -5,10 +5,7 @@ class Setup::BaseController < ApplicationController
 
   private
 
-  # Only super_admin, owner, admin can access setup/master data
   def authorize_setup_access!
-    unless current_user.super_admin? || current_user.owner? || current_user.admin?
-      redirect_to dashboard_path, alert: 'Access denied. Setup requires admin or above.'
-    end
+    authorize! :manage, :setup
   end
 end
