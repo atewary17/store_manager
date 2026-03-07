@@ -31,6 +31,9 @@ gem 'hiredis-client'           # faster Redis driver
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]
   gem 'letter_opener'
+  gem 'minitest', '~> 5.0'
+  gem 'rspec-rails', '~> 6.0'
+  gem 'factory_bot_rails'
 end
 
 group :development do
@@ -38,6 +41,9 @@ group :development do
 end
 
 group :test do
+  gem 'selenium-webdriver'
+  gem 'capybara'
+  gem 'rspec_junit_formatter'
 end
 
 gem "importmap-rails", "~> 2.2"

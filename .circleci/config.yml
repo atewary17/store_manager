@@ -1,0 +1,120 @@
+# .circleci/config.yml
+version: 2.1
+
+orbs:
+  ruby: circleci/ruby@2.1
+  browser-tools: circleci/browser-tools@1.4
+
+executors:
+  rails-executor:
+    docker:
+      # Primary container — Ruby
+      - image: cimg/ruby:3.3.5-browsers
+        environment:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:password@localhost:5432/store_manager_test
+          BUNDLE_JOBS: 4
+          BUNDLE_RETRY: 3
+
+      # Service container — PostgreSQL
+      - image: cimg/postgres:16.2
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: store_manager_test
+
+jobs:
+  # ── Lint & Security ──────────────────────────────────────
+  lint:
+    executor: rails-executor
+    steps:
+      - checkout
+      - ruby/install-deps
+      - run:
+          name: Run Bundler Audit
+          command: |
+            gem install bundler-audit
+            bundle audit check --update
+
+  # ── Minitest (Models + Controllers) ──────────────────────
+  minitest:
+    executor: rails-executor
+    parallelism: 2
+    steps:
+      - checkout
+      - ruby/install-deps
+
+      - run:
+          name: Wait for DB
+          command: dockerize -wait tcp://localhost:5432 -timeout 1m
+
+      - run:
+          name: Setup database
+          command: |
+            bin/rails db:schema:load --trace
+
+      - run:
+          name: Run Minitest
+          command: |
+            TESTFILES=$(circleci tests glob "test/**/*_test.rb" | circleci tests split --split-by=timings)
+            bin/rails test $TESTFILES
+
+      - store_test_results:
+          path: test/reports
+
+  # ── RSpec Feature Specs (Selenium + Chrome) ──────────────
+  rspec:
+    executor: rails-executor
+    parallelism: 2
+    steps:
+      - checkout
+      - ruby/install-deps
+
+      - run:
+          name: Wait for DB
+          command: dockerize -wait tcp://localhost:5432 -timeout 1m
+
+      - run:
+          name: Setup database
+          command: |
+            bin/rails db:schema:load --trace
+
+      - run:
+          name: Run RSpec feature specs
+          command: |
+            TESTFILES=$(circleci tests glob "spec/**/*_spec.rb" | circleci tests split --split-by=timings)
+            bundle exec rspec $TESTFILES \
+              --format progress \
+              --format RspecJunitFormatter \
+              --out tmp/test-results/rspec/results.xml
+
+      - store_test_results:
+          path: tmp/test-results
+
+      - store_artifacts:
+          path: tmp/screenshots
+          destination: screenshots
+
+  # ── Asset Precompile Check ───────────────────────────────
+  assets:
+    executor: rails-executor
+    steps:
+      - checkout
+      - ruby/install-deps
+      - run:
+          name: Precompile assets
+          command: bin/rails assets:precompile
+
+workflows:
+  test-and-lint:
+    jobs:
+      - lint
+      - minitest:
+          requires:
+            - lint
+      - rspec:
+          requires:
+            - lint
+      - assets:
+          requires:
+            - lint

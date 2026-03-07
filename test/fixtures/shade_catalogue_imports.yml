@@ -1,0 +1,13 @@
+# test/fixtures/shade_catalogue_imports.yml
+recent_shade_import:
+  organisation: acme
+  user: super_admin
+  product_category: interior
+  file_name: shades_jan.xlsx
+  file_size: 15360
+  status: done
+  total_rows: 30
+  success_count: 28
+  update_count: 2
+  error_count: 0
+  error_rows: []

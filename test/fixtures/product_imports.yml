@@ -1,0 +1,12 @@
+# test/fixtures/product_imports.yml
+recent_import:
+  organisation: acme
+  user: super_admin
+  file_name: products_jan.xlsx
+  file_size: 25600
+  status: done
+  total_rows: 50
+  success_count: 45
+  update_count: 3
+  error_count: 2
+  error_rows: []

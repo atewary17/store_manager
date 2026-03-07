@@ -1,0 +1,16 @@
+# test/fixtures/product_categories.yml
+interior:
+  name: Interior Emulsions
+  description: Interior wall paints
+  active: true
+  import_key: material_code
+  import_key_label: Material Code
+  is_paint_type: true
+
+hardware:
+  name: Hardware
+  description: Hardware items
+  active: true
+  import_key: material_code
+  import_key_label: Material Code
+  is_paint_type: false
