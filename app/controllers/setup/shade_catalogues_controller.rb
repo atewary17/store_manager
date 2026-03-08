@@ -239,7 +239,7 @@ class Setup::ShadeCataloguesController < Setup::BaseController
     @import = ShadeCatalogueImport.find(params[:id])
 
     unless @import.has_errors?
-      redirect_to shade_catalogue_import_show_setup_shade_catalogue_path(@import),
+      redirect_to import_show_setup_shade_catalogue_path(@import),
         alert: 'No errors to download.'
       return
     end

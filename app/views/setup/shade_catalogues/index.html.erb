@@ -10,8 +10,10 @@
 
 <%= render 'setup/shared/nav_tabs' %>
 
-<div class="actions" style="margin-bottom:24px">
+<div class="actions" style="margin-bottom:24px; display:flex; gap:12px; align-items:center">
   <%= link_to 'Export Excel', export_setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+  <div style="flex:1"></div>
+  <%= link_to 'Import Shades', import_new_setup_shade_catalogues_path, class: 'btn btn-outline-primary' %>
   <%= link_to '+ New Shade', new_setup_shade_catalogue_path, class: 'btn btn-primary' %>
 </div>
 

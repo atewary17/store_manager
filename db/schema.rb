@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_06_211700) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_08_112806) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -105,6 +105,46 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_06_211700) do
     t.index ["product_code"], name: "index_products_on_product_code", unique: true, where: "(product_code IS NOT NULL)"
   end
 
+  create_table "purchase_invoice_items", force: :cascade do |t|
+    t.bigint "purchase_invoice_id", null: false
+    t.bigint "product_id"
+    t.boolean "unmatched", default: false, null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.decimal "unit_rate", precision: 10, scale: 2, null: false
+    t.decimal "total_amount", precision: 12, scale: 2, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["metadata"], name: "index_purchase_invoice_items_on_metadata", using: :gin
+    t.index ["product_id"], name: "index_purchase_invoice_items_on_product_id"
+    t.index ["purchase_invoice_id"], name: "index_purchase_invoice_items_on_purchase_invoice_id"
+    t.index ["unmatched"], name: "index_purchase_invoice_items_on_unmatched"
+  end
+
+  create_table "purchase_invoices", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "supplier_id"
+    t.bigint "user_id", null: false
+    t.string "status", default: "draft", null: false
+    t.string "invoice_number"
+    t.date "invoice_date"
+    t.date "delivery_date"
+    t.decimal "total_taxable_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_tax_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_amount", precision: 12, scale: 2, default: "0.0"
+    t.datetime "confirmed_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["invoice_date"], name: "index_purchase_invoices_on_invoice_date"
+    t.index ["invoice_number"], name: "index_purchase_invoices_on_invoice_number"
+    t.index ["metadata"], name: "index_purchase_invoices_on_metadata", using: :gin
+    t.index ["organisation_id"], name: "index_purchase_invoices_on_organisation_id"
+    t.index ["status"], name: "index_purchase_invoices_on_status"
+    t.index ["supplier_id"], name: "index_purchase_invoices_on_supplier_id"
+    t.index ["user_id"], name: "index_purchase_invoices_on_user_id"
+  end
+
   create_table "shade_catalogue_imports", force: :cascade do |t|
     t.bigint "organisation_id", null: false
     t.bigint "user_id", null: false
@@ -148,6 +188,57 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_06_211700) do
     t.index ["shade_code"], name: "index_shade_catalogues_on_shade_code"
   end
 
+  create_table "stock_ledgers", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "product_id", null: false
+    t.bigint "user_id", null: false
+    t.string "entry_type", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.decimal "unit_cost", precision: 10, scale: 2
+    t.text "notes"
+    t.string "reference_type"
+    t.bigint "reference_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_stock_ledgers_on_created_at"
+    t.index ["entry_type"], name: "index_stock_ledgers_on_entry_type"
+    t.index ["organisation_id", "product_id"], name: "index_stock_ledgers_on_organisation_id_and_product_id"
+    t.index ["organisation_id"], name: "index_stock_ledgers_on_organisation_id"
+    t.index ["product_id"], name: "index_stock_ledgers_on_product_id"
+    t.index ["reference_type", "reference_id"], name: "index_stock_ledgers_on_reference_type_and_reference_id"
+    t.index ["user_id"], name: "index_stock_ledgers_on_user_id"
+  end
+
+  create_table "stock_levels", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "product_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "avg_cost", precision: 10, scale: 2, default: "0.0"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organisation_id", "product_id"], name: "index_stock_levels_on_organisation_id_and_product_id", unique: true
+    t.index ["organisation_id"], name: "index_stock_levels_on_organisation_id"
+    t.index ["product_id"], name: "index_stock_levels_on_product_id"
+  end
+
+  create_table "suppliers", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "gstin"
+    t.string "pan"
+    t.string "state"
+    t.string "state_code"
+    t.boolean "active", default: true, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "organisation_id", null: false
+    t.index ["active"], name: "index_suppliers_on_active"
+    t.index ["gstin"], name: "index_suppliers_on_gstin"
+    t.index ["metadata"], name: "index_suppliers_on_metadata", using: :gin
+    t.index ["organisation_id", "name"], name: "index_suppliers_on_organisation_id_and_name", unique: true
+    t.index ["organisation_id"], name: "index_suppliers_on_organisation_id"
+  end
+
   create_table "uoms", force: :cascade do |t|
     t.string "name", null: false
     t.string "short_name", null: false
@@ -185,9 +276,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_06_211700) do
   add_foreign_key "products", "brands"
   add_foreign_key "products", "product_categories"
   add_foreign_key "products", "uoms", column: "base_uom_id"
+  add_foreign_key "purchase_invoice_items", "products"
+  add_foreign_key "purchase_invoice_items", "purchase_invoices"
+  add_foreign_key "purchase_invoices", "organisations"
+  add_foreign_key "purchase_invoices", "suppliers"
+  add_foreign_key "purchase_invoices", "users"
   add_foreign_key "shade_catalogue_imports", "organisations"
   add_foreign_key "shade_catalogue_imports", "product_categories"
   add_foreign_key "shade_catalogue_imports", "users"
   add_foreign_key "shade_catalogues", "brands"
   add_foreign_key "shade_catalogues", "product_categories"
+  add_foreign_key "stock_ledgers", "organisations"
+  add_foreign_key "stock_ledgers", "products"
+  add_foreign_key "stock_ledgers", "users"
+  add_foreign_key "stock_levels", "organisations"
+  add_foreign_key "stock_levels", "products"
+  add_foreign_key "suppliers", "organisations"
 end

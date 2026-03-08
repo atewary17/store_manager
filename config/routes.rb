@@ -2,14 +2,14 @@
 Rails.application.routes.draw do
   devise_for :users
 
-  # Organisations & Users (tenant management)
+  # Organisations & Users
   resources :organisations, only: [:index, :show, :new, :create, :edit, :update] do
     resources :users, only: [:index, :show, :new, :create, :edit, :update]
     resources :product_categories, only: [:index, :create, :destroy],
       module: :organisations
   end
 
-  # Setup / Master Data (shared, platform-wide)
+  # Setup / Master Data
   namespace :setup do
     resources :uoms
     resources :brands
@@ -18,28 +18,33 @@ Rails.application.routes.draw do
       collection { get :export }
     end
     resources :shade_catalogues do
-      collection do
-        get :template
-        get :export
-        get  :import,        action: :import_index
-        get  :import_new,    action: :import_new
-        post :import_create, action: :import_create
-      end
-      member do
-        get 'import_show',           action: :import_show,           as: :shade_catalogue_import_show
-        get 'import_download_errors', action: :import_download_errors, as: :shade_catalogue_import_download_errors
-      end
+      collection { get :template; get :export; get :import, to: 'shade_catalogues#import_index'; get :import_new; post :import_create }
+      member     { get :import_show; get :import_download_errors }
     end
     resources :product_imports, only: [:index, :new, :create, :show] do
-      member do
-        get :download_errors
-      end
-      collection do
-        get :template
-      end
+      member     { get :download_errors }
+      collection { get :template }
     end
-
     root 'uoms#index'
+  end
+
+  # Inventory
+  namespace :inventory do
+    resources :stock_levels, only: [:index]
+    resource  :opening_stock, only: [:new, :create] do
+      get :ledger, on: :collection
+    end
+  end
+
+  # Purchasing
+  namespace :purchasing do
+    resources :suppliers do
+      collection { get :search }
+    end
+    resources :purchase_invoices do
+      member { post :confirm }
+      collection { get :product_search }
+    end
   end
 
   get  'dashboard', to: 'dashboard#index', as: :dashboard

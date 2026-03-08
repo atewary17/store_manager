@@ -1,0 +1,21 @@
+<%# app/views/purchasing/purchase_invoices/edit.html.erb %>
+<% content_for :title, "Edit Invoice" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Invoices', purchasing_purchase_invoices_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @invoice.display_number, purchasing_purchase_invoice_path(@invoice),
+        style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Edit</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Edit Invoice</div>
+    <div class="page-subtitle"><%= @invoice.display_number %></div>
+  </div>
+</div>
+
+<%= render 'form', invoice: @invoice %>

@@ -1,0 +1,154 @@
+<%# app/views/purchasing/purchase_invoices/_item_row.html.erb %>
+<% idx = f.index %>
+<%
+  qty        = item.quantity.to_f
+  payable    = item.total_amount.to_f
+  discount   = item.metadata['discount_percent'].to_f
+  cgst       = item.metadata['cgst_percent'].to_f
+  sgst       = item.metadata['sgst_percent'].to_f
+  gst_pct    = cgst + sgst
+  total_pre  = gst_pct > 0 ? (payable / (1 + gst_pct / 100.0)).round(2) : payable
+  gst_amt    = (payable - total_pre).round(2)
+  subtotal   = discount > 0 ? (total_pre / (1 - discount / 100.0)).round(2) : total_pre
+  unit_rate  = qty > 0 ? (subtotal / qty).round(4) : item.unit_rate.to_f
+  disc_amt   = discount > 0 ? (subtotal - total_pre).round(2) : 0
+%>
+<tr data-row="<%= idx %>"
+    style="border-bottom:1px solid var(--border)<%= '; display:none' if item.marked_for_destruction? %>">
+
+  <%= f.hidden_field :id %>
+  <%= f.hidden_field :_destroy, value: item.marked_for_destruction? ? '1' : '0', class: 'destroy-input' %>
+
+  <%# ── Product ── %>
+  <td style="padding:14px 16px;min-width:260px">
+    <div class="autocomplete-wrap" style="position:relative">
+      <%= f.hidden_field :product_id, class: 'product-id-input' %>
+      <input type="text"
+             class="product-search-input"
+             placeholder="Search by name, code…"
+             autocomplete="off"
+             value="<%= item.product ? [item.product.brand&.name, item.product.pack_code, item.product.description].compact_blank.join(' — ') : '' %>"
+             style="width:100%;background:var(--bg);border:1px solid var(--border);
+                    border-radius:5px;padding:9px 11px;color:var(--text);
+                    font-size:12.5px;outline:none<%= ';border-color:var(--warning)' if item.unmatched? %>">
+      <div class="product-meta-line"
+           style="font-family:var(--mono);font-size:12px;color:var(--text-dim);
+                  margin-top:2px;min-height:14px">
+        <% if item.product %>
+          <% parts = [] %>
+          <% parts << "M: #{item.product.material_code}" if item.product.material_code.present? %>
+          <% parts << "Pack: #{item.product.pack_code}"  if item.product.pack_code.present? %>
+          <%= parts.join('  ·  ') %>
+        <% end %>
+      </div>
+      <% if item.unmatched? %>
+        <div style="font-size:10px;color:var(--warning);margin-top:2px">
+          ⚠ Not matched — stock skipped
+        </div>
+      <% end %>
+      <div class="ac-dropdown"
+           style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+                  background:var(--surface);border:1px solid var(--border);
+                  border-radius:6px;box-shadow:var(--shadow-lg);max-height:260px;
+                  overflow-y:auto;margin-top:2px"></div>
+    </div>
+  </td>
+
+  <%# ── UOM ── %>
+  <td class="uom-cell"
+      style="padding:14px 12px;font-family:var(--mono);font-size:11px;
+             color:var(--text-dim);white-space:nowrap;text-align:center">
+    <%= item.product&.base_uom&.short_name || '—' %>
+  </td>
+
+  <%# ── Qty (editable) ── %>
+  <td style="padding:14px 12px">
+    <%= f.number_field :quantity,
+          class: 'qty-input',
+          placeholder: '0',
+          min: 0, step: '0.001',
+          style: 'width:80px;background:var(--bg);border:1px solid var(--border);
+                  border-radius:5px;padding:9px 10px;color:var(--text);
+                  font-family:var(--mono);font-size:12.5px;outline:none;text-align:right' %>
+  </td>
+
+  <%# ── Rate (calculated, read-only) ── %>
+  <td style="padding:14px 12px;text-align:right;font-family:var(--mono);
+             font-size:12.5px;color:var(--text-dim)">
+    <%= f.hidden_field :unit_rate, class: 'rate-input',
+          value: unit_rate > 0 ? unit_rate.round(4) : '' %>
+    <span class="rate-display" style="font-size:12.5px">
+      <%= unit_rate > 0 ? number_with_precision(unit_rate, precision: 2) : '—' %>
+    </span>
+  </td>
+
+  <%# ── Discount % (editable; row-1 value copies to new rows) ── %>
+  <td style="padding:14px 12px">
+    <input type="number"
+           class="discount-input"
+           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][discount_percent]"
+           value="<%= discount > 0 ? discount : '' %>"
+           placeholder="0"
+           min="0" max="100" step="any"
+           style="width:70px;background:var(--bg);border:1px solid var(--border);
+                  border-radius:5px;padding:9px 10px;color:var(--text);
+                  font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
+    <div class="disc-amt-label"
+         style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px;text-align:right">
+      <%= disc_amt > 0 ? "₹#{number_with_precision(disc_amt, precision: 2)}" : '' %>
+    </div>
+  </td>
+
+  <%# ── Total before GST (calculated, read-only) ── %>
+  <td style="padding:14px 12px;text-align:right;font-family:var(--mono);
+             font-size:12.5px;color:var(--text-dim)">
+    <span class="total-pre-display">
+      <%= total_pre > 0 ? number_with_precision(total_pre, precision: 2) : '—' %>
+    </span>
+  </td>
+
+  <%# ── GST Amount (calculated, read-only; CGST+SGST stored hidden) ── %>
+  <td style="padding:14px 12px;text-align:right">
+    <input type="hidden" class="cgst-input"
+           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][cgst_percent]"
+           value="<%= cgst > 0 ? cgst : '' %>">
+    <input type="hidden" class="sgst-input"
+           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][sgst_percent]"
+           value="<%= sgst > 0 ? sgst : '' %>">
+    <div class="gst-display" style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
+      <%= gst_amt > 0 ? number_with_precision(gst_amt, precision: 2) : '—' %>
+    </div>
+    <div class="gst-breakdown" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.4;text-align:right">
+      <% if gst_pct > 0 && gst_amt > 0 %>
+        C: <%= number_with_precision(gst_amt / 2.0, precision: 2) %> · S: <%= number_with_precision(gst_amt / 2.0, precision: 2) %>
+      <% end %>
+    </div>
+  </td>
+
+  <%# ── Payable Amount (editable — user enters this) ── %>
+  <td style="padding:14px 12px">
+    <%= f.hidden_field :total_amount, class: 'payable-hidden',
+          value: payable > 0 ? payable : '' %>
+    <input type="number"
+           class="payable-input"
+           placeholder="0.00"
+           value="<%= payable > 0 ? payable : '' %>"
+           min="0" step="0.01"
+           style="width:110px;background:var(--bg);border:1px solid var(--border);
+                  border-radius:5px;padding:9px 10px;color:var(--text);
+                  font-family:var(--mono);font-size:12.5px;outline:none;text-align:right;
+                  font-weight:600">
+  </td>
+
+  <%# ── Actions (+ and ×) ── %>
+  <td style="padding:14px 8px;text-align:center;white-space:nowrap">
+    <button type="button" onclick="addItemRow()"
+            style="background:none;border:none;color:var(--success, #22c55e);
+                   cursor:pointer;font-size:18px;line-height:1;padding:4px 2px"
+            title="Add row">+</button>
+    <button type="button" onclick="deleteRow(this)"
+            style="background:none;border:none;color:var(--danger);
+                   cursor:pointer;font-size:18px;line-height:1;padding:4px 2px"
+            title="Delete row">×</button>
+  </td>
+</tr>
