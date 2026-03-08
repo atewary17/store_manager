@@ -1,0 +1,92 @@
+<%# app/views/inventory/opening_stocks/ledger.html.erb %>
+<% content_for :title, "Ledger — #{@product.description}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Inventory</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Stock Levels', inventory_stock_levels_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Ledger</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title"><%= @product.description %></div>
+    <div class="page-subtitle" style="display:flex;gap:16px;align-items:center;margin-top:6px">
+      <% if @product.brand.present? %>
+        <span style="color:var(--text-dim)"><%= @product.brand.name %></span>
+      <% end %>
+      <span class="badge badge-plan" style="font-size:10px">
+        <%= @product.product_category&.name %>
+      </span>
+      <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+        <%= @product.base_uom&.short_name %>
+      </span>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to '← Back to Stock Levels', inventory_stock_levels_path, class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <% if @entries.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Date & Time</th>
+          <th>Type</th>
+          <th style="text-align:right">Quantity</th>
+          <th style="text-align:right">Unit Cost (₹)</th>
+          <th>Notes</th>
+          <th>Entered by</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @entries.each do |entry| %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= entry.created_at.strftime('%d %b %Y, %H:%M') %>
+            </td>
+            <td>
+              <span class="badge" style="
+                background:<%= {
+                  'opening'    => 'rgba(79,142,247,0.12)',
+                  'purchase'   => 'rgba(52,217,139,0.12)',
+                  'sale'       => 'rgba(247,97,79,0.12)',
+                  'adjustment' => 'rgba(247,195,79,0.12)',
+                  'return'     => 'rgba(160,100,240,0.12)'
+                }[entry.entry_type] %>;
+                color:<%= {
+                  'opening'    => 'var(--accent)',
+                  'purchase'   => 'var(--success)',
+                  'sale'       => 'var(--danger)',
+                  'adjustment' => 'var(--warning)',
+                  'return'     => '#a064f0'
+                }[entry.entry_type] %>">
+                <%= entry.entry_type.capitalize %>
+              </span>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600;
+                       color:<%= entry.in? ? 'var(--success)' : 'var(--danger)' %>">
+              <%= entry.quantity_display %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--text-dim)">
+              <%= entry.unit_cost.present? ?
+                    number_with_precision(entry.unit_cost, precision: 2) : '—' %>
+            </td>
+            <td style="color:var(--text-dim);font-size:13px">
+              <%= entry.notes.presence || '—' %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim)">
+              <%= entry.user&.full_name || '—' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>No ledger entries for this product yet.</p>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,18 @@
+<%# app/views/purchasing/purchase_invoices/new.html.erb %>
+<% content_for :title, "New Purchase Invoice" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Invoices', purchasing_purchase_invoices_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New Invoice</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">New Purchase Invoice</div>
+    <div class="page-subtitle">Save as draft first, then confirm to update stock levels.</div>
+  </div>
+</div>
+
+<%= render 'form', invoice: @invoice %>

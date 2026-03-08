@@ -1,0 +1,126 @@
+<%# app/views/purchasing/purchase_invoices/index.html.erb %>
+<% content_for :title, "Purchase Invoices" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Invoices</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Purchase Invoices</div>
+    <div class="page-subtitle"><%= @organisation.name %></div>
+  </div>
+  <div class="actions">
+    <%= link_to new_purchasing_purchase_invoice_path, class: 'btn btn-primary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New Invoice
+    <% end %>
+  </div>
+</div>
+
+<%# ── Stats ── %>
+<div class="stats-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Draft</div>
+    <div class="stat-value" style="color:var(--warning)"><%= @draft_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Confirmed</div>
+    <div class="stat-value" style="color:var(--success)"><%= @confirmed_count %></div>
+  </div>
+</div>
+
+<%# ── Status filter ── %>
+<div style="display:flex;gap:8px;margin-bottom:20px">
+  <%= link_to 'All', purchasing_purchase_invoices_path,
+        class: "btn btn-sm #{params[:status].blank? ? 'btn-primary' : 'btn-secondary'}" %>
+  <%= link_to 'Draft', purchasing_purchase_invoices_path(status: 'draft'),
+        class: "btn btn-sm #{params[:status] == 'draft' ? 'btn-primary' : 'btn-secondary'}" %>
+  <%= link_to 'Confirmed', purchasing_purchase_invoices_path(status: 'confirmed'),
+        class: "btn btn-sm #{params[:status] == 'confirmed' ? 'btn-primary' : 'btn-secondary'}" %>
+</div>
+
+<div class="table-wrap">
+  <% if @invoices.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Supplier</th>
+          <th>Invoice Date</th>
+          <th>Delivery Date</th>
+          <th style="text-align:right">Total (₹)</th>
+          <th>Items</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @invoices.each do |inv| %>
+          <tr>
+            <td>
+              <%= link_to purchasing_purchase_invoice_path(inv),
+                    style: 'font-family:var(--mono);font-weight:600;color:var(--accent)' do %>
+                <%= inv.display_number %>
+              <% end %>
+            </td>
+            <td style="color:var(--text-dim);font-size:13px">
+              <%= inv.supplier&.name || '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= inv.invoice_date&.strftime('%d %b %Y') || '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= inv.delivery_date&.strftime('%d %b %Y') || '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600">
+              <%= inv.total_amount > 0 ?
+                    number_with_delimiter(inv.total_amount.round(0)) : '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px">
+              <%= inv.purchase_invoice_items.size %>
+              <% if inv.unmatched_count > 0 %>
+                <span style="color:var(--warning);font-size:11px">
+                  (⚠ <%= inv.unmatched_count %> unmatched)
+                </span>
+              <% end %>
+            </td>
+            <td>
+              <% if inv.confirmed? %>
+                <span class="badge badge-active">Confirmed</span>
+              <% else %>
+                <span class="badge badge-plan">Draft</span>
+              <% end %>
+            </td>
+            <td>
+              <div class="actions">
+                <%= link_to 'View', purchasing_purchase_invoice_path(inv),
+                      class: 'btn btn-secondary btn-sm' %>
+                <% if inv.draft? %>
+                  <%= link_to 'Edit', edit_purchasing_purchase_invoice_path(inv),
+                        class: 'btn btn-secondary btn-sm' %>
+                  <%= button_to 'Delete', purchasing_purchase_invoice_path(inv),
+                        method: :delete,
+                        class: 'btn btn-danger btn-sm',
+                        form: { style: 'margin:0;display:inline' },
+                        data: { turbo_confirm: 'Delete this draft invoice?' } %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>No purchase invoices yet.</p>
+      <div style="margin-top:16px">
+        <%= link_to 'Create First Invoice', new_purchasing_purchase_invoice_path,
+              class: 'btn btn-primary' %>
+      </div>
+    </div>
+  <% end %>
+</div>

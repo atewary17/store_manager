@@ -1,0 +1,811 @@
+<%# app/views/purchasing/purchase_invoices/_form.html.erb %>
+<%= form_with model: [:purchasing, invoice], local: true, id: 'invoice-form' do |f| %>
+
+  <% if invoice.errors.any? %>
+    <div class="flash alert" style="margin-bottom:20px">
+      <strong><%= invoice.errors.count %> error(s):</strong>
+      <ul style="margin-top:6px;padding-left:16px">
+        <% invoice.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%# ══════════════════════════════════════════════════════
+      SECTION 1 — Supplier & Invoice Details
+  ══════════════════════════════════════════════════════ %>
+  <div class="form-card" style="max-width:100%;margin-bottom:20px">
+    <div class="form-section">
+      <div class="form-section-title">Supplier & Invoice Details</div>
+
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+
+        <div class="form-group">
+          <%= f.label :supplier_id, "Supplier" %>
+          <%= f.hidden_field :supplier_id, id: 'supplier_id_field', value: invoice.supplier_id %>
+          <div style="position:relative" id="supplier-ac-wrap">
+            <input type="text" id="supplier-search-input"
+                   placeholder="Search supplier name or GSTIN…"
+                   autocomplete="off"
+                   value="<%= invoice.supplier&.name %>"
+                   style="width:100%;background:var(--bg);border:1px solid var(--border);
+                          border-radius:6px;padding:9px 12px;color:var(--text);
+                          font-size:13.5px;outline:none">
+            <div id="supplier-ac-dropdown"
+                 style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+                        background:var(--surface);border:1px solid var(--border);
+                        border-radius:6px;box-shadow:var(--shadow-lg);
+                        max-height:240px;overflow-y:auto;margin-top:2px"></div>
+          </div>
+          <div id="supplier-info-strip"
+               style="font-family:var(--mono);font-size:10px;color:var(--text-dim);
+                      margin-top:4px;min-height:14px">
+            <% if invoice.supplier %>
+              <% s = invoice.supplier %>
+              <%= [s.gstin.presence&.prepend("GSTIN: "), s.state.presence, s.pan.presence&.prepend("PAN: ")].compact.join('  ·  ') %>
+            <% end %>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">
+            Not listed?
+            <a href="#" onclick="showSupplierPanel(event)" style="color:var(--accent);text-decoration:none">
+              Add supplier inline
+            </a>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :invoice_number, "Invoice Number" %>
+          <%= f.text_field :invoice_number, placeholder: 'e.g. WB2401437256',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+          <div class="form-hint">As printed on the supplier invoice — optional</div>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :invoice_date, "Invoice Date" %>
+          <%= f.date_field :invoice_date, class: 'form-control' %>
+        </div>
+      </div>
+
+      <div class="form-row" style="grid-template-columns:1fr 2fr">
+        <div class="form-group">
+          <%= f.label :delivery_date, "Delivery Date *" %>
+          <%= f.date_field :delivery_date, class: 'form-control',
+                value: invoice.delivery_date || Date.today %>
+          <% if invoice.errors[:delivery_date].any? %>
+            <div class="form-error"><%= invoice.errors[:delivery_date].first %></div>
+          <% end %>
+        </div>
+
+        <div class="form-group">
+          <label>Additional Info
+            <button type="button" onclick="addMetaRow()"
+                    style="margin-left:8px;background:var(--accent-dim);color:var(--accent);
+                           border:1px solid var(--accent);border-radius:4px;padding:2px 10px;
+                           font-size:11px;cursor:pointer;font-family:var(--mono)">+ Add Field</button>
+          </label>
+          <div id="meta-rows" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+            <% (invoice.metadata || {}).except('irn','ack_number','delivery_number','reverse_charge').each do |key, val| %>
+              <div class="meta-row" style="display:flex;gap:8px;align-items:center">
+                <input type="text" name="purchase_invoice[metadata][<%= key %>]" value="<%= key %>"
+                       placeholder="Key"
+                       style="width:140px;background:var(--bg);border:1px solid var(--border);
+                              border-radius:5px;padding:7px 10px;color:var(--text);
+                              font-family:var(--mono);font-size:12px;outline:none">
+                <input type="text" name="purchase_invoice[metadata][<%= key %>]" value="<%= val %>"
+                       placeholder="Value"
+                       style="flex:1;background:var(--bg);border:1px solid var(--border);
+                              border-radius:5px;padding:7px 10px;color:var(--text);
+                              font-size:13px;outline:none">
+                <button type="button" onclick="this.closest('.meta-row').remove()"
+                        style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:4px">×</button>
+              </div>
+            <% end %>
+          </div>
+          <div class="form-hint">Store extra details like IRN, ACK number, delivery note, etc.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# ══════════════════════════════════════════════════════
+      INLINE SUPPLIER PANEL
+  ══════════════════════════════════════════════════════ %>
+  <div id="supplier-panel"
+       style="display:none;background:var(--surface);border:1px solid var(--accent);
+              border-radius:10px;padding:20px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+                  text-transform:uppercase;color:var(--accent)">Add / Find Supplier</div>
+      <button type="button" onclick="hideSupplierPanel()"
+              style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:20px;line-height:1;padding:0 4px">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">Name *</label>
+        <input type="text" id="sp-name" placeholder="Supplier name"
+               style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">GSTIN</label>
+        <input type="text" id="sp-gstin" placeholder="e.g. 19AAACA3622K1ZS"
+               style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">PAN</label>
+        <input type="text" id="sp-pan" placeholder="e.g. AAACA3622K"
+               style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">State</label>
+        <input type="text" id="sp-state" placeholder="e.g. West Bengal"
+               style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">State Code</label>
+        <input type="text" id="sp-state-code" placeholder="e.g. 19"
+               style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none">
+      </div>
+    </div>
+    <div id="sp-matches" style="display:none;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Existing suppliers found — click to use:</div>
+      <div id="sp-match-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div id="sp-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button type="button" id="sp-save-btn" onclick="saveSupplierInline()"
+              style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer">
+        Save &amp; Use Supplier
+      </button>
+      <button type="button" onclick="hideSupplierPanel()"
+              style="background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer">Cancel</button>
+      <span id="sp-saving" style="display:none;font-size:12px;color:var(--text-dim);font-family:var(--mono)">Saving…</span>
+    </div>
+  </div>
+
+  <%# ══════════════════════════════════════════════════════
+      SECTION 2 — Line Items Grid
+  ══════════════════════════════════════════════════════ %>
+  <div style="background:var(--surface);border:1px solid var(--border);
+              border-radius:10px;overflow:hidden;margin-bottom:20px">
+
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);
+                display:flex;align-items:center;justify-content:space-between">
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+                  text-transform:uppercase;color:var(--text-dim)">Invoice Items</div>
+      <button type="button" onclick="addItemRow()"
+              style="background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);
+                     border-radius:5px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--mono)">
+        + Add Row
+      </button>
+    </div>
+
+    <div style="overflow-x:auto;overflow-y:visible;position:relative">
+      <table style="width:100%;border-collapse:collapse" id="items-table">
+        <thead>
+          <tr style="background:var(--bg)">
+            <%
+              ths = [
+                ["Product",       "min-width:240px", "left"],
+                ["UOM",           "width:55px",      "center"],
+                ["Qty",           "width:85px",      "right"],
+                ["Rate",          "width:95px",      "right"],
+                ["Disc %",        "width:75px",      "right"],
+                ["Total",         "width:100px",     "right"],
+                ["GST",           "width:90px",      "right"],
+                ["Payable (₹)",   "width:115px",     "right"],
+                ["",              "width:60px",      "center"],
+              ]
+            %>
+            <% ths.each do |label, w, align| %>
+              <th style="padding:11px 12px;text-align:<%= align %>;font-family:var(--mono);
+                         font-size:10px;letter-spacing:0.07em;text-transform:uppercase;
+                         color:var(--text-dim);border-bottom:1px solid var(--border);<%= w %>">
+                <%= label %>
+              </th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody id="items-tbody">
+          <%= f.fields_for :purchase_invoice_items do |item_f| %>
+            <%= render 'item_row', f: item_f, item: item_f.object %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%# ── Drag handle to push footer down ── %>
+    <div id="footer-spacer" style="height:0;min-height:0;max-height:200px;transition:height 0.05s"></div>
+    <div id="footer-drag-handle"
+         style="height:10px;cursor:ns-resize;border-top:1px solid var(--border);
+                display:flex;align-items:center;justify-content:center;
+                user-select:none;-webkit-user-select:none">
+      <div style="width:30px;height:3px;border-radius:2px;background:var(--border)"></div>
+    </div>
+
+    <div style="padding:14px 20px;border-top:1px solid var(--border);
+                display:flex;justify-content:flex-end;gap:32px">
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
+                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Items</div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:600" id="total-items">0</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
+                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Taxable (₹)</div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:500;color:var(--text-dim)"
+             id="taxable-total">0.00</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
+                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Tax (₹)</div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:500;color:var(--text-dim)"
+             id="tax-total">0.00</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
+                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Grand Total (₹)</div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent)"
+             id="grand-total">0.00</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center">
+    <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Invoice', class: 'btn btn-primary' %>
+    <%= link_to 'Cancel',
+          invoice.new_record? ? purchasing_purchase_invoices_path : purchasing_purchase_invoice_path(invoice),
+          class: 'btn btn-secondary' %>
+    <span style="font-size:12px;color:var(--text-dim)">
+      Saved as draft. Confirm from detail view to update stock.
+    </span>
+  </div>
+
+<% end %>
+
+<%# ══════════════════════════════════════════════════════
+    ROW TEMPLATE — new blank rows added by JS
+══════════════════════════════════════════════════════ %>
+<template id="item-row-template">
+  <tr data-row="INDEX" style="border-bottom:1px solid var(--border)">
+    <td style="padding:14px 16px;min-width:240px">
+      <div class="autocomplete-wrap" style="position:relative">
+        <input type="hidden"
+               name="purchase_invoice[purchase_invoice_items_attributes][INDEX][product_id]"
+               class="product-id-input" value="">
+        <input type="text" class="product-search-input"
+               placeholder="Search by name, code…" autocomplete="off"
+               style="width:100%;background:var(--bg);border:1px solid var(--border);
+                      border-radius:5px;padding:9px 11px;color:var(--text);font-size:12.5px;outline:none">
+        <div class="product-meta-line"
+             style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:2px;min-height:14px"></div>
+        <div class="ac-dropdown"
+             style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+                    background:var(--surface);border:1px solid var(--border);border-radius:6px;
+                    box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;margin-top:2px"></div>
+      </div>
+    </td>
+    <td class="uom-cell"
+        style="padding:14px 12px;font-family:var(--mono);font-size:11px;color:var(--text-dim);
+               white-space:nowrap;text-align:center">—</td>
+    <td style="padding:14px 12px">
+      <input type="number" class="qty-input"
+             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][quantity]"
+             placeholder="0" min="0" step="0.001"
+             style="width:80px;background:var(--bg);border:1px solid var(--border);
+                    border-radius:5px;padding:9px 10px;color:var(--text);
+                    font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
+    </td>
+    <td style="padding:14px 12px;text-align:right;font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
+      <input type="hidden" class="rate-input"
+             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][unit_rate]"
+             value="">
+      <span class="rate-display">—</span>
+    </td>
+    <td style="padding:14px 12px">
+      <input type="number" class="discount-input"
+             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][discount_percent]"
+             placeholder="0" min="0" max="100" step="any"
+             style="width:70px;background:var(--bg);border:1px solid var(--border);
+                    border-radius:5px;padding:9px 10px;color:var(--text);
+                    font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
+      <div class="disc-amt-label"
+           style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px;text-align:right"></div>
+    </td>
+    <td style="padding:14px 12px;text-align:right;font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
+      <span class="total-pre-display">—</span>
+    </td>
+    <td style="padding:14px 12px;text-align:right">
+      <input type="hidden" class="cgst-input"
+             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][cgst_percent]"
+             value="">
+      <input type="hidden" class="sgst-input"
+             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][sgst_percent]"
+             value="">
+      <div class="gst-display" style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">—</div>
+      <div class="gst-breakdown" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.4;text-align:right"></div>
+    </td>
+    <td style="padding:14px 12px">
+      <input type="hidden" class="payable-hidden"
+             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][total_amount]"
+             value="">
+      <input type="number" class="payable-input"
+             placeholder="0.00" min="0" step="0.01"
+             style="width:110px;background:var(--bg);border:1px solid var(--border);
+                    border-radius:5px;padding:9px 10px;color:var(--text);
+                    font-family:var(--mono);font-size:12.5px;outline:none;text-align:right;
+                    font-weight:600">
+    </td>
+    <td style="padding:14px 8px;text-align:center;white-space:nowrap">
+      <button type="button" onclick="addItemRow()"
+              style="background:none;border:none;color:var(--success, #22c55e);cursor:pointer;font-size:18px;line-height:1;padding:4px 2px"
+              title="Add row">+</button>
+      <button type="button" onclick="deleteRow(this)"
+              style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;line-height:1;padding:4px 2px"
+              title="Delete row">×</button>
+    </td>
+  </tr>
+</template>
+
+<%# ══════════════════════════════════════════════════════
+    JAVASCRIPT
+══════════════════════════════════════════════════════ %>
+<script>
+(function() {
+
+  var rowIndex = document.querySelectorAll('#items-tbody tr[data-row]').length;
+
+  // ══════════════════════════════════════════════════════════════
+  //  HELPERS
+  // ══════════════════════════════════════════════════════════════
+  function escHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function fmtINR(n) {
+    return n.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+
+  function selectedProductIds() {
+    var ids = new Set();
+    document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(r) {
+      if (r.style.display === 'none') return;
+      var f = r.querySelector('.product-id-input');
+      if (f && f.value) ids.add(String(f.value));
+    });
+    return ids;
+  }
+
+  // Get discount from row 1 (the first visible row)
+  function getRow1Discount() {
+    var first = document.querySelector('#items-tbody tr[data-row]:not([style*="display:none"])');
+    if (!first) return '';
+    var d = first.querySelector('.discount-input');
+    return d ? d.value : '';
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  ROW CALCULATIONS
+  //  User fills: qty, discount%, payable
+  //  Back-calculate: total_pre_gst, gst_amount, unit_rate
+  //
+  //  payable = total_pre_gst + gst_amount
+  //  total_pre_gst = payable / (1 + gst_pct/100)
+  //  gst_amount = payable - total_pre_gst
+  //  subtotal (qty*rate) = total_pre_gst / (1 - disc_pct/100)
+  //  rate = subtotal / qty
+  // ══════════════════════════════════════════════════════════════
+  function recalcRow(row) {
+    var qty      = parseFloat(row.querySelector('.qty-input').value)      || 0;
+    var payable  = parseFloat(row.querySelector('.payable-input').value)  || 0;
+    var discPct  = parseFloat(row.querySelector('.discount-input').value) || 0;
+    var cgstPct  = parseFloat(row.querySelector('.cgst-input').value)     || 0;
+    var sgstPct  = parseFloat(row.querySelector('.sgst-input').value)     || 0;
+    var gstPct   = cgstPct + sgstPct;
+
+    // Back-calculate
+    var totalPre = gstPct > 0 ? payable / (1 + gstPct / 100) : payable;
+    var gstAmt   = payable - totalPre;
+    var subtotal = discPct > 0 && discPct < 100 ? totalPre / (1 - discPct / 100) : totalPre;
+    var unitRate = qty > 0 ? subtotal / qty : 0;
+
+    // Sync hidden inputs
+    row.querySelector('.payable-hidden').value = payable > 0 ? payable.toFixed(2) : '';
+    row.querySelector('.rate-input').value     = unitRate > 0 ? unitRate.toFixed(4) : '';
+
+    // Update displays
+    var rateDisplay = row.querySelector('.rate-display');
+    if (rateDisplay) {
+      rateDisplay.textContent = unitRate > 0 ? fmtINR(unitRate) : '—';
+      rateDisplay.style.color = unitRate > 0 ? 'var(--text)' : 'var(--text-dim)';
+    }
+
+    var totalPreDisplay = row.querySelector('.total-pre-display');
+    if (totalPreDisplay) {
+      totalPreDisplay.textContent = totalPre > 0 ? fmtINR(totalPre) : '—';
+      totalPreDisplay.style.color = totalPre > 0 ? 'var(--text)' : 'var(--text-dim)';
+    }
+
+    var gstDisplay = row.querySelector('.gst-display');
+    if (gstDisplay) {
+      gstDisplay.textContent = gstAmt > 0 ? fmtINR(gstAmt) : '—';
+      gstDisplay.style.color = gstAmt > 0 ? 'var(--text)' : 'var(--text-dim)';
+    }
+
+    var gstBreakdown = row.querySelector('.gst-breakdown');
+    if (gstBreakdown) {
+      if (gstAmt > 0) {
+        var halfGst = gstAmt / 2;
+        gstBreakdown.textContent = 'C: ' + fmtINR(halfGst) + ' · S: ' + fmtINR(halfGst);
+      } else {
+        gstBreakdown.textContent = '';
+      }
+    }
+
+    // Update discount amount label
+    var discAmtLabel = row.querySelector('.disc-amt-label');
+    if (discAmtLabel) {
+      var discAmt = subtotal - totalPre;
+      discAmtLabel.textContent = discAmt > 0 ? '₹' + fmtINR(discAmt) : '';
+    }
+
+    updateGrandTotal();
+  }
+
+  function updateGrandTotal() {
+    var grandTotal = 0, taxableTotal = 0, taxTotal = 0, count = 0;
+    document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(row) {
+      if (row.style.display === 'none') return;
+      var payable  = parseFloat(row.querySelector('.payable-hidden').value) || 0;
+      if (payable <= 0) return;
+
+      var cgstPct  = parseFloat(row.querySelector('.cgst-input').value) || 0;
+      var sgstPct  = parseFloat(row.querySelector('.sgst-input').value) || 0;
+      var gstPct   = cgstPct + sgstPct;
+      var totalPre = gstPct > 0 ? payable / (1 + gstPct / 100) : payable;
+      var gstAmt   = payable - totalPre;
+
+      grandTotal   += payable;
+      taxableTotal += totalPre;
+      taxTotal     += gstAmt;
+      count++;
+    });
+    document.getElementById('grand-total').textContent   = fmtINR(grandTotal);
+    document.getElementById('taxable-total').textContent  = fmtINR(taxableTotal);
+    document.getElementById('tax-total').textContent      = fmtINR(taxTotal);
+    document.getElementById('total-items').textContent    = count;
+  }
+
+  function wireRowEvents(row) {
+    // qty, discount, or payable changes → recalc
+    row.querySelector('.qty-input').addEventListener('input', function() { recalcRow(row); });
+    row.querySelector('.discount-input').addEventListener('input', function() {
+      // Push discount from row 1 to all subsequent rows
+      var rows = document.querySelectorAll('#items-tbody tr[data-row]');
+      if (row === rows[0]) {
+        var val = this.value;
+        for (var i = 1; i < rows.length; i++) {
+          if (rows[i].style.display === 'none') continue;
+          var d = rows[i].querySelector('.discount-input');
+          if (d) { d.value = val; recalcRow(rows[i]); }
+        }
+      }
+      recalcRow(row);
+    });
+    row.querySelector('.payable-input').addEventListener('input', function() {
+      row.querySelector('.payable-hidden').value = this.value;
+      recalcRow(row);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  PRODUCT AUTOCOMPLETE
+  // ══════════════════════════════════════════════════════════════
+  function setupProductAutocomplete(row) {
+    var wrap     = row.querySelector('.autocomplete-wrap');
+    if (!wrap) return;
+    var input    = wrap.querySelector('.product-search-input');
+    var idField  = wrap.querySelector('.product-id-input');
+    var dropdown = wrap.querySelector('.ac-dropdown');
+    var metaLine = wrap.querySelector('.product-meta-line');
+    var uomCell  = row.querySelector('.uom-cell');
+    if (!input || !idField || !dropdown) return;
+
+    var timer;
+    input.addEventListener('input', function() {
+      idField.value = '';
+      if (metaLine) metaLine.textContent = '';
+      clearTimeout(timer);
+      var q = this.value.trim();
+      if (q.length < 2) { dropdown.style.display = 'none'; return; }
+      timer = setTimeout(function() {
+        fetch('/purchasing/purchase_invoices/product_search?q=' + encodeURIComponent(q), {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(results) {
+            renderProductDropdown(results, wrap, input, idField, dropdown, metaLine, uomCell, row);
+          })
+          .catch(function() { dropdown.style.display = 'none'; });
+      }, 200);
+    });
+
+    input.addEventListener('blur', function() {
+      setTimeout(function() { dropdown.style.display = 'none'; }, 200);
+    });
+  }
+
+  function renderProductDropdown(results, wrap, input, idField, dropdown, metaLine, uomCell, row) {
+    dropdown.innerHTML = '';
+    var used     = selectedProductIds();
+    used.delete(String(idField.value));
+    var filtered = results.filter(function(p) { return !used.has(String(p.id)); });
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML =
+        '<div style="padding:10px 14px;color:var(--text-dim);font-size:13px">' +
+        (results.length > 0 ? 'All matching products already added' : 'No products found') +
+        '</div>';
+      dropdown.style.display = 'block';
+      return;
+    }
+
+    filtered.forEach(function(p) {
+      var metaParts = [];
+      if (p.material_code) metaParts.push('M: ' + p.material_code);
+      if (p.pack_code)     metaParts.push('Pack: ' + p.pack_code);
+
+      var el = document.createElement('div');
+      el.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)';
+      el.innerHTML =
+        '<div style="font-size:13px;font-weight:500;color:var(--text)">' + escHtml(p.label) + '</div>' +
+        (metaParts.length > 0
+          ? '<div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:2px">' +
+              escHtml(metaParts.join('  ·  ')) + '</div>'
+          : '');
+
+      el.addEventListener('mouseover', function() { this.style.background = 'var(--border)'; });
+      el.addEventListener('mouseout',  function() { this.style.background = ''; });
+      el.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        input.value   = p.label;
+        idField.value = p.id;
+        if (uomCell)  uomCell.textContent  = p.uom || '—';
+        if (metaLine) metaLine.textContent = metaParts.join('  ·  ');
+
+        // Auto-fill CGST/SGST from product GST rate
+        if (p.cgst != null) {
+          var cgst = row.querySelector('.cgst-input');
+          var sgst = row.querySelector('.sgst-input');
+          if (cgst) cgst.value = p.cgst;
+          if (sgst) sgst.value = p.sgst;
+
+          // GST breakdown will be populated by recalcRow
+        }
+        dropdown.style.display = 'none';
+        recalcRow(row);
+      });
+      dropdown.appendChild(el);
+    });
+    dropdown.style.display = 'block';
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  ADD / DELETE ROWS
+  // ══════════════════════════════════════════════════════════════
+  window.addItemRow = function() {
+    var tmpl = document.getElementById('item-row-template').content.cloneNode(true);
+    var row  = tmpl.querySelector('tr');
+    var idx  = rowIndex++;
+    row.innerHTML = row.innerHTML.replace(/INDEX/g, idx);
+    row.setAttribute('data-row', idx);
+    document.getElementById('items-tbody').appendChild(row);
+
+    // Copy discount from row 1
+    var disc = getRow1Discount();
+    if (disc) {
+      var d = row.querySelector('.discount-input');
+      if (d) d.value = disc;
+    }
+
+    setupProductAutocomplete(row);
+    wireRowEvents(row);
+  };
+
+  window.deleteRow = function(btn) {
+    var row = btn.closest('tr');
+    var di  = row.querySelector('.destroy-input');
+    if (di) { di.value = '1'; row.style.display = 'none'; }
+    else    { row.remove(); }
+    updateGrandTotal();
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  //  SUPPLIER AUTOCOMPLETE
+  // ══════════════════════════════════════════════════════════════
+  var supplierDebounce;
+  document.getElementById('supplier-search-input').addEventListener('input', function() {
+    var q = this.value.trim();
+    document.getElementById('supplier_id_field').value = '';
+    document.getElementById('supplier-info-strip').textContent = '';
+    clearTimeout(supplierDebounce);
+    if (q.length < 2) { document.getElementById('supplier-ac-dropdown').style.display = 'none'; return; }
+    supplierDebounce = setTimeout(function() {
+      fetch('/purchasing/suppliers/search?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.json(); })
+        .then(function(results) { renderSupplierDropdown(results); })
+        .catch(function() {});
+    }, 200);
+  });
+
+  document.getElementById('supplier-search-input').addEventListener('blur', function() {
+    setTimeout(function() { document.getElementById('supplier-ac-dropdown').style.display = 'none'; }, 200);
+  });
+
+  function renderSupplierDropdown(results) {
+    var dd = document.getElementById('supplier-ac-dropdown');
+    dd.innerHTML = '';
+    if (results.length === 0) {
+      dd.innerHTML = '<div style="padding:10px 14px;color:var(--text-dim);font-size:13px">No suppliers found — ' +
+        '<a href="#" onclick="showSupplierPanel(event)" style="color:var(--accent)">add one</a></div>';
+      dd.style.display = 'block'; return;
+    }
+    results.forEach(function(s) {
+      var el = document.createElement('div');
+      el.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)';
+      var meta = [s.gstin ? 'GSTIN: ' + s.gstin : null, s.state].filter(Boolean).join('  ·  ');
+      el.innerHTML =
+        '<div style="font-size:13px;font-weight:500;color:var(--text)">' + escHtml(s.name) + '</div>' +
+        (meta ? '<div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px">' + escHtml(meta) + '</div>' : '');
+      el.addEventListener('mouseover', function() { this.style.background = 'var(--border)'; });
+      el.addEventListener('mouseout',  function() { this.style.background = ''; });
+      el.addEventListener('mousedown', function(e) { e.preventDefault(); selectSupplier(s); dd.style.display = 'none'; });
+      dd.appendChild(el);
+    });
+    dd.style.display = 'block';
+  }
+
+  function selectSupplier(s) {
+    document.getElementById('supplier-search-input').value = s.name;
+    document.getElementById('supplier_id_field').value = s.id;
+    var parts = [];
+    if (s.gstin) parts.push('GSTIN: ' + s.gstin);
+    if (s.state) parts.push(s.state);
+    if (s.pan)   parts.push('PAN: ' + s.pan);
+    document.getElementById('supplier-info-strip').textContent = parts.join('  ·  ');
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  INLINE SUPPLIER PANEL
+  // ══════════════════════════════════════════════════════════════
+  window.showSupplierPanel = function(e) {
+    if (e) e.preventDefault();
+    var q = document.getElementById('supplier-search-input').value.trim();
+    if (q) document.getElementById('sp-name').value = q;
+    document.getElementById('supplier-panel').style.display = 'block';
+    document.getElementById('sp-name').focus();
+  };
+  window.hideSupplierPanel = function() {
+    document.getElementById('supplier-panel').style.display = 'none';
+    document.getElementById('sp-error').style.display = 'none';
+    document.getElementById('sp-matches').style.display = 'none';
+  };
+
+  var spDebounce;
+  document.getElementById('sp-name').addEventListener('input', function() {
+    clearTimeout(spDebounce);
+    var q = this.value.trim();
+    if (q.length < 2) { document.getElementById('sp-matches').style.display = 'none'; return; }
+    spDebounce = setTimeout(function() {
+      fetch('/purchasing/suppliers/search?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.json(); })
+        .then(function(results) {
+          if (!results.length) { document.getElementById('sp-matches').style.display = 'none'; return; }
+          var list = document.getElementById('sp-match-list');
+          list.innerHTML = '';
+          results.forEach(function(s) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.style.cssText = 'background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:var(--mono)';
+            btn.textContent = s.name + (s.gstin ? ' · ' + s.gstin : '');
+            btn.addEventListener('click', function() { selectSupplier(s); hideSupplierPanel(); });
+            list.appendChild(btn);
+          });
+          document.getElementById('sp-matches').style.display = 'block';
+        });
+    }, 300);
+  });
+
+  window.saveSupplierInline = function() {
+    var name = document.getElementById('sp-name').value.trim();
+    var errEl = document.getElementById('sp-error');
+    errEl.style.display = 'none';
+    if (!name) { errEl.textContent = 'Supplier name is required.'; errEl.style.display = 'block'; return; }
+    var savingEl = document.getElementById('sp-saving');
+    savingEl.style.display = 'inline';
+    document.getElementById('sp-save-btn').disabled = true;
+    fetch('/purchasing/suppliers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                 'Accept': 'application/json' },
+      body: JSON.stringify({ supplier: {
+        name:       name,
+        gstin:      document.getElementById('sp-gstin').value.trim(),
+        pan:        document.getElementById('sp-pan').value.trim(),
+        state:      document.getElementById('sp-state').value.trim(),
+        state_code: document.getElementById('sp-state-code').value.trim(),
+        active: true
+      }})
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        savingEl.style.display = 'none';
+        document.getElementById('sp-save-btn').disabled = false;
+        if (data.errors) { errEl.textContent = data.errors.join(', '); errEl.style.display = 'block'; }
+        else { selectSupplier(data); hideSupplierPanel(); }
+      })
+      .catch(function() {
+        savingEl.style.display = 'none';
+        document.getElementById('sp-save-btn').disabled = false;
+        errEl.textContent = 'Save failed — please try again.';
+        errEl.style.display = 'block';
+      });
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  //  METADATA ROWS
+  // ══════════════════════════════════════════════════════════════
+  window.addMetaRow = function() {
+    var ts  = Date.now();
+    var div = document.createElement('div');
+    div.className = 'meta-row';
+    div.style.cssText = 'display:flex;gap:8px;align-items:center';
+    div.innerHTML =
+      '<input type="text" name="purchase_invoice[metadata][key_' + ts + ']" placeholder="Key" ' +
+      'style="width:140px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none">' +
+      '<input type="text" name="purchase_invoice[metadata][val_' + ts + ']" placeholder="Value" ' +
+      'style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--text);font-size:13px;outline:none">' +
+      '<button type="button" onclick="this.closest(\'.meta-row\').remove()" ' +
+      'style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:4px">×</button>';
+    document.getElementById('meta-rows').appendChild(div);
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  //  INIT
+  // ══════════════════════════════════════════════════════════════
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(row) {
+      setupProductAutocomplete(row);
+      wireRowEvents(row);
+    });
+    updateGrandTotal();
+
+    // ── Footer drag-to-resize ──
+    var handle  = document.getElementById('footer-drag-handle');
+    var spacer  = document.getElementById('footer-spacer');
+    if (handle && spacer) {
+      var dragging = false, startY = 0, startH = 0;
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        dragging = true;
+        startY   = e.clientY;
+        startH   = spacer.offsetHeight;
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+      });
+      document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        var delta = e.clientY - startY;
+        var newH  = Math.max(0, Math.min(200, startH + delta));
+        spacer.style.height = newH + 'px';
+      });
+      document.addEventListener('mouseup', function() {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      });
+    }
+  });
+
+})();
+</script>

@@ -1,0 +1,64 @@
+<%# app/views/purchasing/suppliers/_form.html.erb %>
+<div class="form-card">
+  <% if supplier.errors.any? %>
+    <div class="flash alert" style="margin:0 0 20px">
+      <ul style="padding-left:16px">
+        <% supplier.errors.full_messages.each do |m| %>
+          <li><%= m %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form_with model: [:purchasing, supplier], local: true do |f| %>
+    <div class="form-section">
+      <div class="form-section-title">Supplier Details</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :name, "Supplier Name *" %>
+          <%= f.text_field :name, placeholder: 'e.g. Asian Paints Limited',
+                class: 'form-control' %>
+          <% if supplier.errors[:name].any? %>
+            <div class="form-error"><%= supplier.errors[:name].first %></div>
+          <% end %>
+        </div>
+        <div class="form-group">
+          <%= f.label :gstin, "GSTIN" %>
+          <%= f.text_field :gstin, placeholder: 'e.g. 19AAACA3622K1ZS',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :pan, "PAN" %>
+          <%= f.text_field :pan, placeholder: 'e.g. AAACA3622K',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+        </div>
+        <div class="form-group">
+          <%= f.label :state, "State" %>
+          <%= f.text_field :state, placeholder: 'e.g. West Bengal',
+                class: 'form-control' %>
+        </div>
+        <div class="form-group">
+          <%= f.label :state_code, "State Code" %>
+          <%= f.text_field :state_code, placeholder: 'e.g. 19',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+        </div>
+      </div>
+
+      <div class="form-group" style="max-width:200px">
+        <%= f.label :active, "Status" %>
+        <%= f.select :active, [['Active', true], ['Inactive', false]],
+              { selected: supplier.active }, { class: 'form-control' } %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit supplier.new_record? ? 'Create Supplier' : 'Update Supplier',
+            class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', purchasing_suppliers_path, class: 'btn btn-secondary' %>
+    </div>
+  <% end %>
+</div>

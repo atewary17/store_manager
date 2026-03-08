@@ -1,0 +1,10 @@
+<% content_for :title, "New Supplier" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Suppliers', purchasing_suppliers_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New</span>
+<% end %>
+<div class="page-header"><div><div class="page-title">New Supplier</div></div></div>
+<%= render 'form', supplier: @supplier %>

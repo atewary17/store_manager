@@ -10,9 +10,9 @@
 
 <%= render 'setup/shared/nav_tabs' %>
 
-<div class="actions" style="margin-bottom:24px">
+<div class="actions" style="margin-bottom:24px; display:flex; gap:12px">
   <%= link_to '+ Import Products', new_setup_product_import_path, class: 'btn btn-primary' %>
-  <%= link_to '+ Import Shades', import_new_setup_shade_catalogues_path, class: 'btn btn-primary' %>
+  <%= link_to '+ Import Shades', import_new_setup_shade_catalogues_path, class: 'btn btn-outline-primary' %>
 </div>
 
 <%# ── Product Imports Section ── %>
@@ -129,10 +129,9 @@
             </td>
             <td style="font-family:var(--mono);font-size:12px"><%= imp.file_size_human %></td>
             <td>
-              <%= link_to 'View', shade_catalogue_import_show_setup_shade_catalogue_path(imp),
-                    class: 'btn btn-secondary btn-sm' %>
+              <%= link_to 'View', import_show_setup_shade_catalogue_path(imp), class: 'btn btn-secondary btn-sm' %>
               <% if imp.has_errors? %>
-                <%= link_to 'Errors ↓', shade_catalogue_import_download_errors_setup_shade_catalogue_path(imp),
+                <%= link_to 'Errors ↓', import_download_errors_setup_shade_catalogue_path(imp),
                       class: 'btn btn-danger btn-sm' %>
               <% end %>
             </td>
@@ -142,7 +141,7 @@
       </table>
     <% else %>
       <div class="empty-state">
-        <p>No shade imports yet. <%= link_to 'Start your first import', import_new_setup_shade_catalogues_path %>.</p>
+        <p>No shade imports yet.</p>
       </div>
     <% end %>
   </div>

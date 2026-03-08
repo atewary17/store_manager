@@ -1,0 +1,215 @@
+<%# app/views/purchasing/purchase_invoices/show.html.erb %>
+<% content_for :title, @invoice.display_number %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Invoices', purchasing_purchase_invoices_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @invoice.display_number %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title"><%= @invoice.display_number %></div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
+      <% if @invoice.confirmed? %>
+        <span class="badge badge-active">Confirmed</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+          <%= @invoice.confirmed_at&.strftime('%d %b %Y, %H:%M') %>
+        </span>
+      <% else %>
+        <span class="badge badge-plan">Draft</span>
+      <% end %>
+    </div>
+  </div>
+  <div class="actions">
+    <% if @invoice.draft? %>
+      <%= link_to 'Edit', edit_purchasing_purchase_invoice_path(@invoice),
+            class: 'btn btn-secondary' %>
+      <%= button_to 'Confirm & Update Stock',
+            confirm_purchasing_purchase_invoice_path(@invoice),
+            method: :post,
+            class: 'btn btn-primary',
+            data: { turbo_confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' } %>
+    <% end %>
+  </div>
+</div>
+
+<% if @invoice.unmatched_count > 0 %>
+  <div class="flash alert" style="margin-bottom:20px">
+    ⚠ <%= @invoice.unmatched_count %> item(s) could not be matched to a product.
+    These rows will be skipped when updating stock. Edit the invoice to fix them.
+  </div>
+<% end %>
+
+<%# ── Invoice Header ── %>
+<div class="detail-card" style="margin-bottom:20px">
+  <div class="detail-section">
+    <div class="detail-section-title">Invoice Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Supplier</label>
+        <div class="value"><%= @invoice.supplier&.name || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Invoice Number</label>
+        <div class="value mono"><%= @invoice.invoice_number.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Invoice Date</label>
+        <div class="value mono">
+          <%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Delivery Date</label>
+        <div class="value mono">
+          <%= @invoice.delivery_date&.strftime('%d %b %Y') %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Organisation</label>
+        <div class="value"><%= @invoice.organisation.name %></div>
+      </div>
+      <div class="detail-field">
+        <label>Entered By</label>
+        <div class="value"><%= @invoice.user&.full_name %></div>
+      </div>
+    </div>
+  </div>
+
+  <% if @invoice.metadata.present? && @invoice.metadata.any? %>
+    <div class="detail-section">
+      <div class="detail-section-title">Additional Info</div>
+      <div class="detail-grid">
+        <% @invoice.metadata.each do |key, val| %>
+          <div class="detail-field">
+            <label><%= key.to_s.humanize %></label>
+            <div class="value mono" style="font-size:13px"><%= val %></div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Totals</div>
+    <%
+      # For confirmed invoices use stored totals.
+      # For drafts, calculate live from items so the page isn't blank.
+      if @invoice.confirmed?
+        show_grand   = @invoice.total_amount.to_f
+        show_taxable = @invoice.total_taxable_amount.to_f
+        show_tax     = @invoice.total_tax_amount.to_f
+      else
+        items = @invoice.purchase_invoice_items
+        show_grand   = items.sum { |i| i.total_amount.to_f }
+        show_taxable = items.sum { |i|
+          total     = i.total_amount.to_f
+          cgst_pct  = i.metadata['cgst_percent'].to_f
+          sgst_pct  = i.metadata['sgst_percent'].to_f
+          igst_pct  = i.metadata['igst_percent'].to_f
+          gst_total = cgst_pct + sgst_pct + igst_pct
+          gst_total > 0 ? (total / (1 + gst_total / 100.0)) : total
+        }
+        show_tax = show_grand - show_taxable
+      end
+    %>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Taxable Amount</label>
+        <div class="value mono">
+          ₹ <%= number_with_delimiter(show_taxable.round(2)) %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Tax Amount</label>
+        <div class="value mono">
+          ₹ <%= number_with_delimiter(show_tax.round(2)) %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Grand Total</label>
+        <div class="value mono" style="font-size:18px;font-weight:700;color:var(--accent)">
+          ₹ <%= number_with_delimiter(show_grand.round(2)) %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# ── Line Items ── %>
+<div class="table-wrap">
+  <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      Line Items (<%= @invoice.purchase_invoice_items.count %>)
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>UOM</th>
+        <th style="text-align:right">Qty</th>
+        <th style="text-align:right">Unit Rate (₹)</th>
+        <th style="text-align:right">Total (₹)</th>
+        <th>GST</th>
+        <th>Match</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @invoice.purchase_invoice_items.includes(product: [:brand, :base_uom]).each do |item| %>
+        <tr>
+          <td>
+            <% if item.product.present? %>
+              <div style="font-weight:500"><%= item.product.description %></div>
+              <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+                <%= item.product.brand&.name %>
+                <% if item.product.material_code.present? %>
+                  · M: <%= item.product.material_code %>
+                <% end %>
+              </div>
+            <% else %>
+              <div style="color:var(--warning);font-size:13px">
+                ⚠ Unmatched product
+              </div>
+            <% end %>
+          </td>
+          <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+            <%= item.product&.base_uom&.short_name || '—' %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600">
+            <%= number_with_precision(item.quantity, precision: 3,
+                  strip_insignificant_zeros: true) %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono)">
+            <%= number_with_precision(item.unit_rate, precision: 2) %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600;
+                     color:var(--accent)">
+            <%= number_with_precision(item.total_amount, precision: 2) %>
+          </td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+            <% cgst = item.metadata['cgst_percent'] %>
+            <% sgst = item.metadata['sgst_percent'] %>
+            <% if cgst.present? || sgst.present? %>
+              CGST: <%= cgst %>% / SGST: <%= sgst %>%
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td>
+            <% if item.unmatched? %>
+              <span class="badge" style="background:rgba(247,195,79,0.12);color:var(--warning)">
+                Unmatched
+              </span>
+            <% else %>
+              <span class="badge badge-active">Matched</span>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
