@@ -22,7 +22,7 @@
   <div class="actions">
     <% if @import.has_errors? %>
       <%= link_to 'Download Error Report',
-            shade_catalogue_import_download_errors_setup_shade_catalogue_path(@import),
+            import_download_errors_setup_shade_catalogue_path(@import),
             class: 'btn btn-danger' %>
     <% end %>
     <%= link_to '← Back', import_setup_shade_catalogues_path, class: 'btn btn-secondary' %>
@@ -57,7 +57,7 @@
         <%= @import.error_count %> Errors
       </div>
       <%= link_to 'Download Error Report ↓',
-            shade_catalogue_import_download_errors_setup_shade_catalogue_path(@import),
+            import_download_errors_setup_shade_catalogue_path(@import),
             class: 'btn btn-danger btn-sm' %>
     </div>
     <div class="table-wrap">

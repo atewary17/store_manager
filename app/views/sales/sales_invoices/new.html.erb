@@ -1,0 +1,13 @@
+<%# app/views/sales/sales_invoices/new.html.erb %>
+<% content_for :title, "New Sales Invoice" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Invoices', sales_sales_invoices_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New Invoice</span>
+<% end %>
+<div class="page-header">
+  <div class="page-title">New Sales Invoice</div>
+</div>
+<%= render 'form', invoice: @invoice %>

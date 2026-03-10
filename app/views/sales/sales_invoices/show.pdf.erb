@@ -1,0 +1,209 @@
+<%# app/views/sales/sales_invoices/show.pdf.erb
+    Rendered via wicked_pdf when format=pdf.
+    Uses layouts/pdf.html.erb.
+%>
+<% content_for :title, @invoice.display_number %>
+<%
+  org   = @invoice.organisation
+  cust  = @invoice.customer
+  items = @invoice.sales_invoice_items
+%>
+
+<%# ── Page header ── %>
+<div class="inv-header">
+  <div>
+    <div class="org-name"><%= org.name %></div>
+    <div class="org-sub">
+      <% if org.respond_to?(:gstin) && org.gstin.present? %>GSTIN: <%= org.gstin %> &nbsp;·&nbsp; <% end %>
+      Tax Invoice
+    </div>
+  </div>
+  <div class="inv-title">
+    <h1>Tax Invoice</h1>
+    <div class="inv-number"><%= @invoice.display_number %></div>
+    <div class="inv-date">
+      Date: <%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %>
+    </div>
+    <% if @invoice.payment_mode.present? %>
+      <div class="inv-date" style="margin-top:2px">
+        Payment: <%= @invoice.payment_mode.titleize %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Bill to / Ship to strip ── %>
+<div class="info-strip">
+  <div class="info-block">
+    <label>Bill To</label>
+    <div class="val"><%= cust&.name || 'Walk-in Customer' %></div>
+    <% if cust %>
+      <div class="sub mono"><%= cust.phone %></div>
+      <% if cust.gstin.present? %>
+        <div class="sub mono">GSTIN: <%= cust.gstin %></div>
+      <% end %>
+      <% if cust.address.present? %>
+        <div class="sub" style="margin-top:3px;white-space:pre-line"><%= cust.address %></div>
+      <% end %>
+      <% if cust.state.present? %>
+        <div class="sub"><%= cust.state %><%= cust.state_code.present? ? " (#{cust.state_code})" : '' %></div>
+      <% end %>
+    <% end %>
+  </div>
+  <div class="info-block">
+    <label>Invoice Details</label>
+    <div class="val">Ref: <%= @invoice.display_number %></div>
+    <div class="sub">Date: <%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %></div>
+    <div class="sub">Entered by: <%= @invoice.user&.full_name %></div>
+    <% if @invoice.reverse_charge? %>
+      <div class="sub" style="color:#c0392b;margin-top:4px;font-weight:600">★ Reverse Charge Applicable</div>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Line items table ── %>
+<table class="items-table">
+  <thead>
+    <tr>
+      <th style="width:28px" class="center">#</th>
+      <th>Product / Shade</th>
+      <th style="width:40px" class="center">Type</th>
+      <th style="width:40px" class="center">UOM</th>
+      <th style="width:55px" class="right">Qty</th>
+      <th style="width:65px" class="right">Rate (₹)</th>
+      <th style="width:50px" class="right">Disc%</th>
+      <th style="width:75px" class="right">Taxable (₹)</th>
+      <th style="width:65px" class="center">CGST</th>
+      <th style="width:65px" class="center">SGST</th>
+      <th style="width:80px" class="right">Total (₹)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% items.each_with_index do |item, i| %>
+      <tr>
+        <td class="center mono" style="color:#888"><%= i + 1 %></td>
+        <td>
+          <% if item.paint? %>
+            <strong><%= item.shade_display %></strong>
+            <% if item.metadata['colour_family'].present? %>
+              <br><span style="font-size:10px;color:#666"><%= item.metadata['colour_family'] %></span>
+            <% end %>
+          <% else %>
+            <strong><%= item.product&.description || '—' %></strong>
+            <% if item.product&.material_code.present? %>
+              <br><span style="font-size:10px;color:#666;font-family:'Courier New',monospace"><%= item.product.material_code %></span>
+            <% end %>
+          <% end %>
+        </td>
+        <td class="center">
+          <span class="type-badge <%= item.paint? ? 'type-paint' : 'type-product' %>">
+            <%= item.line_type.upcase %>
+          </span>
+        </td>
+        <td class="center mono" style="color:#666">
+          <%= item.product&.base_uom&.short_name || (item.paint? ? 'Ltr' : '—') %>
+        </td>
+        <td class="right mono">
+          <%= number_with_precision(item.quantity, precision: 3, strip_insignificant_zeros: true) %>
+        </td>
+        <td class="right mono">
+          <%= number_with_precision(item.unit_rate, precision: 2) %>
+        </td>
+        <td class="right mono" style="color:#666">
+          <%= item.discount_percent.to_f > 0 ? "#{item.discount_percent}%" : '—' %>
+        </td>
+        <td class="right mono">
+          <%= number_with_precision(item.taxable_amount, precision: 2, delimiter: ',') %>
+        </td>
+        <td class="center" style="font-size:10px">
+          <% if item.cgst_percent > 0 %>
+            <%= item.cgst_percent %>%<br>
+            <span class="mono"><%= number_with_precision(item.metadata['cgst_amount'].to_f, precision: 2) %></span>
+          <% else %>—<% end %>
+        </td>
+        <td class="center" style="font-size:10px">
+          <% if item.sgst_percent > 0 %>
+            <%= item.sgst_percent %>%<br>
+            <span class="mono"><%= number_with_precision(item.metadata['sgst_amount'].to_f, precision: 2) %></span>
+          <% else %>—<% end %>
+        </td>
+        <td class="right mono" style="font-weight:600">
+          <%= number_with_precision(item.total_amount, precision: 2, delimiter: ',') %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+  <tfoot>
+    <tr class="subtotal-row">
+      <td colspan="7" class="right" style="font-weight:600;color:#555">Taxable Amount</td>
+      <td class="right mono" style="font-weight:600">
+        <%= number_with_precision(@invoice.computed_taxable_total, precision: 2, delimiter: ',') %>
+      </td>
+      <td colspan="2" class="right" style="color:#555">Total Tax</td>
+      <td class="right mono" style="font-weight:600">
+        <%= number_with_precision(@invoice.computed_tax_total, precision: 2, delimiter: ',') %>
+      </td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="10" class="right">Grand Total (₹)</td>
+      <td class="right">
+        <%= number_with_precision(@invoice.computed_grand_total, precision: 2, delimiter: ',') %>
+      </td>
+    </tr>
+  </tfoot>
+</table>
+
+<%# ── Tax summary + notes ── %>
+<div class="tax-summary">
+  <div class="tax-notes">
+    <strong>Tax Breakdown</strong><br>
+    <%
+      cgst_total = items.sum { |i| i.metadata['cgst_amount'].to_f }
+      sgst_total = items.sum { |i| i.metadata['sgst_amount'].to_f }
+    %>
+    CGST: ₹<%= number_with_precision(cgst_total, precision: 2, delimiter: ',') %><br>
+    SGST: ₹<%= number_with_precision(sgst_total, precision: 2, delimiter: ',') %><br>
+    <br>
+    <em>This is a computer-generated invoice and does not require a physical signature.</em>
+    <% if @invoice.reverse_charge? %>
+      <br><strong style="color:#c0392b">Reverse Charge Applicable.</strong>
+    <% end %>
+  </div>
+  <div class="tax-box">
+    <table>
+      <tr>
+        <td class="label-col">Taxable Amount</td>
+        <td class="val-col">₹ <%= number_with_precision(@invoice.computed_taxable_total, precision: 2, delimiter: ',') %></td>
+      </tr>
+      <tr>
+        <td class="label-col">CGST</td>
+        <td class="val-col">₹ <%= number_with_precision(cgst_total, precision: 2, delimiter: ',') %></td>
+      </tr>
+      <tr>
+        <td class="label-col">SGST</td>
+        <td class="val-col">₹ <%= number_with_precision(sgst_total, precision: 2, delimiter: ',') %></td>
+      </tr>
+      <tr class="grand-row">
+        <td>Grand Total</td>
+        <td style="text-align:right;font-family:'Courier New',monospace">
+          ₹ <%= number_with_precision(@invoice.computed_grand_total, precision: 2, delimiter: ',') %>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<%# ── Footer ── %>
+<div class="inv-footer">
+  <div>
+    <div style="font-size:10px;color:#666;line-height:1.8">
+      <strong>Terms & Conditions</strong><br>
+      Goods once sold will not be taken back.<br>
+      Subject to local jurisdiction.
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:11px;color:#333;font-weight:600;margin-bottom:38px">For <%= org.name %></div>
+    <div class="sig-box">Authorised Signatory</div>
+  </div>
+</div>

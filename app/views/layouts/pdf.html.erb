@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title><%= yield(:title) || 'Invoice' %> — StoreERP</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 12px;
+      color: #1a1a2e;
+      background: #fff;
+      padding: 0;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 14mm 14mm 12mm;
+      margin: 0 auto;
+      background: #fff;
+    }
+
+    /* ── Header ── */
+    .inv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #1a1a2e;
+      margin-bottom: 16px;
+    }
+    .inv-header .org-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a2e;
+      letter-spacing: -0.3px;
+    }
+    .inv-header .org-sub {
+      font-size: 10px;
+      color: #555;
+      margin-top: 3px;
+    }
+    .inv-header .inv-title {
+      text-align: right;
+    }
+    .inv-header .inv-title h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1a2e;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .inv-header .inv-number {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-top: 4px;
+    }
+    .inv-header .inv-date {
+      font-size: 11px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    /* ── Two-column info strip ── */
+    .info-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 18px;
+      padding: 12px 14px;
+      background: #f7f8fb;
+      border-radius: 6px;
+      border: 1px solid #e4e8f0;
+    }
+    .info-block label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      font-weight: 600;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .info-block .val {
+      font-size: 12px;
+      color: #1a1a2e;
+      font-weight: 500;
+    }
+    .info-block .sub {
+      font-size: 10px;
+      color: #666;
+      margin-top: 1px;
+    }
+    .mono { font-family: 'Courier New', monospace; }
+
+    /* ── Items table ── */
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .items-table thead th {
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 8px 10px;
+      font-weight: 600;
+    }
+    .items-table thead th:first-child { border-radius: 4px 0 0 0; }
+    .items-table thead th:last-child  { border-radius: 0 4px 0 0; }
+    .items-table tbody tr {
+      border-bottom: 1px solid #e9ecf3;
+    }
+    .items-table tbody tr:nth-child(even) { background: #fafbfd; }
+    .items-table tbody td {
+      padding: 8px 10px;
+      font-size: 11.5px;
+      vertical-align: top;
+    }
+    .items-table tfoot td {
+      padding: 7px 10px;
+      font-size: 11px;
+    }
+    .items-table tfoot .subtotal-row { background: #f0f3fa; }
+    .items-table tfoot .total-row    { background: #1a1a2e; color: #fff; }
+    .items-table tfoot .total-row td { font-size: 13px; font-weight: 700; }
+
+    .right { text-align: right; }
+    .center { text-align: center; }
+
+    .type-badge {
+      display: inline-block;
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .type-paint   { background: #fff8e6; color: #b8860b; border: 1px solid #f0d080; }
+    .type-product { background: #eef3ff; color: #1a4fbb; border: 1px solid #c5d4f5; }
+
+    /* ── Tax summary box ── */
+    .tax-summary {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 20px;
+      margin-bottom: 16px;
+      align-items: end;
+    }
+    .tax-notes {
+      font-size: 10px;
+      color: #666;
+      line-height: 1.6;
+    }
+    .tax-box {
+      border: 1px solid #e4e8f0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .tax-box table { width: 100%; border-collapse: collapse; }
+    .tax-box table td {
+      padding: 6px 12px;
+      font-size: 11px;
+      border-bottom: 1px solid #e4e8f0;
+    }
+    .tax-box table tr:last-child td { border-bottom: none; }
+    .tax-box table .label-col { color: #666; }
+    .tax-box table .val-col   { text-align: right; font-family: 'Courier New', monospace; font-weight: 600; }
+    .tax-box .grand-row td {
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 12px;
+    }
+
+    /* ── Footer ── */
+    .inv-footer {
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 1px solid #e4e8f0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .inv-footer .sig-box {
+      margin-top: 40px;
+      border-top: 1px solid #888;
+      padding-top: 6px;
+      font-size: 10px;
+      color: #666;
+    }
+
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .page { padding: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <%= yield %>
+  </div>
+</body>
+</html>

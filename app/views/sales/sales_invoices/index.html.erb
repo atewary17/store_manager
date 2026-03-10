@@ -1,0 +1,146 @@
+<%# app/views/sales/sales_invoices/index.html.erb %>
+<% content_for :title, "Sales Invoices" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Invoices</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Sales Invoices</div>
+    <div class="page-subtitle"><%= @organisation.name %></div>
+  </div>
+  <div class="actions">
+    <%= link_to new_sales_sales_invoice_path, class: 'btn btn-primary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New Invoice
+    <% end %>
+  </div>
+</div>
+
+<div class="stats-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Draft</div>
+    <div class="stat-value" style="color:var(--warning)"><%= @draft_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Confirmed</div>
+    <div class="stat-value" style="color:var(--success)"><%= @confirmed_count %></div>
+  </div>
+</div>
+
+<%# Status filter tabs %>
+<div style="display:flex;gap:8px;margin-bottom:20px">
+  <%= link_to 'All', sales_sales_invoices_path,
+        style: "padding:6px 16px;border-radius:6px;font-size:12px;font-family:var(--mono);
+                text-decoration:none;border:1px solid #{params[:status].blank? ? 'var(--accent)' : 'var(--border)'};
+                background:#{params[:status].blank? ? 'var(--accent-dim)' : 'transparent'};
+                color:#{params[:status].blank? ? 'var(--accent)' : 'var(--text-dim)'}" %>
+  <%= link_to 'Draft', sales_sales_invoices_path(status: 'draft'),
+        style: "padding:6px 16px;border-radius:6px;font-size:12px;font-family:var(--mono);
+                text-decoration:none;border:1px solid #{params[:status]=='draft' ? 'var(--warning)' : 'var(--border)'};
+                background:#{params[:status]=='draft' ? 'rgba(247,195,79,0.1)' : 'transparent'};
+                color:#{params[:status]=='draft' ? 'var(--warning)' : 'var(--text-dim)'}" %>
+  <%= link_to 'Confirmed', sales_sales_invoices_path(status: 'confirmed'),
+        style: "padding:6px 16px;border-radius:6px;font-size:12px;font-family:var(--mono);
+                text-decoration:none;border:1px solid #{params[:status]=='confirmed' ? 'var(--success)' : 'var(--border)'};
+                background:#{params[:status]=='confirmed' ? 'rgba(52,217,139,0.1)' : 'transparent'};
+                color:#{params[:status]=='confirmed' ? 'var(--success)' : 'var(--text-dim)'}" %>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Customer</th>
+        <th>Date</th>
+        <th>Mode</th>
+        <th style="text-align:right">Items</th>
+        <th style="text-align:right">Total (₹)</th>
+        <th>Status</th>
+        <th>Payment</th>
+        <th>Due Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @invoices.each do |inv| %>
+        <tr>
+          <td>
+            <%= link_to inv.display_number, sales_sales_invoice_path(inv),
+                  style: "color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:13px" %>
+          </td>
+          <td><%= inv.customer&.name || '<span style="color:var(--text-dim)">Walk-in</span>'.html_safe %></td>
+          <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+            <%= inv.invoice_date&.strftime('%d %b %Y') || '—' %>
+          </td>
+          <td>
+            <% if inv.payment_mode.present? %>
+              <span style="font-family:var(--mono);font-size:11px;background:var(--accent-dim);
+                           color:var(--accent);padding:2px 8px;border-radius:4px">
+                <%= inv.payment_mode.upcase %>
+              </span>
+            <% else %>
+              <span style="color:var(--text-dim)">—</span>
+            <% end %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono)">
+            <%= inv.sales_invoice_items.size %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--accent)">
+            <%= number_with_precision(inv.computed_grand_total, precision: 2, delimiter: ',') %>
+          </td>
+          <td>
+            <% if inv.confirmed? %>
+              <span class="badge badge-active">Confirmed</span>
+            <% else %>
+              <span class="badge badge-plan">Draft</span>
+            <% end %>
+          </td>
+          <td>
+            <% if inv.confirmed? %>
+              <% ps = inv.payment_status %>
+              <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;
+                           border-radius:3px;letter-spacing:0.04em;text-transform:uppercase;
+                           background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                           color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
+                <%= ps %>
+              </span>
+            <% end %>
+          </td>
+          <td style="font-family:var(--mono);font-size:11px;">
+            <% if inv.payment_due_date.present? && inv.confirmed? %>
+              <span style="color:<%= inv.overdue? ? 'var(--danger)' : 'var(--text-dim)' %>">
+                <%= inv.payment_due_date.strftime('%d %b %Y') %>
+                <%= ' ⚠' if inv.overdue? %>
+              </span>
+            <% else %>
+              <span style="color:var(--text-dim)">—</span>
+            <% end %>
+          </td>
+          <td style="text-align:right">
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <%= link_to 'View', sales_sales_invoice_path(inv), class: 'btn btn-secondary btn-sm' %>
+              <% if inv.draft? %>
+                <%= link_to 'Edit', edit_sales_sales_invoice_path(inv), class: 'btn btn-secondary btn-sm' %>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+      <% if @invoices.empty? %>
+        <tr>
+          <td colspan="10" style="text-align:center;padding:40px;color:var(--text-dim)">
+            No invoices yet.
+            <%= link_to 'Create your first invoice →', new_sales_sales_invoice_path,
+                  style: 'color:var(--accent)' %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

@@ -27,6 +27,8 @@ gem 'caxlsx'        # Excel generation (error reports)
 gem 'caxlsx_rails'  # Rails integration
 gem 'redis', '~> 5.0'          # later use
 gem 'hiredis-client'           # faster Redis driver
+gem 'wicked_pdf'
+gem 'wkhtmltopdf-binary'
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]
