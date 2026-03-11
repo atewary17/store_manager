@@ -1,0 +1,143 @@
+<%# app/views/sales/sales_invoices/_item_row.html.erb
+    Renders ONE persisted item row on the edit page.
+    New rows come from <template> tags in _form.html.erb (JS-cloned).
+    Must stay in sync with the templates: same classes, same taxable-cell structure.
+%>
+<%
+  idx      = f.index
+  paint    = item.paint?
+  cgst_pct = item.cgst_percent.to_f
+  sgst_pct = item.sgst_percent.to_f
+  gst_pct  = cgst_pct + sgst_pct
+  taxable_after = item.taxable_amount.to_f
+%>
+
+<tr data-row="<%= idx %>"
+    data-type="<%= paint ? 'paint' : (item.adhoc? ? 'adhoc' : 'product') %>"
+    class="row-<%= paint ? 'paint' : (item.adhoc? ? 'adhoc' : 'product') %>"
+    style="border-bottom:1px solid var(--border)">
+
+  <%= f.hidden_field :line_type %>
+  <%= f.hidden_field :_destroy, value: '0', class: 'destroy-flag' %>
+
+  <%# ── Shade / Item cell ── %>
+  <% if paint %>
+    <td style="padding:9px 10px;vertical-align:top">
+      <div class="shade-ac-wrap" style="position:relative">
+        <%= f.hidden_field :shade_catalogue_id, class: 'shade-id-input' %>
+        <%= f.hidden_field :product_id,         class: 'product-id-input' %>
+        <%= f.hidden_field :base_product_id,    class: 'base-id-input' %>
+        <input type="hidden" name="<%= f.field_name 'metadata', 'shade_code' %>"    class="shade-code-input"    value="<%= item.metadata['shade_code'] %>">
+        <input type="hidden" name="<%= f.field_name 'metadata', 'shade_name' %>"    class="shade-name-input"    value="<%= item.metadata['shade_name'] %>">
+        <input type="hidden" name="<%= f.field_name 'metadata', 'colour_family' %>" class="colour-family-input" value="<%= item.metadata['colour_family'] %>">
+        <input type="text" class="shade-search-input tc-input paint"
+               value="<%= item.shade_display %>"
+               autocomplete="off" placeholder="Search shade...">
+        <div class="shade-ac ac-dd"></div>
+      </div>
+      <div class="shade-meta"
+           style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:3px;min-height:13px">
+        <%= [item.metadata['colour_family'], item.shade_catalogue&.brand&.name].compact_blank.join(' . ') %>
+      </div>
+    </td>
+
+    <td style="padding:9px 10px;vertical-align:top">
+      <div class="base-ac-wrap" style="position:relative">
+        <input type="text" class="base-search-input tc-input paint"
+               value="<%= item.base_product&.display_name %>"
+               autocomplete="off" placeholder="Search base...">
+        <div class="base-ac ac-dd"></div>
+      </div>
+      <div class="base-meta"
+           style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:3px;min-height:13px">
+        <% if item.base_product %>Stock: ... <%= item.base_product.base_uom&.short_name %><% end %>
+      </div>
+    </td>
+
+  <% elsif item.adhoc? %>
+    <td style="padding:9px 10px;vertical-align:top" colspan="2">
+      <%= f.text_field :description,
+            placeholder: 'e.g. Labour charges, Delivery...',
+            class: 'tc-input adhoc' %>
+    </td>
+
+  <% else %>
+    <%# product row — spans both shade+base columns %>
+    <td style="padding:9px 10px;vertical-align:top" colspan="2">
+      <div class="product-ac-wrap" style="position:relative">
+        <%= f.hidden_field :product_id, class: 'product-id-input' %>
+        <input type="text" class="product-search-input tc-input"
+               value="<%= item.product&.display_name %>"
+               autocomplete="off" placeholder="Search product...">
+        <div class="product-ac ac-dd"></div>
+      </div>
+      <div class="product-meta"
+           style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:3px;min-height:13px">
+        <%= [("M: #{item.product&.material_code}" if item.product&.material_code.present?),
+             ("MRP: Rs.#{item.product.mrp}"       if item.product&.mrp.present?)].compact.join('  .  ') %>
+      </div>
+    </td>
+  <% end %>
+
+  <%# ── Qty ── %>
+  <td style="padding:9px 6px;vertical-align:top">
+    <%= f.number_field :quantity, min: 0, step: 0.001, placeholder: '0',
+          class: 'qty-input tc-input w-70 text-right' %>
+  </td>
+
+  <%# ── GST ── %>
+  <% if item.adhoc? %>
+    <td style="padding:9px 6px;vertical-align:top;text-align:center">
+      <select class="adhoc-gst tc-input w-72" onchange="onAdhocGst(this)">
+        <% [0,5,12,18,28].each do |pct| %>
+          <option value="<%= pct %>" <%= 'selected' if gst_pct == pct %>><%= pct %>%</option>
+        <% end %>
+      </select>
+    </td>
+  <% elsif paint %>
+    <td style="padding:9px 8px;vertical-align:top;text-align:center;
+               font-family:var(--mono);font-size:12px;color:var(--text-dim)">18%</td>
+  <% else %>
+    <td class="gst-cell" style="padding:9px 8px;vertical-align:top;text-align:center;
+               font-family:var(--mono);font-size:12px;color:var(--text)">
+      <%= gst_pct > 0 ? "#{gst_pct.to_i}%" : '--' %>
+    </td>
+  <% end %>
+
+  <%# ── Hidden GST inputs ── %>
+  <input type="hidden" class="cgst-input"
+         name="<%= f.field_name 'metadata', 'cgst_percent' %>" value="<%= cgst_pct %>">
+  <input type="hidden" class="sgst-input"
+         name="<%= f.field_name 'metadata', 'sgst_percent' %>" value="<%= sgst_pct %>">
+
+  <%# ── Taxable (plain, no per-row discount) ── %>
+  <td style="padding:9px 10px;vertical-align:top;text-align:right">
+    <%= f.hidden_field :taxable_amount, class: 'taxable-hidden' %>
+    <span class="taxable-base"
+          style="font-family:var(--mono);font-size:13px;color:<%= item.taxable_amount.to_f > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
+      <%= item.taxable_amount.to_f > 0 ? number_with_precision(item.taxable_amount, precision: 2, delimiter: ',') : '--' %>
+    </span>
+  </td>
+
+  <%# ── Amount (editable total) ── %>
+  <td style="padding:9px 6px;vertical-align:top">
+    <%= f.hidden_field :tax_amount, class: 'tax-hidden' %>
+    <%= f.hidden_field :total_amount, class: 'total-hidden' %>
+    <%= f.number_field :total_amount,
+          value: item.total_amount,
+          min: 0, step: 0.01, placeholder: '0.00',
+          class: "amount-input tc-input w-110 text-right bold#{paint ? ' paint' : (item.adhoc? ? ' adhoc' : '')}" %>
+    <div class="rate-hint"
+         style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:3px;min-height:12px;text-align:right">
+      <% if item.unit_rate.to_f > 0 && item.quantity.to_f > 0 %>
+        Rate Rs.<%= number_with_precision(item.unit_rate, precision: 2) %><%= gst_pct > 0 ? " +#{gst_pct.to_i}% GST" : '' %>
+      <% end %>
+    </div>
+  </td>
+
+  <%# ── Delete ── %>
+  <td style="padding:9px 6px;vertical-align:top;text-align:center">
+    <button type="button" onclick="deleteRow(this)"
+            style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:20px;line-height:1;padding:2px 4px">&times;</button>
+  </td>
+</tr>

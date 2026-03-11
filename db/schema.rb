@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_08_112806) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_10_213102) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -23,6 +23,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_08_112806) do
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_brands_on_active"
     t.index ["name"], name: "index_brands_on_name", unique: true
+  end
+
+  create_table "customers", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.string "name", null: false
+    t.string "phone"
+    t.string "gstin"
+    t.string "pan"
+    t.string "state"
+    t.string "state_code"
+    t.boolean "active", default: true, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_customers_on_active"
+    t.index ["gstin"], name: "index_customers_on_gstin"
+    t.index ["metadata"], name: "index_customers_on_metadata", using: :gin
+    t.index ["organisation_id", "name"], name: "index_customers_on_organisation_id_and_name"
+    t.index ["organisation_id"], name: "index_customers_on_organisation_id"
+    t.index ["phone"], name: "index_customers_on_phone"
   end
 
   create_table "organisation_product_categories", force: :cascade do |t|
@@ -143,6 +163,89 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_08_112806) do
     t.index ["status"], name: "index_purchase_invoices_on_status"
     t.index ["supplier_id"], name: "index_purchase_invoices_on_supplier_id"
     t.index ["user_id"], name: "index_purchase_invoices_on_user_id"
+  end
+
+  create_table "sale_payments", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "sales_invoice_id", null: false
+    t.bigint "customer_id"
+    t.bigint "user_id", null: false
+    t.date "payment_date", null: false
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.string "payment_mode", default: "cash", null: false
+    t.string "reference_number"
+    t.text "notes"
+    t.string "receipt_number"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["customer_id"], name: "index_sale_payments_on_customer_id"
+    t.index ["metadata"], name: "index_sale_payments_on_metadata", using: :gin
+    t.index ["organisation_id"], name: "index_sale_payments_on_organisation_id"
+    t.index ["payment_date"], name: "index_sale_payments_on_payment_date"
+    t.index ["payment_mode"], name: "index_sale_payments_on_payment_mode"
+    t.index ["receipt_number"], name: "index_sale_payments_on_receipt_number", unique: true, where: "(receipt_number IS NOT NULL)"
+    t.index ["sales_invoice_id"], name: "index_sale_payments_on_sales_invoice_id"
+    t.index ["user_id"], name: "index_sale_payments_on_user_id"
+  end
+
+  create_table "sales_invoice_items", force: :cascade do |t|
+    t.bigint "sales_invoice_id", null: false
+    t.bigint "product_id"
+    t.bigint "shade_catalogue_id"
+    t.string "line_type", default: "product", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.decimal "unit_rate", precision: 10, scale: 4, default: "0.0", null: false
+    t.decimal "discount_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "taxable_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "tax_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "total_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.bigint "base_product_id"
+    t.bigint "tinter_product_id"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "description"
+    t.index ["base_product_id"], name: "index_sales_invoice_items_on_base_product_id"
+    t.index ["line_type"], name: "index_sales_invoice_items_on_line_type"
+    t.index ["metadata"], name: "index_sales_invoice_items_on_metadata", using: :gin
+    t.index ["product_id"], name: "index_sales_invoice_items_on_product_id"
+    t.index ["sales_invoice_id"], name: "index_sales_invoice_items_on_sales_invoice_id"
+    t.index ["shade_catalogue_id"], name: "index_sales_invoice_items_on_shade_catalogue_id"
+    t.index ["tinter_product_id"], name: "index_sales_invoice_items_on_tinter_product_id"
+  end
+
+  create_table "sales_invoices", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "customer_id"
+    t.bigint "user_id", null: false
+    t.string "status", default: "draft", null: false
+    t.string "invoice_number"
+    t.date "invoice_date"
+    t.string "payment_mode"
+    t.boolean "reverse_charge", default: false, null: false
+    t.decimal "total_taxable_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_tax_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_discount_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_amount", precision: 12, scale: 2, default: "0.0"
+    t.datetime "confirmed_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "overall_discount_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.date "payment_due_date"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.index ["customer_id"], name: "index_sales_invoices_on_customer_id"
+    t.index ["invoice_date"], name: "index_sales_invoices_on_invoice_date"
+    t.index ["invoice_number"], name: "index_sales_invoices_on_invoice_number"
+    t.index ["metadata"], name: "index_sales_invoices_on_metadata", using: :gin
+    t.index ["organisation_id"], name: "index_sales_invoices_on_organisation_id"
+    t.index ["payment_due_date"], name: "index_sales_invoices_on_payment_due_date"
+    t.index ["payment_mode"], name: "index_sales_invoices_on_payment_mode"
+    t.index ["status"], name: "index_sales_invoices_on_status"
+    t.index ["user_id"], name: "index_sales_invoices_on_user_id"
+    t.index ["voided_by_id"], name: "index_sales_invoices_on_voided_by_id"
   end
 
   create_table "shade_catalogue_imports", force: :cascade do |t|
@@ -269,6 +372,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_08_112806) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  add_foreign_key "customers", "organisations"
   add_foreign_key "organisation_product_categories", "organisations"
   add_foreign_key "organisation_product_categories", "product_categories"
   add_foreign_key "product_imports", "organisations"
@@ -281,6 +385,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_08_112806) do
   add_foreign_key "purchase_invoices", "organisations"
   add_foreign_key "purchase_invoices", "suppliers"
   add_foreign_key "purchase_invoices", "users"
+  add_foreign_key "sale_payments", "customers"
+  add_foreign_key "sale_payments", "organisations"
+  add_foreign_key "sale_payments", "sales_invoices"
+  add_foreign_key "sale_payments", "users"
+  add_foreign_key "sales_invoice_items", "products"
+  add_foreign_key "sales_invoice_items", "products", column: "base_product_id"
+  add_foreign_key "sales_invoice_items", "products", column: "tinter_product_id"
+  add_foreign_key "sales_invoice_items", "sales_invoices"
+  add_foreign_key "sales_invoice_items", "shade_catalogues"
+  add_foreign_key "sales_invoices", "customers"
+  add_foreign_key "sales_invoices", "organisations"
+  add_foreign_key "sales_invoices", "users"
   add_foreign_key "shade_catalogue_imports", "organisations"
   add_foreign_key "shade_catalogue_imports", "product_categories"
   add_foreign_key "shade_catalogue_imports", "users"

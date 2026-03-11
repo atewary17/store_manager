@@ -1,0 +1,157 @@
+<%# app/views/sales/sale_payments/receipt.html.erb
+    Rendered by wicked_pdf via layouts/pdf.html.erb
+    @payment and @invoice are set by the controller
+%>
+<%
+  pmt  = @payment
+  inv  = @invoice
+  org  = inv.organisation
+  cust = inv.customer
+%>
+
+<%# ── Header ── %>
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+  <tr>
+    <td style="vertical-align:top;padding:0">
+      <div style="font-size:20px;font-weight:700;color:#1a1f2e"><%= org.name %></div>
+      <% if org.respond_to?(:gstin) && org.gstin.present? %>
+        <div style="font-size:10px;color:#6b7280;font-family:'Courier New',monospace;margin-top:2px">
+          GSTIN: <%= org.gstin %>
+        </div>
+      <% end %>
+    </td>
+    <td style="text-align:right;vertical-align:top;padding:0">
+      <div style="font-size:26px;font-weight:700;color:#1a1f2e;letter-spacing:2px;text-transform:uppercase">
+        Receipt
+      </div>
+      <div style="font-family:'Courier New',monospace;font-size:14px;font-weight:700;
+                  color:#374151;margin-top:4px">
+        <%= pmt.receipt_label %>
+      </div>
+      <div style="font-size:11px;color:#6b7280;margin-top:3px">
+        <%= pmt.payment_date.strftime('%d %b %Y') %>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div style="border-top:2px solid #1a1f2e;margin-bottom:16px"></div>
+
+<%# ── Received from / against invoice strip ── %>
+<table style="width:100%;border-collapse:collapse;background:#f8f9fd;border:1px solid #e5e7eb;
+              border-radius:5px;margin-bottom:20px">
+  <tr>
+    <td style="padding:12px 14px;vertical-align:top;width:55%">
+      <div style="font-size:9px;font-weight:700;letter-spacing:0.08em;
+                  text-transform:uppercase;color:#9ca3af;margin-bottom:4px">Received From</div>
+      <div style="font-size:14px;font-weight:600;color:#1a1f2e">
+        <%= cust&.name || 'Walk-in Customer' %>
+      </div>
+      <% if cust&.phone.present? %>
+        <div style="font-size:10px;color:#6b7280;font-family:'Courier New',monospace;margin-top:2px">
+          <%= cust.phone %>
+        </div>
+      <% end %>
+    </td>
+    <td style="padding:12px 14px;vertical-align:top;border-left:1px solid #e5e7eb">
+      <div style="font-size:9px;font-weight:700;letter-spacing:0.08em;
+                  text-transform:uppercase;color:#9ca3af;margin-bottom:4px">Against Invoice</div>
+      <div style="font-family:'Courier New',monospace;font-size:13px;font-weight:600;color:#1a1f2e">
+        <%= inv.display_number %>
+      </div>
+      <div style="font-size:10px;color:#6b7280;margin-top:2px">
+        Invoice Date: <%= inv.invoice_date&.strftime('%d %b %Y') %>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<%# ── Payment detail box ── %>
+<table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+  <tr style="background:#1a1f2e">
+    <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:600;
+               color:#fff;letter-spacing:0.08em;text-transform:uppercase">Payment Mode</th>
+    <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:600;
+               color:#fff;letter-spacing:0.08em;text-transform:uppercase">Reference #</th>
+    <th style="padding:10px 16px;text-align:right;font-size:10px;font-weight:600;
+               color:#fff;letter-spacing:0.08em;text-transform:uppercase">Amount Received</th>
+  </tr>
+  <tr style="border:1px solid #e5e7eb">
+    <td style="padding:14px 16px;font-size:13px;font-weight:600;color:#1a1f2e">
+      <%= pmt.payment_mode.titleize %>
+    </td>
+    <td style="padding:14px 16px;font-family:'Courier New',monospace;font-size:12px;color:#374151">
+      <%= pmt.reference_number.presence || '—' %>
+    </td>
+    <td style="padding:14px 16px;text-align:right;font-size:22px;font-weight:700;color:#15803d">
+      Rs. <%= number_with_precision(pmt.amount, precision: 2, delimiter: ',') %>
+    </td>
+  </tr>
+</table>
+
+<%# ── Invoice balance summary ── %>
+<table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+  <tr>
+    <td style="width:50%;padding:0"></td>
+    <td style="padding:0">
+      <table style="width:100%;border-collapse:collapse;
+                    border:1px solid #e5e7eb;border-radius:5px;overflow:hidden">
+        <tr style="border-bottom:1px solid #e5e7eb">
+          <td style="padding:7px 14px;font-size:11px;color:#6b7280">Invoice Total</td>
+          <td style="padding:7px 14px;text-align:right;font-family:'Courier New',monospace;
+                     font-size:11px;font-weight:600;color:#1a1f2e">
+            Rs. <%= number_with_precision(inv.computed_grand_total, precision: 2, delimiter: ',') %>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb">
+          <td style="padding:7px 14px;font-size:11px;color:#6b7280">Previously Paid</td>
+          <td style="padding:7px 14px;text-align:right;font-family:'Courier New',monospace;
+                     font-size:11px;font-weight:600;color:#15803d">
+            Rs. <%= number_with_precision([inv.total_paid - pmt.amount, 0].max, precision: 2, delimiter: ',') %>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid #d1d5db">
+          <td style="padding:7px 14px;font-size:11px;color:#6b7280">This Payment</td>
+          <td style="padding:7px 14px;text-align:right;font-family:'Courier New',monospace;
+                     font-size:11px;font-weight:700;color:#15803d">
+            Rs. <%= number_with_precision(pmt.amount, precision: 2, delimiter: ',') %>
+          </td>
+        </tr>
+        <tr style="background:#1a1f2e">
+          <td style="padding:9px 14px;font-size:12px;font-weight:700;color:#fff">Balance Due</td>
+          <td style="padding:9px 14px;text-align:right;font-family:'Courier New',monospace;
+                     font-size:13px;font-weight:700;
+                     color:<%= inv.outstanding_amount <= 0 ? '#86efac' : '#fca5a5' %>">
+            Rs. <%= number_with_precision([inv.outstanding_amount, 0].max, precision: 2, delimiter: ',') %>
+            <% if inv.fully_paid? %>
+              <div style="font-size:10px;color:#86efac;letter-spacing:0.05em">FULLY PAID</div>
+            <% end %>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<% if pmt.notes.present? %>
+  <div style="margin-bottom:20px;padding:10px 14px;background:#f8f9fd;
+              border:1px solid #e5e7eb;border-radius:4px;font-size:11px;color:#6b7280">
+    <strong>Note:</strong> <%= pmt.notes %>
+  </div>
+<% end %>
+
+<%# ── Footer with signature ── %>
+<div style="margin-top:30px;display:flex;justify-content:space-between;
+            padding-top:12px;border-top:1px solid #e5e7eb">
+  <div style="font-size:9px;color:#9ca3af;line-height:1.6">
+    Generated on <%= Date.today.strftime('%d %b %Y') %><br>
+    <%= org.name %>
+  </div>
+  <div style="text-align:center">
+    <div style="margin-bottom:28px;font-size:9px;color:#9ca3af">Authorised Signatory</div>
+    <div style="border-top:1px solid #9ca3af;padding-top:4px;width:180px;
+                font-size:9px;color:#9ca3af;text-align:center">
+      <%= org.name %>
+    </div>
+  </div>
+</div>

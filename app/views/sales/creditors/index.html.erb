@@ -1,0 +1,138 @@
+<%# app/views/sales/creditors/index.html.erb %>
+<% content_for :title, "Creditors" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Trade Relations</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Creditors</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Creditors</div>
+    <div class="page-subtitle">Customers with outstanding balances — <%= @organisation.name %></div>
+  </div>
+</div>
+
+<% if @creditors.any? %>
+  <% overdue_count     = @creditors.count { |c| c[:overdue] } %>
+  <% total_outstanding = @creditors.sum { |c| c[:outstanding] } %>
+
+  <%# Summary stat bar %>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
+    <div class="stat-card">
+      <div class="stat-label">Customers with Credit</div>
+      <div class="stat-value" style="color:var(--warning);font-size:22px"><%= @creditors.size %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Invoiced</div>
+      <div class="stat-value" style="font-size:18px">
+        ₹ <%= number_with_delimiter(@creditors.sum { |c| c[:total_invoiced] }.round(2)) %>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Outstanding</div>
+      <div class="stat-value" style="color:var(--danger);font-size:18px">
+        ₹ <%= number_with_delimiter(total_outstanding.round(2)) %>
+      </div>
+    </div>
+    <div class="stat-card" style="<%= overdue_count > 0 ? 'border-color:rgba(247,97,79,0.4);background:rgba(247,97,79,0.04)' : '' %>">
+      <div class="stat-label">Overdue Customers</div>
+      <div class="stat-value" style="color:<%= overdue_count > 0 ? 'var(--danger)' : 'var(--text-dim)' %>;font-size:22px">
+        <%= overdue_count %>
+      </div>
+      <% if overdue_count > 0 %>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--danger);margin-top:4px">
+          past payment due date
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th style="text-align:right">Invoices</th>
+          <th style="text-align:right">Invoiced (₹)</th>
+          <th style="text-align:right">Collected (₹)</th>
+          <th style="text-align:right">Outstanding (₹)</th>
+          <th>Next Due Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @creditors.each do |c| %>
+          <% pct = c[:total_invoiced] > 0 ? (c[:total_collected] / c[:total_invoiced] * 100).round : 0 %>
+          <tr style="<%= c[:overdue] ? 'background:rgba(247,97,79,0.03)' : '' %>">
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div>
+                  <div style="font-weight:500"><%= c[:customer].name %></div>
+                  <% if c[:customer].phone.present? %>
+                    <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+                      <%= c[:customer].phone %>
+                    </div>
+                  <% end %>
+                </div>
+                <% if c[:overdue] %>
+                  <span style="font-family:var(--mono);font-size:9px;font-weight:700;
+                               padding:2px 7px;border-radius:10px;
+                               background:rgba(247,97,79,0.15);color:var(--danger)">
+                    OVERDUE
+                  </span>
+                <% end %>
+              </div>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)"><%= c[:invoice_count] %></td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(c[:total_invoiced], precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              <%= number_with_precision(c[:total_collected], precision: 2, delimiter: ',') %>
+              <div style="margin-top:4px">
+                <div style="height:3px;background:var(--border);border-radius:2px;width:72px;display:inline-block;vertical-align:middle">
+                  <div style="height:3px;background:var(--success);border-radius:2px;width:<%= pct %>%"></div>
+                </div>
+              </div>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--danger)">
+              <%= number_with_precision(c[:outstanding], precision: 2, delimiter: ',') %>
+            </td>
+            <td>
+              <% if c[:next_due_date].present? %>
+                <div style="font-family:var(--mono);font-size:12px;
+                            color:<%= c[:overdue] ? 'var(--danger)' : 'var(--text-dim)' %>;
+                            font-weight:<%= c[:overdue] ? '600' : '400' %>">
+                  <%= c[:next_due_date].strftime('%d %b %Y') %>
+                </div>
+                <% if c[:overdue_count] > 0 %>
+                  <div style="font-size:10px;color:var(--danger);margin-top:2px">
+                    <%= c[:overdue_count] %> invoice<%= 'es' if c[:overdue_count] > 1 %> overdue
+                  </div>
+                <% end %>
+              <% else %>
+                <span style="color:var(--text-muted);font-family:var(--mono);font-size:12px">—</span>
+              <% end %>
+            </td>
+            <td style="text-align:right">
+              <%= link_to 'Ledger →', sales_creditor_path(c[:customer]),
+                    class: 'btn btn-secondary btn-sm' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+<% else %>
+  <div class="table-wrap" style="padding:60px;text-align:center;color:var(--text-dim)">
+    <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2"
+         viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;opacity:0.3">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    <div style="font-size:14px;margin-bottom:6px">No outstanding credits</div>
+    <div style="font-size:12px">All customers are fully settled.</div>
+  </div>
+<% end %>

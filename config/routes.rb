@@ -18,8 +18,7 @@ Rails.application.routes.draw do
       collection { get :export }
     end
     resources :shade_catalogues do
-      collection { get :template; get :export; get :import, to: 'shade_catalogues#import_index'; get :import_new; post :import_create }
-      member     { get :import_show; get :import_download_errors }
+      collection { get :template; get :export }
     end
     resources :product_imports, only: [:index, :new, :create, :show] do
       member     { get :download_errors }
@@ -45,6 +44,21 @@ Rails.application.routes.draw do
       member { post :confirm }
       collection { get :product_search }
     end
+  end
+
+  # Customers (shared — used by Sales, CRM, etc.)
+  resources :customers do
+    collection { get :search }
+  end
+
+  # Sales
+  namespace :sales do
+    resources :sales_invoices do
+      member     { post :confirm; get :preview; post :void; post :mark_as_paid }
+      collection { get :product_search; get :shade_search; get :base_search }
+      resources :sale_payments, only: [:create, :show, :destroy]
+    end
+    resources :creditors, only: [:index, :show]
   end
 
   get  'dashboard', to: 'dashboard#index', as: :dashboard

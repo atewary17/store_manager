@@ -1,0 +1,513 @@
+<%# app/views/sales/sales_invoices/show.html.erb %>
+<% content_for :title, @invoice.display_number %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Invoices', sales_sales_invoices_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @invoice.display_number %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title"><%= @invoice.display_number %></div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap">
+      <% if @invoice.voided? %>
+        <span class="badge" style="background:rgba(247,97,79,0.15);color:var(--danger)">Voided</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+          <%= @invoice.voided_at&.strftime('%d %b %Y, %H:%M') %>
+        </span>
+      <% elsif @invoice.confirmed? %>
+        <span class="badge badge-active">Confirmed</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+          <%= @invoice.confirmed_at&.strftime('%d %b %Y, %H:%M') %>
+        </span>
+        <%# Payment status pill %>
+        <% ps = @invoice.payment_status %>
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 9px;
+                     border-radius:10px;letter-spacing:0.05em;text-transform:uppercase;
+                     background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                     color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
+          <%= ps %>
+        </span>
+        <% if @invoice.overdue? %>
+          <span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 9px;
+                       border-radius:10px;background:rgba(247,97,79,0.15);color:var(--danger)">
+            OVERDUE
+          </span>
+        <% end %>
+      <% else %>
+        <span class="badge badge-plan">Draft</span>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="actions">
+    <%# Single PDF button for all states — no duplicate %>
+    <%= link_to sales_sales_invoice_path(@invoice, format: :pdf),
+          class: 'btn btn-secondary', target: '_blank' do %>
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      Invoice PDF
+    <% end %>
+
+    <% if @invoice.draft? %>
+      <%= link_to '← Edit', edit_sales_sales_invoice_path(@invoice), class: 'btn btn-secondary' %>
+      <%= link_to 'Review & Confirm →', preview_sales_sales_invoice_path(@invoice), class: 'btn btn-primary' %>
+    <% end %>
+
+    <% if @invoice.confirmed? && !@invoice.fully_paid? %>
+      <%# Mark as Paid — quick full settlement %>
+      <%= button_to 'Mark as Paid',
+            mark_as_paid_sales_sales_invoice_path(@invoice),
+            method: :post,
+            data: { confirm: "Record full payment of ₹#{@invoice.outstanding_amount} as cash?" },
+            class: 'btn btn-primary' %>
+    <% end %>
+
+    <% if @invoice.confirmed? %>
+      <%# Void with stock reversal %>
+      <%= button_to 'Void Invoice',
+            void_sales_sales_invoice_path(@invoice),
+            method: :post,
+            data: { confirm: "Void this invoice? Stock deductions will be reversed and the invoice cannot be edited." },
+            style: "background:none;border:1px solid var(--danger);color:var(--danger);
+                    padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;
+                    font-family:var(--sans)" %>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Stock deduction flash ── %>
+<% if flash[:stock_lines].present? %>
+  <div style="background:rgba(52,217,139,0.06);border:1px solid rgba(52,217,139,0.3);
+              border-radius:8px;padding:16px 20px;margin-bottom:20px">
+    <div style="font-size:13px;font-weight:600;color:var(--success);margin-bottom:10px">
+      ✓ Invoice confirmed — stock deducted
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:0.06em">
+          <th style="text-align:left;padding:4px 10px">Product</th>
+          <th style="text-align:right;padding:4px 10px">Before</th>
+          <th style="text-align:right;padding:4px 10px">Deducted</th>
+          <th style="text-align:right;padding:4px 10px">After</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% flash[:stock_lines].each do |line| %>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:6px 10px;font-weight:500"><%= line[:product] %></td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--mono)"><%= line[:before] %></td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);color:var(--danger)">
+              − <%= line[:deducted] %>
+            </td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;
+                       color:<%= line[:after].to_f < 0 ? 'var(--danger)' : line[:after].to_f < 5 ? 'var(--warning)' : 'var(--success)' %>">
+              <%= line[:after] %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
+
+<%# ── Void reversal flash ── %>
+<% if flash[:reversed_lines].present? %>
+  <div style="background:rgba(247,97,79,0.06);border:1px solid rgba(247,97,79,0.3);
+              border-radius:8px;padding:16px 20px;margin-bottom:20px">
+    <div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:10px">
+      ✕ Invoice voided — stock restored
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:0.06em">
+          <th style="text-align:left;padding:4px 10px">Product</th>
+          <th style="text-align:right;padding:4px 10px">Before</th>
+          <th style="text-align:right;padding:4px 10px">Restored</th>
+          <th style="text-align:right;padding:4px 10px">After</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% flash[:reversed_lines].each do |line| %>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:6px 10px;font-weight:500"><%= line[:product] %></td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--mono)"><%= line[:before] %></td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);color:var(--success)">
+              + <%= line[:restored] %>
+            </td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--success)">
+              <%= line[:after] %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
+
+<%# ── Invoice Details card ── %>
+<div class="detail-card" style="margin-bottom:20px">
+  <div class="detail-section">
+    <div class="detail-section-title">Invoice Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Customer</label>
+        <div class="value"><%= @invoice.customer&.name || 'Walk-in' %></div>
+        <% if @invoice.customer&.phone.present? %>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+            <%= @invoice.customer.phone %>
+          </div>
+        <% end %>
+      </div>
+      <div class="detail-field">
+        <label>Invoice Number</label>
+        <div class="value mono"><%= @invoice.invoice_number.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Invoice Date</label>
+        <div class="value mono"><%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Payment Due Date</label>
+        <%# Inline editable form — works on draft and confirmed invoices %>
+        <%= form_with url: sales_sales_invoice_path(@invoice), method: :patch, local: true,
+              style: "display:flex;align-items:center;gap:8px;margin-top:2px" do |f| %>
+          <%= f.date_field :payment_due_date,
+                value: @invoice.payment_due_date,
+                style: "background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                        padding:5px 9px;color:#{'var(--danger)' if @invoice.overdue?};
+                        font-family:var(--mono);font-size:12px;outline:none;
+                        color-scheme:dark;",
+                name: 'sales_invoice[payment_due_date]' %>
+          <button type="submit"
+                  style="background:var(--accent-dim);border:1px solid var(--accent);
+                         color:var(--accent);border-radius:5px;padding:5px 10px;
+                         font-size:11px;cursor:pointer;font-family:var(--mono);
+                         white-space:nowrap">
+            Save
+          </button>
+          <% if @invoice.overdue? %>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--danger);font-weight:600">
+              OVERDUE
+            </span>
+          <% end %>
+        <% end %>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:4px">
+          For credit tracking — leave blank for cash sales
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Payment Mode</label>
+        <div class="value"><%= @invoice.payment_mode&.titleize || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Entered By</label>
+        <div class="value"><%= @invoice.user&.full_name %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">Totals</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Taxable Amount</label>
+        <div class="value mono">₹ <%= number_with_delimiter(@invoice.computed_taxable_total.round(2)) %></div>
+      </div>
+      <div class="detail-field">
+        <label>Tax Amount</label>
+        <div class="value mono">₹ <%= number_with_delimiter(@invoice.computed_tax_total.round(2)) %></div>
+      </div>
+      <% if @invoice.overall_discount_amount.to_f > 0 %>
+        <div class="detail-field">
+          <label>Discount</label>
+          <div class="value mono" style="color:var(--warning)">
+            − ₹ <%= number_with_delimiter(@invoice.overall_discount_amount.to_f) %>
+          </div>
+        </div>
+      <% end %>
+      <div class="detail-field">
+        <label>Grand Total</label>
+        <div class="value mono" style="font-size:18px;font-weight:700;color:var(--accent)">
+          ₹ <%= number_with_delimiter(@invoice.computed_grand_total.round(2)) %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# ── Line Items ── %>
+<div class="table-wrap" style="margin-bottom:20px">
+  <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      Line Items (<%= @invoice.sales_invoice_items.size %>)
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Product / Shade</th>
+        <th>Type</th>
+        <th>UOM</th>
+        <th style="text-align:right">Qty</th>
+        <th style="text-align:right">Rate (₹)</th>
+        <th style="text-align:right">Taxable (₹)</th>
+        <th style="text-align:right">GST</th>
+        <th style="text-align:right">Total (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @invoice.sales_invoice_items.each do |item| %>
+        <tr>
+          <td>
+            <% if item.paint? %>
+              <div style="font-weight:500"><%= item.shade_display %></div>
+              <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+                <%= item.metadata['colour_family'] %>
+                <% if item.base_product.present? %>· Base: <%= item.base_product.pack_code %><% end %>
+              </div>
+            <% elsif item.adhoc? %>
+              <div style="font-weight:500"><%= item.description.presence || 'Ad-hoc' %></div>
+            <% else %>
+              <div style="font-weight:500"><%= item.product&.display_name || '—' %></div>
+              <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+                <%= item.product&.material_code %>
+              </div>
+            <% end %>
+          </td>
+          <td>
+            <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;
+                         background:<%= item.paint? ? 'rgba(247,195,79,0.12)' : item.adhoc? ? 'rgba(52,217,139,0.1)' : 'var(--accent-dim)' %>;
+                         color:<%= item.paint? ? 'var(--warning)' : item.adhoc? ? 'var(--success)' : 'var(--accent)' %>">
+              <%= item.line_type.upcase %>
+            </span>
+          </td>
+          <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+            <%= item.product&.base_uom&.short_name || '—' %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono)">
+            <%= number_with_precision(item.quantity, precision: 3, strip_insignificant_zeros: true) %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono)">
+            <%= number_with_precision(item.unit_rate, precision: 2) %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono)">
+            <%= number_with_precision(item.taxable_amount, precision: 2) %>
+          </td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+            <% gst = item.cgst_percent.to_f + item.sgst_percent.to_f %>
+            <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--accent)">
+            <%= number_with_precision(item.total_amount, precision: 2) %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<%# ── Payments Panel (confirmed invoices only) ── %>
+<% if @invoice.confirmed? %>
+  <div class="detail-card" style="margin-bottom:20px">
+
+    <%# Panel header with status badge %>
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);
+                display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+                   text-transform:uppercase;color:var(--text-dim)">Payments</span>
+      <% ps = @invoice.payment_status %>
+      <span style="font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 10px;
+                   border-radius:4px;letter-spacing:0.05em;text-transform:uppercase;
+                   background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                   color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
+        <%= ps.upcase %>
+      </span>
+    </div>
+
+    <%# Three-stat summary bar %>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">
+      <div style="background:var(--surface);padding:14px 20px">
+        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                    letter-spacing:0.07em;margin-bottom:4px">Invoice Total</div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text)">
+          ₹ <%= number_with_delimiter(@invoice.computed_grand_total.round(2)) %>
+        </div>
+      </div>
+      <div style="background:var(--surface);padding:14px 20px">
+        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                    letter-spacing:0.07em;margin-bottom:4px">Collected</div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--success)">
+          ₹ <%= number_with_delimiter(@invoice.total_paid) %>
+        </div>
+      </div>
+      <div style="background:var(--surface);padding:14px 20px">
+        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                    letter-spacing:0.07em;margin-bottom:4px">Outstanding</div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:700;
+                    color:<%= @invoice.fully_paid? ? 'var(--success)' : 'var(--danger)' %>">
+          ₹ <%= number_with_delimiter(@invoice.outstanding_amount) %>
+        </div>
+        <% if @invoice.payment_due_date.present? && !@invoice.fully_paid? %>
+          <div style="font-size:10px;margin-top:3px;
+                      color:<%= @invoice.overdue? ? 'var(--danger)' : 'var(--text-dim)' %>">
+            Due <%= @invoice.payment_due_date.strftime('%d %b %Y') %>
+            <%= '· OVERDUE' if @invoice.overdue? %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# Existing payments table %>
+    <% if @invoice.sale_payments.any? %>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg)">
+            <th style="padding:8px 20px;text-align:left;font-size:10px;font-weight:600;
+                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Receipt</th>
+            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;
+                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Date</th>
+            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;
+                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Mode</th>
+            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;
+                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Ref #</th>
+            <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;
+                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Amount</th>
+            <th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:600;
+                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Receipt</th>
+            <th style="padding:8px 16px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @invoice.sale_payments.recent.each do |pmt| %>
+            <tr style="border-top:1px solid var(--border)">
+              <td style="padding:10px 20px;font-family:var(--mono);font-size:12px;font-weight:600;
+                         color:var(--text)">
+                <%= pmt.receipt_label %>
+              </td>
+              <td style="padding:10px 12px;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+                <%= pmt.payment_date.strftime('%d %b %Y') %>
+              </td>
+              <td style="padding:10px 12px">
+                <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;
+                             border-radius:3px;background:var(--accent-dim);color:var(--accent)">
+                  <%= pmt.payment_mode.upcase %>
+                </span>
+              </td>
+              <td style="padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                <%= pmt.reference_number.presence || '—' %>
+              </td>
+              <td style="padding:10px 12px;text-align:right;font-family:var(--mono);
+                         font-size:14px;font-weight:600;color:var(--success)">
+                ₹ <%= number_with_delimiter(pmt.amount) %>
+              </td>
+              <td style="padding:10px 12px;text-align:center">
+                <%= link_to sales_sales_invoice_sale_payment_path(@invoice, pmt, format: :pdf),
+                      target: '_blank',
+                      style: "display:inline-flex;align-items:center;gap:4px;font-size:11px;
+                              color:var(--accent);text-decoration:none;font-family:var(--mono);
+                              padding:3px 9px;border:1px solid var(--accent-dim);border-radius:4px" do %>
+                  <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Receipt
+                <% end %>
+              </td>
+              <td style="padding:10px 16px;text-align:right">
+                <%= button_to '✕',
+                      sales_sales_invoice_sale_payment_path(@invoice, pmt),
+                      method: :delete,
+                      data: { confirm: "Delete payment #{pmt.receipt_label}?" },
+                      style: "background:none;border:none;color:var(--danger);
+                              cursor:pointer;font-size:14px;padding:2px 6px;
+                              border-radius:4px;line-height:1" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <div style="padding:24px 20px;color:var(--text-dim);font-size:13px">
+        No payments recorded yet.
+      </div>
+    <% end %>
+
+    <%# Record Payment form — only if not fully paid and not voided %>
+    <% unless @invoice.fully_paid? || @invoice.voided? %>
+      <div style="border-top:2px solid var(--border);padding:20px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-dim);
+                    text-transform:uppercase;letter-spacing:0.07em;margin-bottom:16px">
+          Record Payment
+        </div>
+        <%= form_with model: SalePayment.new,
+              url: sales_sales_invoice_sale_payments_path(@invoice),
+              local: true do |f| %>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                            letter-spacing:0.06em;font-weight:600">Date</label>
+              <%= f.date_field :payment_date, value: Date.today, class: 'form-control',
+                    style: 'width:145px' %>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                            letter-spacing:0.06em;font-weight:600">
+                Amount (₹)
+                <span style="color:var(--text-dim);font-weight:400;font-style:italic;
+                             text-transform:none;letter-spacing:0">
+                  — outstanding: ₹<%= number_with_delimiter(@invoice.outstanding_amount) %>
+                </span>
+              </label>
+              <%= f.number_field :amount,
+                    placeholder: @invoice.outstanding_amount,
+                    step: '0.01', min: '0.01',
+                    class: 'form-control',
+                    style: 'width:140px' %>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                            letter-spacing:0.06em;font-weight:600">Mode</label>
+              <%= f.select :payment_mode,
+                    SalePayment::PAYMENT_MODES.map { |m| [m.titleize, m] },
+                    {},
+                    class: 'form-control', style: 'width:145px' %>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                            letter-spacing:0.06em;font-weight:600">Ref # <span style="font-weight:400">(optional)</span></label>
+              <%= f.text_field :reference_number,
+                    placeholder: 'Cheque no. / UTR',
+                    class: 'form-control', style: 'width:160px' %>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:160px">
+              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
+                            letter-spacing:0.06em;font-weight:600">Notes <span style="font-weight:400">(optional)</span></label>
+              <%= f.text_field :notes,
+                    placeholder: 'e.g. advance payment',
+                    class: 'form-control' %>
+            </div>
+
+            <div>
+              <%= f.submit 'Add Payment',
+                    class: 'btn btn-primary',
+                    style: 'white-space:nowrap;height:38px' %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+  </div>
+<% end %>

@@ -1,0 +1,11 @@
+<%# app/views/customers/edit.html.erb %>
+<% content_for :title, "Edit #{@customer.name}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Customers', customers_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Edit</span>
+<% end %>
+<div class="page-header"><div class="page-title">Edit <%= @customer.name %></div></div>
+<%= render 'form', customer: @customer %>

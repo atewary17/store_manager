@@ -1,0 +1,186 @@
+<%# app/views/sales/creditors/show.html.erb — customer ledger %>
+<% content_for :title, @customer.name %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Creditors', sales_creditors_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @customer.name %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title"><%= @customer.name %></div>
+    <div style="display:flex;gap:16px;align-items:center;margin-top:6px;flex-wrap:wrap">
+      <% if @customer.phone.present? %>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+          📞 <%= @customer.phone %>
+        </span>
+      <% end %>
+      <% if @customer.gstin.present? %>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+          GSTIN: <%= @customer.gstin %>
+        </span>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%# Summary cards %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Invoiced</div>
+    <div class="stat-value" style="font-size:18px;color:var(--text)">
+      ₹ <%= number_with_delimiter(@total_invoiced) %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Collected</div>
+    <div class="stat-value" style="font-size:18px;color:var(--success)">
+      ₹ <%= number_with_delimiter(@total_collected) %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Outstanding</div>
+    <div class="stat-value" style="font-size:18px;color:<%= @total_outstanding > 0 ? 'var(--danger)' : 'var(--success)' %>">
+      ₹ <%= number_with_delimiter(@total_outstanding) %>
+    </div>
+  </div>
+</div>
+
+<%# ── Invoices table ── %>
+<div class="table-wrap" style="margin-bottom:28px">
+  <div style="padding:14px 20px;border-bottom:1px solid var(--border);
+              display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      Invoices (<%= @invoices.size %>)
+    </span>
+  </div>
+  <% if @invoices.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Date</th>
+          <th style="text-align:right">Total (₹)</th>
+          <th style="text-align:right">Paid (₹)</th>
+          <th style="text-align:right">Outstanding (₹)</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @invoices.each do |inv| %>
+          <% ps = inv.payment_status %>
+          <tr>
+            <td>
+              <%= link_to inv.display_number, sales_sales_invoice_path(inv),
+                    style: "color:var(--accent);font-family:var(--mono);font-size:13px;text-decoration:none" %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= inv.invoice_date&.strftime('%d %b %Y') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(inv.computed_grand_total, precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              <%= number_with_precision(inv.total_paid, precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600;
+                       color:<%= inv.fully_paid? ? 'var(--success)' : 'var(--danger)' %>">
+              <%= number_with_precision(inv.outstanding_amount, precision: 2, delimiter: ',') %>
+            </td>
+            <td>
+              <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;
+                           border-radius:3px;letter-spacing:0.05em;text-transform:uppercase;
+                           background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                           color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
+                <%= ps %>
+              </span>
+            </td>
+            <td style="text-align:right">
+              <%= link_to 'View', sales_sales_invoice_path(inv), class: 'btn btn-secondary btn-sm' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div style="padding:30px;text-align:center;color:var(--text-dim);font-size:13px">
+      No confirmed invoices.
+    </div>
+  <% end %>
+</div>
+
+<%# ── Payment timeline ── %>
+<div class="table-wrap">
+  <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      Payment Timeline (<%= @payments.size %>)
+    </span>
+  </div>
+  <% if @payments.any? %>
+    <div style="padding:8px 0">
+      <% @payments.each do |pmt| %>
+        <div style="display:flex;align-items:flex-start;gap:16px;padding:12px 20px;
+                    border-bottom:1px solid var(--border)">
+          <%# Timeline dot %>
+          <div style="flex-shrink:0;margin-top:3px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--success);margin:4px 0"></div>
+          </div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div>
+                <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent)">
+                  <%= pmt.receipt_label %>
+                </span>
+                <span style="margin-left:10px;font-family:var(--mono);font-size:10px;
+                             padding:1px 7px;border-radius:3px;
+                             background:var(--accent-dim);color:var(--accent)">
+                  <%= pmt.payment_mode.upcase %>
+                </span>
+                <% if pmt.reference_number.present? %>
+                  <span style="margin-left:6px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                    Ref: <%= pmt.reference_number %>
+                  </span>
+                <% end %>
+              </div>
+              <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--success)">
+                ₹ <%= number_with_delimiter(pmt.amount) %>
+              </div>
+            </div>
+            <div style="margin-top:4px;display:flex;gap:12px;align-items:center">
+              <span style="font-size:12px;color:var(--text-dim);font-family:var(--mono)">
+                <%= pmt.payment_date.strftime('%d %b %Y') %>
+              </span>
+              <span style="font-size:11px;color:var(--text-dim)">
+                against
+                <%= link_to pmt.sales_invoice.display_number,
+                      sales_sales_invoice_path(pmt.sales_invoice),
+                      style: "color:var(--accent);text-decoration:none;font-family:var(--mono)" %>
+              </span>
+              <% if pmt.notes.present? %>
+                <span style="font-size:11px;color:var(--text-dim);font-style:italic">
+                  — <%= pmt.notes %>
+                </span>
+              <% end %>
+            </div>
+          </div>
+          <%# Receipt PDF link %>
+          <%= link_to '↓ Receipt',
+                sales_sales_invoice_sale_payment_path(pmt.sales_invoice, pmt, format: :pdf),
+                style: "flex-shrink:0;font-size:11px;color:var(--accent);text-decoration:none;
+                        font-family:var(--mono);padding:4px 10px;border:1px solid var(--accent-dim);
+                        border-radius:4px",
+                target: '_blank' %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div style="padding:30px;text-align:center;color:var(--text-dim);font-size:13px">
+      No payments recorded yet.
+    </div>
+  <% end %>
+</div>

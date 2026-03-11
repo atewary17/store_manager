@@ -1,0 +1,88 @@
+# app/models/sales_invoice_item.rb
+class SalesInvoiceItem < ApplicationRecord
+
+  LINE_TYPES = %w[product paint adhoc].freeze
+
+  # ── Associations ─────────────────────────────────────────────
+  belongs_to :sales_invoice
+  belongs_to :product,         optional: true
+  belongs_to :shade_catalogue, optional: true
+  belongs_to :base_product,    class_name: 'Product', optional: true,
+                               foreign_key: :base_product_id
+  belongs_to :tinter_product,  class_name: 'Product', optional: true,
+                               foreign_key: :tinter_product_id
+
+  # ── Validations ───────────────────────────────────────────────
+  validates :line_type,    inclusion: { in: LINE_TYPES }
+  validates :quantity,     presence: true, numericality: { greater_than: 0 }
+  validates :total_amount, numericality: { greater_than_or_equal_to: 0 }
+
+  validate :paint_item_has_shade,    if: -> { line_type == 'paint' }
+  validate :product_item_has_product, if: -> { line_type == 'product' }
+  validate :adhoc_item_has_description, if: -> { line_type == 'adhoc' }
+
+  # ── Callbacks ─────────────────────────────────────────────────
+  before_validation :compute_amounts
+
+  # ── Scopes ───────────────────────────────────────────────────
+  scope :paint_lines,   -> { where(line_type: 'paint') }
+  scope :product_lines, -> { where(line_type: 'product') }
+  scope :adhoc_lines,   -> { where(line_type: 'adhoc') }
+
+  # ── Helpers ───────────────────────────────────────────────────
+  def paint?   = line_type == 'paint'
+  def product? = line_type == 'product'
+  def adhoc?   = line_type == 'adhoc'
+
+  def cgst_percent  = metadata['cgst_percent'].to_f
+  def sgst_percent  = metadata['sgst_percent'].to_f
+  def gst_percent   = cgst_percent + sgst_percent
+
+  def shade_display
+    [metadata['shade_code'], metadata['shade_name']].compact_blank.join(' — ').presence || '—'
+  end
+
+  def line_display
+    case line_type
+    when 'paint'   then shade_display
+    when 'product' then product&.display_name || '—'
+    when 'adhoc'   then description.presence || 'Ad-hoc item'
+    end
+  end
+
+  private
+
+  # User enters total_amount; we back-calculate unit_rate and taxable/tax split
+  def compute_amounts
+    total    = total_amount.to_f
+    qty      = quantity.to_f
+    gst_pct  = metadata['cgst_percent'].to_f + metadata['sgst_percent'].to_f
+
+    return if total <= 0 || qty <= 0
+
+    # Back-calc: total = taxable * (1 + gst/100)
+    taxable = gst_pct > 0 ? (total / (1 + gst_pct / 100.0)).round(2) : total
+    tax_amt = (total - taxable).round(2)
+    rate    = (taxable / qty).round(4)
+
+    self.unit_rate      = rate
+    self.taxable_amount = taxable
+    self.tax_amount     = tax_amt
+
+    metadata['cgst_amount'] = (taxable * metadata['cgst_percent'].to_f / 100.0).round(2)
+    metadata['sgst_amount'] = (taxable * metadata['sgst_percent'].to_f / 100.0).round(2)
+  end
+
+  def paint_item_has_shade
+    errors.add(:shade_catalogue, 'must be selected for paint items') if shade_catalogue_id.blank?
+  end
+
+  def product_item_has_product
+    errors.add(:product, 'must be selected for product items') if product_id.blank?
+  end
+
+  def adhoc_item_has_description
+    errors.add(:description, "can't be blank for ad-hoc items") if description.blank?
+  end
+
+end

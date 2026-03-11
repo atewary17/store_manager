@@ -1,0 +1,78 @@
+<%# app/views/customers/_form.html.erb %>
+<div class="form-card">
+  <% if customer.errors.any? %>
+    <div class="flash alert" style="margin:0 0 20px">
+      <ul style="padding-left:16px">
+        <% customer.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form_with model: @customer, local: true do |f| %>
+    <div class="form-section">
+      <div class="form-section-title">Customer Details</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :name, "Customer Name *" %>
+          <%= f.text_field :name, placeholder: 'e.g. Ramesh Hardware Store', class: 'form-control' %>
+          <% if customer.errors[:name].any? %>
+            <div class="form-error"><%= customer.errors[:name].first %></div>
+          <% end %>
+        </div>
+        <div class="form-group">
+          <%= f.label :phone, "Phone" %>
+          <%= f.text_field :phone, placeholder: 'e.g. 9876543210',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :gstin, "GSTIN" %>
+          <%= f.text_field :gstin, placeholder: 'e.g. 19AAACA3622K1ZS',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+        </div>
+        <div class="form-group">
+          <%= f.label :pan, "PAN" %>
+          <%= f.text_field :pan, placeholder: 'e.g. AAACA3622K',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <%= f.label :state, "State" %>
+          <%= f.text_field :state, placeholder: 'e.g. West Bengal', class: 'form-control' %>
+        </div>
+        <div class="form-group">
+          <%= f.label :state_code, "State Code" %>
+          <%= f.text_field :state_code, placeholder: 'e.g. 19',
+                style: 'font-family:var(--mono)', class: 'form-control' %>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="grid-column:1/-1">
+          <label for="customer_address">Address</label>
+          <textarea name="customer[metadata][address]" id="customer_address"
+                    placeholder="Full address — building, street, city, PIN…"
+                    rows="3" class="form-control"
+                    style="resize:vertical;font-size:13px"><%= customer.metadata['address'] %></textarea>
+        </div>
+      </div>
+
+      <div class="form-group" style="max-width:200px">
+        <%= f.label :active, "Status" %>
+        <%= f.select :active, [['Active', true], ['Inactive', false]],
+              { selected: customer.active }, { class: 'form-control' } %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit customer.new_record? ? 'Create Customer' : 'Update Customer',
+            class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', customers_path, class: 'btn btn-secondary' %>
+    </div>
+  <% end %>
+</div>

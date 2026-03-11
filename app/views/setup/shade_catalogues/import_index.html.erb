@@ -69,10 +69,10 @@
           </td>
           <td style="font-family:var(--mono);font-size:12px"><%= imp.file_size_human %></td>
           <td>
-            <%= link_to 'View', shade_catalogue_import_show_setup_shade_catalogue_path(imp),
+            <%= link_to 'View', import_show_setup_shade_catalogue_path(imp),
                   class: 'btn btn-secondary btn-sm' %>
             <% if imp.has_errors? %>
-              <%= link_to 'Errors ↓', shade_catalogue_import_download_errors_setup_shade_catalogue_path(imp),
+              <%= link_to 'Errors ↓', import_download_errors_setup_shade_catalogue_path(imp),
                     class: 'btn btn-danger btn-sm' %>
             <% end %>
           </td>
