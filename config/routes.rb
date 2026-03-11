@@ -18,8 +18,15 @@ Rails.application.routes.draw do
       collection { get :export }
     end
     resources :shade_catalogues do
-      collection { get :template; get :export }
+      collection do
+        get  :template
+        get  :export
+        get  'import',     action: :import_index, as: :import
+        get  'import/new', action: :import_new,   as: :import_new
+        post 'import',     action: :import_create
+      end
     end
+
     resources :product_imports, only: [:index, :new, :create, :show] do
       member     { get :download_errors }
       collection { get :template }
@@ -60,6 +67,14 @@ Rails.application.routes.draw do
     end
     resources :creditors, only: [:index, :show]
   end
+
+  # Shade import detail routes — outside namespace to control helper names precisely
+  get  '/setup/shade_catalogues/imports/:id',
+       to:  'setup/shade_catalogues#import_show',
+       as:  'import_show_setup_shade_catalogue'
+  get  '/setup/shade_catalogues/imports/:id/download_errors',
+       to:  'setup/shade_catalogues#import_download_errors',
+       as:  'import_download_errors_setup_shade_catalogue'
 
   get  'dashboard', to: 'dashboard#index', as: :dashboard
   root 'dashboard#index'
