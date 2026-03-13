@@ -107,7 +107,7 @@ class PurchaseInvoice < ApplicationRecord
   private
 
   # Fields that confirm! is allowed to write on a confirmed record
-  CONFIRM_FIELDS = %w[status confirmed_at total_taxable_amount total_tax_amount total_amount].freeze
+  CONFIRM_FIELDS = %w[status confirmed_at total_taxable_amount total_tax_amount total_amount payment_due_date].freeze
 
   def cannot_edit_if_confirmed
     return unless confirmed?

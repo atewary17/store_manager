@@ -29,6 +29,7 @@ gem 'redis', '~> 5.0'          # later use
 gem 'hiredis-client'           # faster Redis driver
 gem 'wicked_pdf'
 gem 'wkhtmltopdf-binary'
+gem 'dotenv-rails'  # not grouped, so it loads in production too
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]
@@ -36,10 +37,12 @@ group :development, :test do
   gem 'minitest', '~> 5.0'
   gem 'rspec-rails', '~> 6.0'
   gem 'factory_bot_rails'
+  # gem 'dotenv-rails'
 end
 
 group :development do
   gem "web-console"
+  gem 'pry-byebug'
 end
 
 group :test do

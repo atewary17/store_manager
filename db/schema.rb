@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_10_213102) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_13_122901) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -43,6 +43,29 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_10_213102) do
     t.index ["organisation_id", "name"], name: "index_customers_on_organisation_id_and_name"
     t.index ["organisation_id"], name: "index_customers_on_organisation_id"
     t.index ["phone"], name: "index_customers_on_phone"
+  end
+
+  create_table "digitise_imports", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "purchase_invoice_id"
+    t.string "status", default: "pending", null: false
+    t.string "file_name"
+    t.integer "file_size"
+    t.string "file_content_type"
+    t.text "file_data"
+    t.text "raw_response"
+    t.jsonb "parsed_data", default: {}, null: false
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "attempt_count", default: 0, null: false
+    t.jsonb "attempt_log", default: [], null: false
+    t.string "ai_provider"
+    t.index ["organisation_id"], name: "index_digitise_imports_on_organisation_id"
+    t.index ["purchase_invoice_id"], name: "index_digitise_imports_on_purchase_invoice_id"
+    t.index ["status"], name: "index_digitise_imports_on_status"
+    t.index ["user_id"], name: "index_digitise_imports_on_user_id"
   end
 
   create_table "organisation_product_categories", force: :cascade do |t|
@@ -156,10 +179,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_10_213102) do
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.date "payment_due_date"
     t.index ["invoice_date"], name: "index_purchase_invoices_on_invoice_date"
     t.index ["invoice_number"], name: "index_purchase_invoices_on_invoice_number"
     t.index ["metadata"], name: "index_purchase_invoices_on_metadata", using: :gin
     t.index ["organisation_id"], name: "index_purchase_invoices_on_organisation_id"
+    t.index ["payment_due_date"], name: "index_purchase_invoices_on_payment_due_date"
     t.index ["status"], name: "index_purchase_invoices_on_status"
     t.index ["supplier_id"], name: "index_purchase_invoices_on_supplier_id"
     t.index ["user_id"], name: "index_purchase_invoices_on_user_id"

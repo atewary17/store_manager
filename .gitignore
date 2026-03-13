@@ -37,8 +37,8 @@ tmp/screenshots
 /config/master.key
 
 # Ignore environment variables
-/.env
-/.env.development.local
+# /.env
+# /.env.development.local
 
 #---------------------------------------#
 # IDEs & Editors Ignores                #
@@ -105,4 +105,4 @@ dump.rdb
 
 # Ignore build files but keep directory
 /app/assets/builds/*
-!/app/assets/builds/.keep
+!/app/assets/builds/.keep.env
