@@ -44,4 +44,9 @@ Rails.application.configure do
   config.assets.quiet = true
   config.action_mailer.default_url_options = { host: 'localhost', port: 3000 }
   config.action_controller.raise_on_missing_callback_actions = true
+  
+  file_logger = ActiveSupport::Logger.new(Rails.root.join("log/development.log"))
+  stdout_logger = ActiveSupport::Logger.new(STDOUT)
+  config.logger = ActiveSupport::BroadcastLogger.new(file_logger, stdout_logger)
+  config.log_level = :debug
 end
