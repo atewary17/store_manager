@@ -1,0 +1,254 @@
+<%# app/views/purchasing/digitise/index.html.erb %>
+<% content_for :title, "Digitise Invoices" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Scan Invoice</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">AI Invoice Digitisation</div>
+    <div class="page-subtitle">Upload a scanned purchase invoice — AI extracts all data automatically</div>
+  </div>
+  <%= link_to new_purchasing_digitise_path, class: 'btn btn-primary' do %>
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Scan New Invoice
+  <% end %>
+</div>
+
+<%# ── Superadmin stats panel ── %>
+<% if current_user.super_admin? && @stats %>
+  <%
+    providers_map   = @stats[:by_provider]  # already indexed by ai_provider key
+    today_map       = @stats[:today_by_provider]
+    limits          = @stats[:daily_limits]
+    active_provider = ENV['INVOICE_AI_PROVIDER']&.downcase || 'gemini'
+  %>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+
+    <%# Overall card %>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                  color:var(--text-dim);margin-bottom:12px">
+        Org #<%= @organisation.id %> — All Time
+      </div>
+      <div style="display:flex;gap:24px">
+        <div>
+          <div style="font-size:24px;font-weight:700;color:var(--text)"><%= @stats[:total] %></div>
+          <div style="font-size:11px;color:var(--text-dim)">Total scans</div>
+        </div>
+        <div>
+          <div style="font-size:24px;font-weight:700;color:var(--success)"><%= @stats[:success] %></div>
+          <div style="font-size:11px;color:var(--text-dim)">Successful</div>
+        </div>
+        <div>
+          <div style="font-size:24px;font-weight:700;color:var(--danger)"><%= @stats[:failed] %></div>
+          <% if @stats[:pending].to_i > 0 %>
+            <div style="font-size:11px;color:var(--warning);margin-top:4px">
+              <%= @stats[:pending] %> in progress
+            </div>
+          <% end %>
+          <div style="font-size:11px;color:var(--text-dim)">Failed</div>
+        </div>
+      </div>
+    </div>
+
+    <%# Per-provider cards %>
+    <% [['gemini','Gemini 1.5 Flash','var(--accent)'],
+        ['groq',  'Groq Llama 4',    '#f0a500']].each do |key, label, color| %>
+      <% row       = providers_map[key]
+         used_today = today_map[key].to_i
+         limit      = limits[key]
+         remaining  = [limit - used_today, 0].max
+         pct_used   = limit > 0 ? [(used_today.to_f / limit * 100).round, 100].min : 0
+         is_active  = active_provider == key %>
+
+      <div style="background:var(--surface);border:1px solid <%= is_active ? color : 'var(--border)' %>;
+                  border-radius:10px;padding:16px 20px;position:relative">
+
+        <% if is_active %>
+          <span style="position:absolute;top:10px;right:12px;font-size:9px;font-weight:700;
+                       text-transform:uppercase;letter-spacing:.08em;color:<%= color %>;
+                       background:var(--bg);border:1px solid <%= color %>;
+                       border-radius:4px;padding:2px 6px">Active</span>
+        <% end %>
+
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px">
+          <span style="width:8px;height:8px;border-radius:50%;background:<%= color %>;
+                       display:inline-block;flex-shrink:0"></span>
+          <span style="font-size:11px;font-weight:600;text-transform:uppercase;
+                       letter-spacing:.07em;color:var(--text-dim)"><%= label %></span>
+        </div>
+
+        <%# All-time counts %>
+        <div style="display:flex;gap:16px;margin-bottom:14px">
+          <div>
+            <div style="font-size:20px;font-weight:700;color:var(--text)"><%= row&.total_count || 0 %></div>
+            <div style="font-size:10px;color:var(--text-dim)">All-time sent</div>
+          </div>
+          <div>
+            <div style="font-size:20px;font-weight:700;color:var(--success)"><%= row&.success_count || 0 %></div>
+            <div style="font-size:10px;color:var(--text-dim)">Successful</div>
+          </div>
+          <div>
+            <div style="font-size:20px;font-weight:700;color:var(--danger)"><%= row&.failed_count || 0 %></div>
+            <div style="font-size:10px;color:var(--text-dim)">Failed</div>
+          </div>
+        </div>
+
+        <%# Today's quota bar %>
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:5px">
+          Today: <strong style="color:var(--text)"><%= used_today %></strong> used ·
+          <strong style="color:<%= remaining < limit * 0.1 ? 'var(--danger)' : 'var(--success)' %>">
+            <%= remaining %> remaining
+          </strong>
+          <span style="color:var(--text-dim)">/ <%= limit.to_s.reverse.scan(/.{1,3}/).join(',').reverse %>/day</span>
+        </div>
+        <div style="background:var(--border);border-radius:99px;height:4px;overflow:hidden">
+          <div style="height:4px;border-radius:99px;width:<%= pct_used %>%;
+                      background:<%= pct_used > 90 ? 'var(--danger)' : pct_used > 60 ? 'var(--warning)' : color %>">
+          </div>
+        </div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:4px">
+          * Based on requests tracked in this app. Resets at midnight UTC.
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<div class="table-wrap">
+  <% if @imports.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Supplier (detected)</th>
+          <th>Invoice No.</th>
+          <th>Date</th>
+          <th>Status</th>
+          <% if current_user.super_admin? %>
+            <th>AI Used</th>
+          <% end %>
+          <th>Size</th>
+          <th>Uploaded</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @imports.each do |imp| %>
+          <% hdr = imp.parsed_header; sup = imp.parsed_supplier %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:12px">
+              <div style="display:flex;align-items:center;gap:7px">
+                <% if imp.pdf? %>
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"
+                       viewBox="0 0 24 24" style="color:var(--danger);flex-shrink:0">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                <% else %>
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5"
+                       viewBox="0 0 24 24" style="color:var(--accent);flex-shrink:0">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                <% end %>
+                <%= imp.file_name %>
+              </div>
+            </td>
+            <td><%= sup['name'].presence || '—' %></td>
+            <td style="font-family:var(--mono);font-size:12px"><%= hdr['invoice_number'].presence || '—' %></td>
+            <td style="font-family:var(--mono);font-size:12px">
+              <%= hdr['invoice_date'].present? ? hdr['invoice_date'] : '—' %>
+            </td>
+            <td>
+              <% colour = case imp.status
+                when 'pending','processing','retrying' then 'var(--warning)'
+                when 'review'    then 'var(--accent)'
+                when 'confirmed' then 'var(--success)'
+                when 'failed'    then 'var(--danger)'
+                else 'var(--text-dim)'
+                end %>
+              <span style="display:inline-flex;align-items:center;gap:5px;
+                           font-family:var(--mono);font-size:11px;font-weight:600;color:<%= colour %>">
+                <% if %w[pending processing retrying].include?(imp.status) %>
+                  <span style="display:inline-block;width:6px;height:6px;border-radius:50%;
+                               background:<%= colour %>;animation:pulse 1.5s infinite"></span>
+                <% end %>
+                <%= imp.status.capitalize %>
+              </span>
+            </td>
+
+            <%# AI Used column — superadmin only %>
+            <% if current_user.super_admin? %>
+              <td style="white-space:nowrap">
+                <% if imp.ai_provider.present? %>
+                  <% pc = imp.ai_provider == 'groq' ? '#f0a500' : 'var(--accent)' %>
+                  <span style="font-family:var(--mono);font-size:10px;font-weight:700;
+                               color:<%= pc %>;border:1px solid var(--border);
+                               border-radius:4px;padding:2px 7px;text-transform:uppercase">
+                    <%= imp.ai_provider %>
+                  </span>
+                <% end %>
+                <%# Raw JSON button — show if any response exists (success or failed attempt) %>
+                <% has_response = imp.raw_response.present? || imp.attempt_log.any? { |e| e['response'].present? } %>
+                <% if has_response %>
+                  <%= link_to raw_response_purchasing_digitise_path(imp),
+                        title: 'View raw JSON response',
+                        style: 'display:inline-flex;align-items:center;gap:3px;
+                                font-family:var(--mono);font-size:10px;color:var(--text-dim);
+                                margin-left:5px;text-decoration:none;border:1px solid var(--border);
+                                border-radius:4px;padding:2px 7px;vertical-align:middle' do %>
+                    <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"
+                         viewBox="0 0 24 24">
+                      <polyline points="16 18 22 12 16 6"/>
+                      <polyline points="8 6 2 12 8 18"/>
+                    </svg>
+                    JSON
+                  <% end %>
+                <% elsif !imp.ai_provider.present? %>
+                  <span style="color:var(--text-dim);font-size:12px">—</span>
+                <% end %>
+              </td>
+            <% end %>
+
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)"><%= imp.file_size_human %></td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= imp.created_at.strftime('%d %b, %H:%M') %>
+            </td>
+            <td>
+              <%= link_to 'Open', purchasing_digitise_path(imp), class: 'btn btn-secondary btn-sm' %>
+              <% if imp.purchase_invoice_id.present? %>
+                <%= link_to 'Invoice →', purchasing_purchase_invoice_path(imp.purchase_invoice_id),
+                      class: 'btn btn-secondary btn-sm', style: 'color:var(--success)' %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"
+           style="color:var(--muted);margin:0 auto 12px;display:block">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      <p>No invoices digitised yet.</p>
+      <div style="margin-top:16px">
+        <%= link_to 'Scan your first invoice', new_purchasing_digitise_path, class: 'btn btn-primary' %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<style>
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+</style>

@@ -51,6 +51,14 @@ Rails.application.routes.draw do
       member { post :confirm }
       collection { get :product_search }
     end
+    resources :digitise, only: [:index, :new, :create, :show] do
+      member do
+        post :confirm
+        post :retry
+        post :stop
+        get  :raw_response
+      end
+    end
   end
 
   # Customers (shared — used by Sales, CRM, etc.)

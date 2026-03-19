@@ -1,0 +1,112 @@
+<%# app/views/purchasing/digitise/raw_response.html.erb — superadmin only %>
+<% content_for :title, "Raw JSON — #{@import.file_name}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Scan Invoice', purchasing_digitise_index_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to @import.file_name, purchasing_digitise_path(@import), style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Raw JSON</span>
+<% end %>
+
+<div class="page-header" style="margin-bottom:20px">
+  <div>
+    <div class="page-title" style="font-size:18px">Raw AI Response</div>
+    <div class="page-subtitle" style="display:flex;align-items:center;gap:10px;margin-top:4px">
+      <span style="font-family:var(--mono);font-size:12px"><%= @import.file_name %></span>
+      <% if @import.ai_provider.present? %>
+        <% pc = @import.ai_provider == 'groq' ? '#f0a500' : 'var(--accent)' %>
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;
+                     color:<%= pc %>;border:1px solid var(--border);
+                     border-radius:4px;padding:2px 7px;text-transform:uppercase">
+          <%= @import.ai_provider %>
+        </span>
+      <% end %>
+      <span style="font-size:11px;color:var(--text-dim)">
+        <%= @import.updated_at.strftime('%d %b %Y, %H:%M') %>
+      </span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button onclick="copyJson()" class="btn btn-secondary" style="font-size:12px">
+      Copy JSON
+    </button>
+    <%= link_to '← Back', purchasing_digitise_path(@import), class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<%# Attempt log %>
+<% if @import.attempt_log.any? %>
+  <div style="margin-bottom:20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                color:var(--text-dim);margin-bottom:8px">Attempt Log</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <% @import.attempt_log.each do |entry| %>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;
+                    padding:8px 14px;font-size:11px;font-family:var(--mono)">
+          <span style="color:var(--text-dim)">#<%= entry['attempt'] %></span>
+          <% if entry['success'] %>
+            <span style="color:var(--success);margin-left:6px">✓ OK</span>
+          <% else %>
+            <span style="color:var(--danger);margin-left:6px">✗ Failed</span>
+            <span style="color:var(--text-dim);margin-left:6px"><%= entry['error'].to_s.truncate(60) %></span>
+          <% end %>
+          <span style="color:var(--text-dim);margin-left:8px">
+            <%= entry['at'] ? Time.parse(entry['at']).strftime('%H:%M:%S') : '' %>
+          </span>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<%# Parsed data as pretty JSON %>
+<% pretty_parsed = begin; JSON.pretty_generate(@import.parsed_data); rescue; @import.parsed_data.to_s; end %>
+
+<%# Raw response from API %>
+<% pretty_raw = begin
+     parsed = JSON.parse(@import.raw_response.to_s)
+     JSON.pretty_generate(parsed)
+   rescue
+     @import.raw_response.to_s
+   end %>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+  <div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                color:var(--text-dim);margin-bottom:8px">
+      Parsed Data (what was saved)
+    </div>
+    <div style="position:relative">
+      <pre id="parsed-json"
+           style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                  padding:16px;font-size:11px;font-family:var(--mono);color:var(--text);
+                  overflow:auto;max-height:70vh;white-space:pre;line-height:1.6;margin:0"><%= h pretty_parsed %></pre>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                color:var(--text-dim);margin-bottom:8px">
+      Raw API Response
+    </div>
+    <pre id="raw-json"
+         style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                padding:16px;font-size:11px;font-family:var(--mono);color:var(--text-dim);
+                overflow:auto;max-height:70vh;white-space:pre;line-height:1.6;margin:0"><%= h pretty_raw %></pre>
+  </div>
+
+</div>
+
+<script>
+  function copyJson() {
+    var text = document.getElementById('parsed-json').innerText;
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = event.target;
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy JSON'; }, 2000);
+    });
+  }
+</script>

@@ -289,9 +289,18 @@
       No items yet. Use the buttons above to add shades, products or ad-hoc charges.
     </div>
 
+    <%# ── Drag handle to push footer down ── %>
+    <div id="footer-spacer" style="height:0;min-height:0;max-height:200px;transition:height 0.05s"></div>
+    <div id="footer-drag-handle"
+         style="height:10px;cursor:ns-resize;border-top:1px solid var(--border);
+                display:flex;align-items:center;justify-content:center;
+                user-select:none;-webkit-user-select:none">
+      <div style="width:30px;height:3px;border-radius:2px;background:var(--border)"></div>
+    </div>
+
     <%# Footer %>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;
-                padding:20px 18px;border-top:1px solid var(--border);flex-wrap:wrap;gap:20px">
+                padding:20px 18px;border-top:none;flex-wrap:wrap;gap:20px">
 
       <div>
         <%# Discount mode toggle: flat Rs. or percentage %>
@@ -975,6 +984,35 @@
     });
     recalcTotals();
   });
+
+  // ── Footer drag handle ──
+  (function() {
+    var handle  = document.getElementById('footer-drag-handle');
+    var spacer  = document.getElementById('footer-spacer');
+    if (!handle || !spacer) return;
+
+    var dragging = false;
+    var startY   = 0;
+    var startH   = 0;
+
+    handle.addEventListener('pointerdown', function(e) {
+      dragging = true;
+      startY   = e.clientY;
+      startH   = spacer.offsetHeight;
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    handle.addEventListener('pointermove', function(e) {
+      if (!dragging) return;
+      var delta  = e.clientY - startY;
+      var newH   = Math.min(200, Math.max(0, startH + delta));
+      spacer.style.height = newH + 'px';
+    });
+
+    handle.addEventListener('pointerup',     function() { dragging = false; });
+    handle.addEventListener('pointercancel', function() { dragging = false; });
+  })();
 
 })();
 </script>

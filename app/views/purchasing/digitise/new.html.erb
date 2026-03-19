@@ -1,0 +1,156 @@
+<%# app/views/purchasing/digitise/new.html.erb %>
+<% content_for :title, "Scan Invoice" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Purchasing</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Digitise', purchasing_digitise_index_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Scan Invoice</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Scan a Purchase Invoice</div>
+    <div class="page-subtitle">Upload a PDF or photo — AI will extract all data in ~15 seconds</div>
+  </div>
+  <%= link_to '← All Scans', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
+</div>
+
+<div style="max-width:560px">
+  <div class="form-card">
+    <div class="form-section">
+      <div class="form-section-title">Upload Invoice</div>
+
+      <%= form_with url: purchasing_digitise_index_path, method: :post,
+            multipart: true, local: true, id: 'upload-form' do |f| %>
+
+        <%# Drop zone %>
+        <div id="drop-zone"
+             style="border:2px dashed var(--accent-dim);border-radius:10px;padding:40px 24px;
+                    text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:20px"
+             onclick="document.getElementById('file-input').click()"
+             ondragover="onDragOver(event)"
+             ondragleave="onDragLeave(event)"
+             ondrop="onDrop(event)">
+          <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.2"
+               viewBox="0 0 24 24" style="color:var(--accent);margin:0 auto 12px;display:block">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">
+            Drop invoice here or click to browse
+          </div>
+          <div style="font-size:12px;color:var(--text-dim)">
+            PDF, JPG, PNG, or WEBP — up to 10 MB
+          </div>
+          <div id="file-chosen" style="margin-top:12px;font-family:var(--mono);font-size:12px;
+                                        color:var(--accent);display:none"></div>
+        </div>
+
+        <input type="file" id="file-input" name="file"
+               accept=".pdf,.jpg,.jpeg,.png,.webp"
+               style="display:none"
+               onchange="onFileChosen(this)">
+
+        <%# Supported formats %>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+          <% [
+            ['PDF', 'var(--danger)'],
+            ['JPG', 'var(--warning)'],
+            ['PNG', 'var(--accent)'],
+            ['WEBP', 'var(--success)']
+          ].each do |fmt, colour| %>
+            <span style="font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.05em;
+                         background:rgba(255,255,255,0.04);border:1px solid var(--border);
+                         border-radius:4px;padding:3px 8px;color:<%= colour %>">
+              <%= fmt %>
+            </span>
+          <% end %>
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <button type="submit" id="submit-btn" class="btn btn-primary" disabled
+                  style="opacity:0.5;transition:opacity 0.2s">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            Scan with AI
+          </button>
+          <%= link_to 'Cancel', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
+          <span id="uploading-msg" style="display:none;font-size:12px;color:var(--text-dim);
+                                          font-family:var(--mono);align-self:center">
+            Uploading…
+          </span>
+        </div>
+
+      <% end %>
+    </div>
+  </div>
+
+  <%# How it works %>
+  <div class="form-card" style="margin-top:16px">
+    <div class="form-section">
+      <div class="form-section-title">How it works</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <% [
+          ['1', 'Upload', 'Upload a scanned PDF or photo of any supplier invoice', 'var(--accent)'],
+          ['2', 'AI reads it', 'Google Gemini Flash extracts all fields — supplier, invoice no., dates, every line item', 'var(--warning)'],
+          ['3', 'Review & edit', 'You review the extracted data, fix any errors, and set a payment due date', 'var(--success)'],
+          ['4', 'Save', 'One click saves a draft purchase invoice — ready to confirm and update stock', 'var(--text-dim)'],
+        ].each do |num, title, desc, colour| %>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.05);
+                        border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+                        font-family:var(--mono);font-size:11px;font-weight:700;color:<%= colour %>;
+                        flex-shrink:0;margin-top:1px"><%= num %></div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px"><%= title %></div>
+              <div style="font-size:12px;color:var(--text-dim)"><%= desc %></div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function onFileChosen(input) {
+    var file = input.files[0];
+    if (!file) return;
+    document.getElementById('file-chosen').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+    document.getElementById('file-chosen').style.display = 'block';
+    var btn = document.getElementById('submit-btn');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    document.getElementById('drop-zone').style.borderColor = 'var(--accent)';
+    document.getElementById('drop-zone').style.background   = 'rgba(79,142,247,0.05)';
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    document.getElementById('drop-zone').style.borderColor = 'var(--accent)';
+    document.getElementById('drop-zone').style.background   = 'rgba(79,142,247,0.08)';
+  }
+  function onDragLeave(e) {
+    document.getElementById('drop-zone').style.borderColor = 'var(--accent-dim)';
+    document.getElementById('drop-zone').style.background   = '';
+  }
+  function onDrop(e) {
+    e.preventDefault();
+    onDragLeave(e);
+    var dt = e.dataTransfer;
+    if (dt.files.length > 0) {
+      var inp = document.getElementById('file-input');
+      inp.files = dt.files;
+      onFileChosen(inp);
+    }
+  }
+
+  document.getElementById('upload-form').addEventListener('submit', function() {
+    document.getElementById('submit-btn').disabled = true;
+    document.getElementById('submit-btn').style.opacity = '0.6';
+    document.getElementById('uploading-msg').style.display = 'inline';
+  });
+</script>
