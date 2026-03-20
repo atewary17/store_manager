@@ -1,5 +1,6 @@
 class CreateSalesInvoiceItems < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:sales_invoice_items)
     create_table :sales_invoice_items do |t|
       t.references :sales_invoice,    null: false, foreign_key: true
       t.references :product,          null: true,  foreign_key: true   # the base/tinter product

@@ -1,5 +1,6 @@
 class CreateSalesInvoices < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:sales_invoices)
     create_table :sales_invoices do |t|
       t.references :organisation, null: false, foreign_key: true
       t.references :customer,     null: true,  foreign_key: true   # optional walk-in
@@ -13,7 +14,8 @@ class CreateSalesInvoices < ActiveRecord::Migration[7.1]
 
       t.decimal    :total_taxable_amount, precision: 12, scale: 2, default: 0
       t.decimal    :total_tax_amount,     precision: 12, scale: 2, default: 0
-      t.decimal    :total_discount_amount,precision: 12, scale: 2, default: 0
+      t.decimal    :total_discount_amount,   precision: 12, scale: 2, default: 0
+      t.decimal    :overall_discount_amount, precision: 12, scale: 2, default: 0, null: false
       t.decimal    :total_amount,         precision: 12, scale: 2, default: 0
 
       t.datetime   :confirmed_at

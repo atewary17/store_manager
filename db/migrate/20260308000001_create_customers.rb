@@ -1,5 +1,6 @@
 class CreateCustomers < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:customers)
     create_table :customers do |t|
       t.references :organisation, null: false, foreign_key: true
       t.string  :name,        null: false

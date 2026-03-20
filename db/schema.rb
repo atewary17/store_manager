@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_13_122901) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -76,6 +76,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_13_122901) do
     t.index ["organisation_id", "product_category_id"], name: "idx_org_product_categories_unique", unique: true
     t.index ["organisation_id"], name: "index_organisation_product_categories_on_organisation_id"
     t.index ["product_category_id"], name: "index_organisation_product_categories_on_product_category_id"
+  end
+
+  create_table "organisation_products", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "product_id"
+    t.decimal "mrp", precision: 10, scale: 2
+    t.boolean "active", default: true, null: false
+    t.string "internal_code"
+    t.text "local_description"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_organisation_products_on_active"
+    t.index ["internal_code"], name: "index_organisation_products_on_internal_code"
+    t.index ["organisation_id", "product_id"], name: "idx_org_products_unique", unique: true, where: "(product_id IS NOT NULL)"
+    t.index ["organisation_id"], name: "index_organisation_products_on_organisation_id"
+    t.index ["product_id"], name: "index_organisation_products_on_product_id"
   end
 
   create_table "organisations", force: :cascade do |t|
@@ -400,6 +417,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_13_122901) do
   add_foreign_key "customers", "organisations"
   add_foreign_key "organisation_product_categories", "organisations"
   add_foreign_key "organisation_product_categories", "product_categories"
+  add_foreign_key "organisation_products", "organisations"
+  add_foreign_key "organisation_products", "products"
   add_foreign_key "product_imports", "organisations"
   add_foreign_key "product_imports", "users"
   add_foreign_key "products", "brands"

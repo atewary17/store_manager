@@ -27,8 +27,8 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       delivery_date: Date.today,
       status: 'draft'
     )
-    # Start with 3 blank item rows
-    3.times { @invoice.purchase_invoice_items.build }
+    # Start with 5 blank item rows
+    5.times { @invoice.purchase_invoice_items.build }
     load_form_data
   end
 
@@ -108,7 +108,8 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     q = params[:q].to_s.strip
     return render json: [] if q.length < 2
 
-    products = Product.active
+    products = Product.for_org(@organisation)
+      .active
       .includes(:brand, :base_uom)
       .where(
         'LOWER(products.description) LIKE :q

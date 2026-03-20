@@ -177,3 +177,32 @@
     <div class="form-hint">Inactive products won't appear on invoices</div>
   </div>
 </div>
+
+<%# Superadmin-only: manage which orgs have this product in their catalogue %>
+<% if defined?(@all_orgs) && @all_orgs.present? %>
+  <div class="form-section">
+    <div class="form-section-title">
+      Organisation Catalogue
+      <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
+        superadmin only — tick orgs that should see this product
+      </span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+      <% @all_orgs.each do |org| %>
+        <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;
+                      background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                      cursor:pointer;font-size:13px">
+          <input type="checkbox"
+                 name="enrol_org_ids[]"
+                 value="<%= org.id %>"
+                 <%= 'checked' if @enrolled_org_ids.include?(org.id) %>
+                 style="width:15px;height:15px;accent-color:var(--accent)">
+          <span style="color:var(--text)"><%= org.name %></span>
+        </label>
+      <% end %>
+    </div>
+    <div class="form-hint" style="margin-top:8px">
+      Unchecking an org marks their enrolment inactive — history is preserved.
+    </div>
+  </div>
+<% end %>

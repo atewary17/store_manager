@@ -8,16 +8,49 @@
 
 <%= render 'setup/shared/master_styles' %>
 
-<%= render 'setup/shared/nav_tabs' %>
-
-<div class="actions" style="margin-bottom:24px">
-  <%= link_to 'Export Excel', export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' %>
-  <%= link_to '+ New Product', new_setup_product_path, class: 'btn btn-primary' %>
+<div class="page-header">
+  <div>
+    <div class="page-title">Products</div>
+    <div class="page-subtitle">
+      <% if @organisation %>
+        Products enrolled in <strong><%= @organisation.name %></strong>'s catalogue
+      <% else %>
+        Products in the master catalogue
+      <% end %>
+    </div>
+  </div>
+  <div class="actions">
+    <% if current_user.super_admin? %>
+      <%= link_to product_register_setup_products_path, class: 'btn btn-secondary' do %>
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Product Register
+      <% end %>
+    <% end %>
+    <%= link_to export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Export Excel
+    <% end %>
+    <%= link_to new_setup_product_path, class: 'btn btn-primary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New Product
+    <% end %>
+  </div>
 </div>
 
-<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+<%= render 'setup/shared/nav_tabs' %>
+
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
   <div class="stat-card">
-    <div class="stat-label">Total Products</div>
+    <div class="stat-label">Total in Catalogue</div>
     <div class="stat-value accent"><%= @active_count + @inactive_count %></div>
   </div>
   <div class="stat-card">
@@ -27,6 +60,10 @@
   <div class="stat-card">
     <div class="stat-label">Inactive</div>
     <div class="stat-value" style="color:var(--danger)"><%= @inactive_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Showing</div>
+    <div class="stat-value" style="color:var(--text-dim)"><%= @products.size %> of <%= @total_count %></div>
   </div>
 </div>
 
@@ -41,7 +78,7 @@
   </div>
 
   <%= form_with url: setup_products_path, method: :get, local: true,
-        style: 'display:flex;gap:8px;align-items:center' do |f| %>
+        style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' do |f| %>
     <%= f.select :category_id,
           options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
           { include_blank: 'All Categories' },
@@ -55,6 +92,11 @@
     <%= f.select :status,
           [['All Statuses', ''], ['Active', 'active'], ['Inactive', 'inactive']],
           { selected: params[:status] },
+          style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
+                  padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
+    <%= f.select :per_page,
+          [['50 / page', 50], ['100 / page', 100], ['200 / page', 200]],
+          { selected: @per_page },
           style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
                   padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
     <%= f.submit 'Filter', class: 'btn btn-secondary btn-sm' %>
@@ -139,11 +181,13 @@
           <td>
             <div class="actions">
               <%= link_to 'View', setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
-              <%= link_to 'Edit', edit_setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
-              <%= button_to 'Delete', setup_product_path(product), method: :delete,
-                    class: 'btn btn-danger btn-sm',
-                    form: { style: 'margin:0;display:inline' },
-                    data: { turbo_confirm: 'Delete this product? This cannot be undone.' } %>
+              <% if current_user.super_admin? %>
+                <%= link_to 'Edit', edit_setup_product_path(product), class: 'btn btn-secondary btn-sm' %> 
+                <%= button_to 'Delete', setup_product_path(product), method: :delete,
+                      class: 'btn btn-danger btn-sm',
+                      form: { style: 'margin:0;display:inline' },
+                      data: { turbo_confirm: 'Delete this product? This cannot be undone.' } %>
+              <% end %>
             </div>
           </td>
         </tr>
@@ -163,6 +207,43 @@
     </div>
   <% end %>
 </div>
+
+<%# Pagination %>
+<% if @total_pages > 1 %>
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              margin-top:16px;font-size:13px;color:var(--text-dim)">
+    <span>
+      Showing <%= ((@page - 1) * @per_page) + 1 %>–<%= [(@page * @per_page), @total_count].min %>
+      of <%= @total_count %> products
+    </span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <% if @page > 1 %>
+        <%= link_to '← Prev',
+              setup_products_path(page: @page - 1, per_page: @per_page,
+                category_id: params[:category_id], brand_id: params[:brand_id], status: params[:status]),
+              class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+      <% ([[@page - 2, 1].max, 1].max..[[@page + 2, @total_pages].min, @total_pages].min).each do |p| %>
+        <% if p == @page %>
+          <span style="padding:5px 10px;background:var(--accent);color:#fff;
+                       border-radius:6px;font-size:12px;font-weight:600"><%= p %></span>
+        <% else %>
+          <%= link_to p,
+                setup_products_path(page: p, per_page: @per_page,
+                  category_id: params[:category_id], brand_id: params[:brand_id], status: params[:status]),
+                style: "padding:5px 10px;background:var(--surface);border:1px solid var(--border);
+                        color:var(--text);border-radius:6px;font-size:12px;text-decoration:none" %>
+        <% end %>
+      <% end %>
+      <% if @page < @total_pages %>
+        <%= link_to 'Next →',
+              setup_products_path(page: @page + 1, per_page: @per_page,
+                category_id: params[:category_id], brand_id: params[:brand_id], status: params[:status]),
+              class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+    </div>
+  </div>
+<% end %>
 
 <script>
   document.getElementById('productSearch').addEventListener('input', function() {

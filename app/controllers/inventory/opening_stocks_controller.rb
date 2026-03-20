@@ -9,11 +9,10 @@ class Inventory::OpeningStocksController < Inventory::BaseController
       .of_type('opening')
       .pluck(:product_id)
 
-    @products = Product
+    @products = Product.for_org(@organisation)
       .includes(:brand, :product_category, :base_uom)
       .active
       .where.not(id: entered_product_ids)
-      .joins(:brand)
       .order('brands.name, products.description')
 
     @categories = ProductCategory.active.ordered

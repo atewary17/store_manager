@@ -1,10 +1,11 @@
+<%# app/views/setup/products/show.html.erb %>
 <% content_for :title, @product.display_name %>
 <% content_for :breadcrumb do %>
   <span style="color:var(--text-dim)">Setup</span>
   <span class="breadcrumb-sep">/</span>
   <%= link_to 'Products', setup_products_path %>
   <span class="breadcrumb-sep">/</span>
-  <span class="breadcrumb-current"><%= @product.brand %></span>
+  <span class="breadcrumb-current"><%= @product.brand&.name || 'No Brand' %></span>
 <% end %>
 
 <div class="page-header">
@@ -15,7 +16,7 @@
         <%= @product.active? ? 'active' : 'inactive' %>
       </span>
     </div>
-    <div class="page-title"><%= @product.brand %></div>
+    <div class="page-title"><%= @product.brand&.name || '—' %></div>
     <div class="page-subtitle" style="font-size:14px;margin-top:4px;max-width:560px">
       <%= @product.description %>
     </div>
@@ -58,7 +59,7 @@
     <div class="detail-grid">
       <div class="detail-field">
         <label>Brand</label>
-        <div class="value"><%= @product.brand %></div>
+        <div class="value"><%= @product.brand&.name || '—' %></div>
       </div>
       <div class="detail-field">
         <label>Pack Code</label>
@@ -86,7 +87,7 @@
   </div>
 
   <div class="detail-section">
-    <div class="detail-section-title">Tax Details</div>
+    <div class="detail-section-title">Tax & Pricing</div>
     <div class="detail-grid">
       <div class="detail-field">
         <label>HSN Code</label>
@@ -101,11 +102,57 @@
           </span>
         </div>
       </div>
+      <% if Product.column_names.include?('mrp') && @product.mrp.present? %>
+        <div class="detail-field">
+          <label>MRP</label>
+          <div class="value mono">₹ <%= number_with_precision(@product.mrp, precision: 2, delimiter: ',') %></div>
+        </div>
+      <% end %>
     </div>
   </div>
 
+  <%# Org enrolments — superadmin only %>
+  <% if current_user.super_admin? %>
+    <% org_products = @product.organisation_products.includes(:organisation) %>
+    <div class="detail-section">
+      <div class="detail-section-title">
+        Organisation Catalogue
+        <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
+          orgs that have this product enrolled
+        </span>
+      </div>
+      <% if org_products.any? %>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <% org_products.each do |op| %>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;
+                         padding:5px 10px;border-radius:6px;
+                         background:<%= op.active? ? 'rgba(79,142,247,0.1)' : 'rgba(122,131,153,0.1)' %>;
+                         border:1px solid <%= op.active? ? 'rgba(79,142,247,0.3)' : 'var(--border)' %>;
+                         color:<%= op.active? ? 'var(--accent)' : 'var(--text-dim)' %>">
+              <%= op.organisation.name %>
+              <% unless op.active? %>
+                <span style="font-size:10px;opacity:0.7">(inactive)</span>
+              <% end %>
+              <% if op.mrp.present? %>
+                <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+                  MRP ₹<%= op.mrp %>
+                </span>
+              <% end %>
+            </span>
+          <% end %>
+        </div>
+      <% else %>
+        <div style="font-size:13px;color:var(--text-dim);font-style:italic">
+          Not enrolled in any organisation's catalogue yet.
+        </div>
+      <% end %>
+    </div>
+  <% end %>
 </div>
 
-<div style="margin-top:20px">
+<div style="margin-top:20px;display:flex;gap:10px">
   <%= link_to '← Back to Products', setup_products_path, class: 'btn btn-secondary' %>
+  <% if current_user.super_admin? %>
+    <%= link_to 'View Register', product_register_setup_products_path, class: 'btn btn-secondary' %>
+  <% end %>
 </div>

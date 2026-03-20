@@ -1,6 +1,8 @@
 class CreateSuppliers < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:suppliers)
     create_table :suppliers do |t|
+      t.references :organisation, null: false, foreign_key: true
       t.string  :name,       null: false
       t.string  :gstin
       t.string  :pan
@@ -11,7 +13,8 @@ class CreateSuppliers < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :suppliers, :name
+    # Name unique per organisation, not globally
+    add_index :suppliers, [:organisation_id, :name], unique: true
     add_index :suppliers, :gstin
     add_index :suppliers, :active
     add_index :suppliers, :metadata, using: :gin

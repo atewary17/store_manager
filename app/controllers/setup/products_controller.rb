@@ -2,9 +2,15 @@
 class Setup::ProductsController < Setup::BaseController
   before_action :set_product, only: [:show, :edit, :update, :destroy]
 
+  PER_PAGE_OPTIONS = [50, 100, 200].freeze
+
   # GET /setup/products
+  # Shows products enrolled in the current org's catalogue.
+  # Superadmin with no org context falls back to the full master catalogue.
   def index
-    @products = Product.includes(:product_category, :base_uom, :brand).ordered
+    base = @organisation ? Product.for_org(@organisation) : Product.all
+
+    @products = base.includes(:product_category, :base_uom, :brand).order('products.id ASC')
 
     @products = @products.for_category(params[:category_id]) if params[:category_id].present?
     @products = @products.for_brand(params[:brand_id])       if params[:brand_id].present?
@@ -13,13 +19,48 @@ class Setup::ProductsController < Setup::BaseController
       @products = params[:status] == 'active' ? @products.active : @products.inactive
     end
 
-    @products = @products.limit(20)
+    @per_page          = PER_PAGE_OPTIONS.include?(params[:per_page].to_i) ? params[:per_page].to_i : 50
+    @page              = [params[:page].to_i, 1].max
+    @total_count       = @products.count
+    @total_pages       = (@total_count.to_f / @per_page).ceil
+    @page              = [@page, @total_pages].min if @total_pages > 0
+    @products          = @products.offset((@page - 1) * @per_page).limit(@per_page)
 
     @selected_category = ProductCategory.find_by(id: params[:category_id])
     @categories        = ProductCategory.active.ordered
     @brands            = Brand.active.ordered
-    @active_count      = Product.active.count
-    @inactive_count    = Product.inactive.count
+    @active_count      = base.active.count
+    @inactive_count    = base.inactive.count
+  end
+
+  # GET /setup/product_register  (superadmin only)
+  # Global register: all products in the master catalogue with org usage
+  def product_register
+    unless current_user.super_admin?
+      redirect_to setup_products_path, alert: 'Access denied.'
+      return
+    end
+
+    @products = Product.includes(:product_category, :base_uom, :brand,
+                                  organisation_products: :organisation)
+                       .ordered
+
+    @products = @products.for_category(params[:category_id]) if params[:category_id].present?
+    @products = @products.for_brand(params[:brand_id])       if params[:brand_id].present?
+
+    if params[:status].present?
+      @products = params[:status] == 'active' ? @products.active : @products.inactive
+    end
+
+    @selected_category  = ProductCategory.find_by(id: params[:category_id])
+    @categories         = ProductCategory.active.ordered
+    @brands             = Brand.active.ordered
+    @total_count        = Product.count
+    @active_count       = Product.active.count
+    @inactive_count     = Product.inactive.count
+    @enrolled_count     = OrganisationProduct.select(:product_id).distinct.count
+    @unenrolled_count   = @total_count - @enrolled_count
+    @orgs               = Organisation.order(:name)
   end
 
   def show; end
@@ -85,6 +126,8 @@ class Setup::ProductsController < Setup::BaseController
   def create
     @product = Product.new(product_params)
     if @product.save
+      # Auto-enrol in current org's catalogue
+      @product.enrol_in!(@organisation) if @organisation
       redirect_to setup_product_path(@product), notice: 'Product created successfully.'
     else
       @categories = ProductCategory.active.ordered
@@ -96,25 +139,51 @@ class Setup::ProductsController < Setup::BaseController
 
   # GET /setup/products/:id/edit
   def edit
-    @categories = ProductCategory.active.ordered
-    @uoms       = Uom.active.ordered
-    @brands     = Brand.active.ordered
+    @categories           = ProductCategory.active.ordered
+    @uoms                 = Uom.active.ordered
+    @brands               = Brand.active.ordered
+    # For superadmin: show org enrolment panel
+    if current_user.super_admin?
+      @all_orgs           = Organisation.order(:name)
+      @enrolled_org_ids   = @product.organisation_products.pluck(:organisation_id)
+    end
   end
 
   # PATCH /setup/products/:id
   def update
     if @product.update(product_params)
+      # Superadmin can toggle org enrolments from the edit page
+      if current_user.super_admin? && params[:enrol_org_ids]
+        selected_ids = Array(params[:enrol_org_ids]).map(&:to_i).uniq
+        # Enrol newly selected orgs
+        selected_ids.each { |oid| OrganisationProduct.find_or_create_by!(organisation_id: oid, product_id: @product.id) }
+        # Deactivate orgs that were unchecked (don't delete — preserve history)
+        OrganisationProduct.where(product_id: @product.id)
+                           .where.not(organisation_id: selected_ids)
+                           .update_all(active: false)
+        OrganisationProduct.where(product_id: @product.id, organisation_id: selected_ids)
+                           .update_all(active: true)
+      elsif @organisation
+        # Regular admin: always keep enrolled in own org
+        @product.enrol_in!(@organisation)
+      end
       redirect_to setup_product_path(@product), notice: 'Product updated successfully.'
     else
-      @categories = ProductCategory.active.ordered
-      @uoms       = Uom.active.ordered
-      @brands     = Brand.active.ordered
+      @categories         = ProductCategory.active.ordered
+      @uoms               = Uom.active.ordered
+      @brands             = Brand.active.ordered
+      @all_orgs           = Organisation.order(:name) if current_user.super_admin?
+      @enrolled_org_ids   = @product.organisation_products.pluck(:organisation_id) if current_user.super_admin?
       render :edit, status: :unprocessable_entity
     end
   end
 
-  # DELETE /setup/products/:id
+  # DELETE /setup/products/:id  (super_admin only)
   def destroy
+    unless current_user.super_admin?
+      redirect_to setup_products_path, alert: 'Only super admins can delete products.'
+      return
+    end
     @product.destroy
     redirect_to setup_products_path, notice: 'Product deleted.'
   end
