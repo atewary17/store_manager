@@ -106,3 +106,5 @@ dump.rdb
 # Ignore build files but keep directory
 /app/assets/builds/*
 !/app/assets/builds/.keep.env
+.env
+.env

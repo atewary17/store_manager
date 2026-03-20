@@ -581,8 +581,8 @@
         Dashboard
       <% end %>
 
-      <%# ── Setup (super_admin only) ── %>
-      <% if current_user&.super_admin? %>
+      <%# ── Setup (super_admin + admin) ── %>
+      <% if current_user&.super_admin? || current_user&.admin? %>
         <div class="nav-section" id="ns-setup"
              data-section="setup"
              data-active="<%= %w[organisations uoms product_categories products brands].include?(controller_name) %>">
@@ -599,15 +599,19 @@
             </svg>
           </div>
           <div class="nav-section-children">
-            <%= link_to organisations_path,
-                  class: "nav-link #{controller_name == 'organisations' ? 'active' : ''}", data: { tooltip: 'Organisations' } do %>
-              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
-              Organisations
+            <%# Organisations link — super_admin only %>
+            <% if current_user.super_admin? %>
+              <%= link_to organisations_path,
+                    class: "nav-link #{controller_name == 'organisations' ? 'active' : ''}", data: { tooltip: 'Organisations' } do %>
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+                Organisations
+              <% end %>
             <% end %>
-            <%= link_to setup_uoms_path,
+            <%# Master Data — super_admin sees all tabs; admin lands on Products tab %>
+            <%= link_to current_user.super_admin? ? setup_uoms_path : setup_products_path,
                   class: "nav-link #{ %w[uoms product_categories products brands].include?(controller_name) ? 'active' : '' }", data: { tooltip: 'Master Data' } do %>
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="3"/>

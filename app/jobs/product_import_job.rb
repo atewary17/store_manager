@@ -119,11 +119,15 @@ class ProductImportJob < ApplicationJob
       existing.assign_attributes(attrs)
       raise existing.errors.full_messages.join(', ') unless existing.valid?
       existing.save!
+      # Enrol in this org's catalogue (idempotent — safe to call on every import)
+      existing.enrol_in!(organisation)
       :updated
     else
       product = Product.new(attrs)
       raise product.errors.full_messages.join(', ') unless product.valid?
       product.save!
+      # Enrol in this org's catalogue
+      product.enrol_in!(organisation)
       :created
     end
   end

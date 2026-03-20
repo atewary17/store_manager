@@ -108,6 +108,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
     if @import.status == 'review'
       items = @import.parsed_items
       codes = items.map { |i| sanitise_material_code(i['material_code'].to_s) }.compact
+      # Fetch from master products table (global) — enrolment happens at confirm time
       @product_by_code = Product.includes(:base_uom)
                                 .where(material_code: codes)
                                 .index_by(&:material_code)
@@ -244,6 +245,9 @@ class Purchasing::DigitiseController < Purchasing::BaseController
                     end
       effective_hsn = item['hsn_code'].presence || rescued_hsn
       product = match_product(clean_material_code, item['description'])
+
+      # Auto-enrol matched product in this org's catalogue (idempotent)
+      product.enrol_in!(@organisation) if product
 
       # Use UOM from product table when matched; fall back to AI-extracted unit
       effective_unit = product&.base_uom&.name.presence || item['unit'].presence

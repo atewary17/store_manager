@@ -1,5 +1,6 @@
 class CreateStockLedgers < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:stock_ledgers)
     create_table :stock_ledgers do |t|
       t.references :organisation,  null: false, foreign_key: true
       t.references :product,       null: false, foreign_key: true

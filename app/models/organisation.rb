@@ -10,10 +10,11 @@ class Organisation < ApplicationRecord
   validates :name, presence: true
   validates :gst_number, uniqueness: true, allow_blank: true
 
-  # Products visible to this organisation (scoped through assigned categories)
+  has_many :organisation_products, dependent: :destroy
+  has_many :products, through: :organisation_products
+
+  # All products enrolled in this org's catalogue (active only)
   def available_products
-    Product.joins(:product_category)
-           .where(product_category_id: product_categories.select(:id))
-           .active
+    Product.for_org(self).includes(:brand, :base_uom, :product_category)
   end
 end

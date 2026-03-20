@@ -1,5 +1,6 @@
 class CreateStockLevels < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:stock_levels)
     create_table :stock_levels do |t|
       t.references :organisation, null: false, foreign_key: true
       t.references :product,      null: false, foreign_key: true

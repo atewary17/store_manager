@@ -1,5 +1,6 @@
 class CreatePurchaseInvoices < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:purchase_invoices)
     create_table :purchase_invoices do |t|
       t.references :organisation, null: false, foreign_key: true
       t.references :supplier,     null: true,  foreign_key: true

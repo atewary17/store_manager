@@ -14,6 +14,7 @@ class Product < ApplicationRecord
   belongs_to :product_category
   belongs_to :base_uom, class_name: 'Uom', foreign_key: :base_uom_id
   belongs_to :brand, optional: true
+  has_many   :organisation_products, dependent: :destroy
 
   # ── Scopes ───────────────────────────────────────────────────
   scope :active,          -> { where(active: true) }
@@ -29,6 +30,21 @@ class Product < ApplicationRecord
       term, term, term, term
     )
   }
+
+  # ── Org-scoped scope ─────────────────────────────────────────
+  # Returns only products that have been enrolled in the given org's catalogue.
+  # All product lookups in org-facing features must go through this scope.
+  scope :for_org, ->(org_or_id) {
+    org_id = org_or_id.is_a?(Organisation) ? org_or_id.id : org_or_id.to_i
+    joins(:organisation_products)
+      .where(organisation_products: { organisation_id: org_id, active: true })
+  }
+
+  # Enrol this product in an org's catalogue (idempotent)
+  def enrol_in!(org_or_id)
+    org_id = org_or_id.is_a?(Organisation) ? org_or_id.id : org_or_id.to_i
+    OrganisationProduct.find_or_create_by!(organisation_id: org_id, product_id: id)
+  end
 
   # ── Constants ─────────────────────────────────────────────────
   GST_RATES = [0.0, 5.0, 12.0, 18.0, 28.0].freeze

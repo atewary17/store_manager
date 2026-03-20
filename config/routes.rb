@@ -15,7 +15,10 @@ Rails.application.routes.draw do
     resources :brands
     resources :product_categories
     resources :products do
-      collection { get :export }
+      collection do
+        get :export
+        get :product_register
+      end
     end
     resources :shade_catalogues do
       collection do
