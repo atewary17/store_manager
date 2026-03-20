@@ -695,10 +695,10 @@
         </div>
       </div>
 
-      <%# ── Trade Relations (Customers + Creditors) ── %>
+      <%# ── Trade Relations (Customers) ── %>
       <div class="nav-section" id="ns-trade"
            data-section="trade"
-           data-active="<%= %w[customers creditors].include?(controller_name) %>">
+           data-active="<%= controller_name == 'customers' %>">
         <div class="nav-section-header" onclick="expandAndToggle(event,'trade')" data-tooltip="Trade Relations">
           <div class="nav-section-header-left">
             <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="nav-section-icon">
@@ -721,14 +721,84 @@
             </svg>
             Customers
           <% end %>
-          <%= link_to sales_creditors_path,
-                class: "nav-link #{controller_name == 'creditors' ? 'active' : ''}", data: { tooltip: 'Creditors' } do %>
+        </div>
+      </div>
+
+      <%# ── Accounting ── %>
+      <div class="nav-section" id="ns-accounting"
+           data-section="accounting"
+           data-active="<%= %w[accounts_receivable accounts_payable sale_payments supplier_payments].include?(controller_name) %>">
+        <div class="nav-section-header" onclick="expandAndToggle(event,'accounting')" data-tooltip="Accounting">
+          <div class="nav-section-header-left">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="nav-section-icon">
+              <rect x="2" y="3" width="20" height="18" rx="2"/>
+              <line x1="2" y1="9" x2="22" y2="9"/>
+              <line x1="8" y1="3" x2="8" y2="21"/>
+            </svg>
+            <span class="nav-section-label">Accounting</span>
+          </div>
+          <svg class="nav-section-chevron" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
+        <div class="nav-section-children">
+
+          <%# ── Receivables (Sales side) ── %>
+          <div style="padding:5px 16px 3px;font-size:10px;font-weight:600;
+                      text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim)">
+            Receivables
+          </div>
+
+          <%= link_to sales_accounts_receivable_index_path,
+                class: "nav-link #{controller_name == 'accounts_receivable' ? 'active' : ''}",
+                data: { tooltip: 'Accounts Receivable' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Accounts Receivable
+          <% end %>
+
+          <%= link_to sales_customer_receipts_path,
+                class: "nav-link #{controller_name == 'sale_payments' ? 'active' : ''}",
+                data: { tooltip: 'Customer Receipts' } do %>
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <rect x="2" y="5" width="20" height="14" rx="2"/>
               <line x1="2" y1="10" x2="22" y2="10"/>
+              <line x1="7" y1="15" x2="12" y2="15"/>
             </svg>
-            Creditors
+            Customer Receipts
           <% end %>
+
+          <%# ── Payables (Purchasing side) ── %>
+          <div style="padding:8px 16px 3px;font-size:10px;font-weight:600;
+                      text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim)">
+            Payables
+          </div>
+
+          <%= link_to purchasing_accounts_payable_index_path,
+                class: "nav-link #{controller_name == 'accounts_payable' ? 'active' : ''}",
+                data: { tooltip: 'Accounts Payable' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Accounts Payable
+          <% end %>
+
+          <%= link_to purchasing_supplier_payments_path,
+                class: "nav-link #{controller_name == 'supplier_payments' ? 'active' : ''}",
+                data: { tooltip: 'Supplier Payments' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+              <line x1="7" y1="15" x2="12" y2="15"/>
+            </svg>
+            Supplier Payments
+          <% end %>
+
         </div>
       </div>
 

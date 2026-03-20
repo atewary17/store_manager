@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_20_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -205,6 +205,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
     t.index ["status"], name: "index_purchase_invoices_on_status"
     t.index ["supplier_id"], name: "index_purchase_invoices_on_supplier_id"
     t.index ["user_id"], name: "index_purchase_invoices_on_user_id"
+  end
+
+  create_table "purchase_payments", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "purchase_invoice_id", null: false
+    t.bigint "supplier_id"
+    t.bigint "user_id", null: false
+    t.date "payment_date", null: false
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.string "payment_mode", default: "bank_transfer", null: false
+    t.string "reference_number"
+    t.string "payment_number"
+    t.text "notes"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["metadata"], name: "index_purchase_payments_on_metadata", using: :gin
+    t.index ["organisation_id"], name: "index_purchase_payments_on_organisation_id"
+    t.index ["payment_date"], name: "index_purchase_payments_on_payment_date"
+    t.index ["payment_mode"], name: "index_purchase_payments_on_payment_mode"
+    t.index ["payment_number"], name: "index_purchase_payments_on_payment_number", unique: true, where: "(payment_number IS NOT NULL)"
+    t.index ["purchase_invoice_id"], name: "index_purchase_payments_on_purchase_invoice_id"
+    t.index ["supplier_id"], name: "index_purchase_payments_on_supplier_id"
+    t.index ["user_id"], name: "index_purchase_payments_on_user_id"
   end
 
   create_table "sale_payments", force: :cascade do |t|
@@ -429,6 +453,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
   add_foreign_key "purchase_invoices", "organisations"
   add_foreign_key "purchase_invoices", "suppliers"
   add_foreign_key "purchase_invoices", "users"
+  add_foreign_key "purchase_payments", "organisations"
+  add_foreign_key "purchase_payments", "purchase_invoices"
+  add_foreign_key "purchase_payments", "suppliers"
+  add_foreign_key "purchase_payments", "users"
   add_foreign_key "sale_payments", "customers"
   add_foreign_key "sale_payments", "organisations"
   add_foreign_key "sale_payments", "sales_invoices"

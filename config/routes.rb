@@ -39,7 +39,9 @@ Rails.application.routes.draw do
 
   # Inventory
   namespace :inventory do
-    resources :stock_levels, only: [:index]
+    resources :stock_levels, only: [:index] do
+      member { post :quick_adjust }
+    end
     resource  :opening_stock, only: [:new, :create] do
       get :ledger, on: :collection
     end
@@ -53,7 +55,15 @@ Rails.application.routes.draw do
     resources :purchase_invoices do
       member { post :confirm }
       collection { get :product_search }
+      resources :supplier_payments, only: [:create, :destroy],
+                                    controller: 'supplier_payments'
     end
+    # Accounting — Purchasing side
+    resources :accounts_payable, only: [:index, :show],
+                                  controller: 'accounts_payable'
+    resources :supplier_payments, only: [:index], controller: 'supplier_payments'
+    get 'supplier_payments/:id', to: 'supplier_payments#payment_show',
+                                 as: :supplier_payment
     resources :digitise, only: [:index, :new, :create, :show] do
       member do
         post :confirm
@@ -76,7 +86,12 @@ Rails.application.routes.draw do
       collection { get :product_search; get :shade_search; get :base_search }
       resources :sale_payments, only: [:create, :show, :destroy]
     end
-    resources :creditors, only: [:index, :show]
+    # Accounting — Sales side
+    resources :accounts_receivable, only: [:index, :show],
+                                    controller: 'accounts_receivable'
+    resources :customer_receipts, only: [:index], controller: 'sale_payments'
+    get 'customer_receipts/:id', to: 'sale_payments#payment_show',
+                                 as: :customer_receipt
   end
 
   # Shade import detail routes — outside namespace to control helper names precisely

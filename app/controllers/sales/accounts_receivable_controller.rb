@@ -1,7 +1,9 @@
-# app/controllers/sales/creditors_controller.rb
-class Sales::CreditorsController < Sales::BaseController
+# app/controllers/sales/accounts_receivable_controller.rb
+# Accounts Receivable — Outstanding customer payments.
+# Lists customers (debtors) who owe money on confirmed sales invoices.
+class Sales::AccountsReceivableController < Sales::BaseController
 
-  # GET /sales/creditors
+  # GET /sales/accounts_receivable
   # Lists customers who have at least one confirmed invoice with outstanding balance.
   # Walk-in invoices (customer_id IS NULL) are excluded.
   def index
@@ -15,7 +17,7 @@ class Sales::CreditorsController < Sales::BaseController
     # Group by customer and compute totals
     by_customer = invoices.group_by(&:customer)
 
-    @creditors = by_customer.filter_map do |customer, invs|
+    @ar_records = by_customer.filter_map do |customer, invs|
       total_invoiced   = invs.sum(&:computed_grand_total).round(2)
       total_collected  = invs.sum(&:total_paid).round(2)
       outstanding      = (total_invoiced - total_collected).round(2)
@@ -41,10 +43,11 @@ class Sales::CreditorsController < Sales::BaseController
     end
 
     # Sort by highest outstanding first
-    @creditors.sort_by! { |c| -c[:outstanding] }
+    @ar_records.sort_by! { |c| -c[:outstanding] }
+    render 'sales/accounts_receivable/index'
   end
 
-  # GET /sales/creditors/:id   — customer ledger
+  # GET /sales/accounts_receivable/:id   — customer ledger
   def show
     @customer = Customer.for_org(@organisation.id).find(params[:id])
 
@@ -64,6 +67,7 @@ class Sales::CreditorsController < Sales::BaseController
     @total_invoiced   = @invoices.sum(&:computed_grand_total).round(2)
     @total_collected  = @invoices.sum(&:total_paid).round(2)
     @total_outstanding = (@total_invoiced - @total_collected).round(2)
+    render 'sales/accounts_receivable/show'
   end
 
 end

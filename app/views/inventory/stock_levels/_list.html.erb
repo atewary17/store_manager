@@ -1,0 +1,90 @@
+<%# app/views/inventory/stock_levels/_list.html.erb %>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Brand</th>
+        <th>Category</th>
+        <th>Material Code</th>
+        <th>UOM</th>
+        <th style="text-align:right">Qty on Hand</th>
+        <th style="text-align:right">Avg Cost (₹)</th>
+        <th style="text-align:right">Stock Value (₹)</th>
+        <th>Last Entry</th>
+        <th>Status</th>
+        <th style="text-align:center">Adjust</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% levels.each do |level| %>
+        <% p = level.product %>
+        <% last_date = last_entry[level.product_id] %>
+        <% in_stk = level.in_stock? %>
+        <% low = level.quantity > 0 && level.quantity <= 5 %>
+        <% qty_color = in_stk ? (low ? 'var(--warning)' : 'var(--text)') : 'var(--danger)' %>
+        <tr>
+          <td style="max-width:200px">
+            <div style="font-weight:500;font-size:13px"><%= p.description.truncate(55) %></div>
+            <% if p.pack_code.present? %>
+              <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)"><%= p.pack_code %></div>
+            <% end %>
+          </td>
+          <td style="color:var(--text-dim);font-size:13px"><%= p.brand&.name || '—' %></td>
+          <td>
+            <span class="badge badge-plan" style="font-size:10px"><%= p.product_category&.name %></span>
+          </td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+            <%= p.material_code.presence || '—' %>
+          </td>
+          <td style="font-family:var(--mono);font-size:12px"><%= p.base_uom&.short_name %></td>
+          <td style="text-align:right;font-family:var(--mono);font-weight:600;color:<%= qty_color %>">
+            <span class="sl-qty-val">
+              <%= number_with_precision(level.quantity, precision: 3, strip_insignificant_zeros: true) %>
+            </span>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+            <%= level.avg_cost.to_f > 0 ? number_with_precision(level.avg_cost, precision: 2) : '—' %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);font-size:12px">
+            <%= level.stock_value > 0 ? number_with_delimiter(level.stock_value.round(0)) : '—' %>
+          </td>
+          <td style="font-size:11px;color:var(--text-dim);font-family:var(--mono);white-space:nowrap">
+            <%= last_date ? last_date.strftime('%d %b %y') : '—' %>
+          </td>
+          <td>
+            <% if in_stk %>
+              <span class="badge <%= low ? 'badge-warning' : 'badge-active' %>"
+                    style="<%= low ? 'background:rgba(247,195,79,0.15);color:var(--warning)' : '' %>">
+                <%= low ? 'Low' : 'In Stock' %>
+              </span>
+            <% else %>
+              <span class="badge badge-inactive">Out</span>
+            <% end %>
+          </td>
+          <%# Quick adjust buttons %>
+          <td style="text-align:center;white-space:nowrap">
+            <div class="sl-card" data-level-id="<%= level.id %>"
+                 style="display:inline-flex;align-items:center;gap:6px">
+              <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="-1"
+                      data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
+                      style="width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
+                             background:var(--bg);color:var(--text);font-size:14px;cursor:pointer;
+                             display:flex;align-items:center;justify-content:center">−</button>
+              <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="+1"
+                      data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
+                      style="width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
+                             background:var(--bg);color:var(--text);font-size:14px;cursor:pointer;
+                             display:flex;align-items:center;justify-content:center">+</button>
+            </div>
+          </td>
+          <td>
+            <%= link_to 'Ledger', ledger_inventory_opening_stock_path(product_id: p.id),
+                  class: 'btn btn-secondary btn-sm' %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

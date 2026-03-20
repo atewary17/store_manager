@@ -1,0 +1,242 @@
+<%# app/views/sales/customer_payments/index.html.erb %>
+<% content_for :title, "Customer Payments" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Customer Payments</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Customer Payments</div>
+    <div class="page-subtitle">All payments received — <%= @organisation.name %></div>
+  </div>
+  <div class="actions">
+    <%= link_to sales_outstanding_payments_path, class: 'btn btn-secondary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      Outstanding Payments
+    <% end %>
+  </div>
+</div>
+
+<%# ── Stats ── %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+  <div class="stat-card">
+    <div class="stat-label">Total Received</div>
+    <div class="stat-value success">
+      ₹ <%= number_with_delimiter(@total_received.round(0)) %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">No. of Payments</div>
+    <div class="stat-value accent"><%= @payment_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Unique Customers</div>
+    <div class="stat-value"><%= @customer_count %></div>
+  </div>
+</div>
+
+<%# ── Filters ── %>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px">
+  <%# Live search %>
+  <div style="position:relative;flex:1;min-width:180px;max-width:260px">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
+         viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
+         color:var(--text-dim);pointer-events:none">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" id="cp-search" value="<%= params[:q] %>"
+           placeholder="Receipt or ref number..."
+           style="width:100%;padding:8px 12px 8px 30px;background:var(--surface);
+                  border:1px solid var(--border);border-radius:6px;color:var(--text);
+                  font-size:13px;outline:none;box-sizing:border-box">
+  </div>
+
+  <%= form_with url: sales_customer_payments_path, method: :get, local: true,
+        id: 'cp-filter-form', style: 'display:contents' do |f| %>
+    <input type="hidden" name="q" id="cp-q-hidden" value="<%= params[:q] %>">
+
+    <%= f.select :customer_id,
+          options_from_collection_for_select(@customers, :id, :name, params[:customer_id]),
+          { include_blank: 'All Customers' },
+          { class: 'form-control', style: 'width:170px', onchange: 'this.form.submit()' } %>
+
+    <%= f.select :payment_mode,
+          @payment_modes.map { |m| [m.humanize, m] },
+          { include_blank: 'All Modes' },
+          { class: 'form-control', style: 'width:140px', onchange: 'this.form.submit()' } %>
+
+    <div style="display:flex;align-items:center;gap:6px">
+      <input type="date" name="from_date" value="<%= params[:from_date] %>"
+             class="form-control" style="width:140px" onchange="this.form.submit()">
+      <span style="color:var(--text-dim);font-size:12px">to</span>
+      <input type="date" name="to_date" value="<%= params[:to_date] %>"
+             class="form-control" style="width:140px" onchange="this.form.submit()">
+    </div>
+
+    <% if params[:customer_id].present? || params[:payment_mode].present? ||
+          params[:from_date].present? || params[:to_date].present? || params[:q].present? %>
+      <%= link_to 'Clear', sales_customer_payments_path, class: 'btn btn-secondary btn-sm' %>
+    <% end %>
+  <% end %>
+</div>
+
+<% if @selected_customer %>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;color:var(--text-dim)">
+    Showing payments for:
+    <span class="badge badge-plan"><%= @selected_customer.name %></span>
+    <%= link_to sales_outstanding_payment_path(@selected_customer),
+          style: 'font-size:11px;color:var(--accent);text-decoration:none' do %>
+      View full ledger →
+    <% end %>
+  </div>
+<% end %>
+
+<%# ── Table ── %>
+<% if @payments.any? %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Receipt</th>
+          <th>Date</th>
+          <th>Customer</th>
+          <th>Invoice</th>
+          <th>Mode</th>
+          <th>Ref No.</th>
+          <th style="text-align:right">Amount (₹)</th>
+          <th>Recorded by</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @payments.each do |pmt| %>
+          <% inv  = pmt.sales_invoice %>
+          <% cust = pmt.customer || inv&.customer %>
+          <tr>
+            <td>
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                           color:var(--accent)"><%= pmt.receipt_label %></span>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim);
+                       white-space:nowrap">
+              <%= pmt.payment_date.strftime('%d %b %Y') %>
+            </td>
+            <td>
+              <% if cust %>
+                <div style="font-weight:500;font-size:13px"><%= cust.name %></div>
+                <% if cust.phone.present? %>
+                  <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+                    <%= cust.phone %>
+                  </div>
+                <% end %>
+              <% else %>
+                <span style="color:var(--text-dim);font-size:12px">Walk-in</span>
+              <% end %>
+            </td>
+            <td>
+              <% if inv %>
+                <%= link_to inv.display_number, sales_sales_invoice_path(inv),
+                      style: "font-family:var(--mono);font-size:12px;color:var(--accent);
+                              text-decoration:none" %>
+              <% end %>
+            </td>
+            <td>
+              <span style="font-size:11px;padding:2px 8px;border-radius:4px;font-family:var(--mono);
+                           text-transform:uppercase;letter-spacing:.05em;
+                           background:var(--bg);border:1px solid var(--border);
+                           color:var(--text-dim)">
+                <%= pmt.payment_mode %>
+              </span>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+              <%= pmt.reference_number.presence || '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;
+                       color:var(--success);font-size:14px">
+              <%= number_with_precision(pmt.amount, precision: 2, delimiter: ',') %>
+            </td>
+            <td style="font-size:11px;color:var(--text-dim)">
+              <%= pmt.user&.first_name || pmt.user&.email&.split('@')&.first %>
+            </td>
+            <td>
+              <div style="display:flex;gap:6px">
+                <%= link_to 'View',
+                      sales_customer_payment_path(pmt),
+                      class: 'btn btn-secondary btn-sm' %>
+                <%= link_to '↓ PDF',
+                      sales_sales_invoice_sale_payment_path(inv, pmt, format: :pdf),
+                      class: 'btn btn-secondary btn-sm', target: '_blank' %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <%# Pagination %>
+  <% if @total_pages > 1 %>
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                margin-top:16px;font-size:13px;color:var(--text-dim)">
+      <span>
+        Showing <%= ((@page - 1) * @per_page) + 1 %>–<%= [@page * @per_page, @payment_count].min %>
+        of <%= @payment_count %> payments
+      </span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <% if @page > 1 %>
+          <%= link_to '← Prev',
+                sales_customer_payments_path(page: @page - 1, **request.query_parameters.except('page')),
+                class: 'btn btn-secondary btn-sm' %>
+        <% end %>
+        <% ([[@page-2,1].max,1].max..[[@page+2,@total_pages].min,@total_pages].min).each do |p| %>
+          <% if p == @page %>
+            <span style="padding:5px 10px;background:var(--accent);color:#fff;
+                         border-radius:6px;font-size:12px;font-weight:600"><%= p %></span>
+          <% else %>
+            <%= link_to p,
+                  sales_customer_payments_path(page: p, **request.query_parameters.except('page')),
+                  style: "padding:5px 10px;background:var(--surface);border:1px solid var(--border);
+                          color:var(--text);border-radius:6px;font-size:12px;text-decoration:none" %>
+          <% end %>
+        <% end %>
+        <% if @page < @total_pages %>
+          <%= link_to 'Next →',
+                sales_customer_payments_path(page: @page + 1, **request.query_parameters.except('page')),
+                class: 'btn btn-secondary btn-sm' %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+<% else %>
+  <div class="empty-state">
+    <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1"
+         viewBox="0 0 24 24" style="color:var(--muted);margin:0 auto 12px;display:block">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <line x1="2" y1="10" x2="22" y2="10"/>
+    </svg>
+    <p>No payments recorded yet.</p>
+  </div>
+<% end %>
+
+<script>
+  (function() {
+    var inp = document.getElementById('cp-search');
+    var hidden = document.getElementById('cp-q-hidden');
+    if (!inp) return;
+    var t;
+    inp.addEventListener('input', function() {
+      clearTimeout(t);
+      t = setTimeout(function() {
+        hidden.value = inp.value;
+        document.getElementById('cp-filter-form').submit();
+      }, 400);
+    });
+  })();
+</script>

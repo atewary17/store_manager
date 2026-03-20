@@ -8,6 +8,7 @@ class PurchaseInvoice < ApplicationRecord
   belongs_to :supplier,     optional: true
   belongs_to :user
   has_many   :purchase_invoice_items, dependent: :destroy
+  has_many   :purchase_payments,       dependent: :destroy
 
   accepts_nested_attributes_for :purchase_invoice_items,
     reject_if: ->(attrs) { attrs[:quantity].blank? && attrs[:total_amount].blank? },
@@ -102,6 +103,33 @@ class PurchaseInvoice < ApplicationRecord
 
   def display_number
     invoice_number.presence || "Draft ##{id}"
+  end
+
+  # ── Payment helpers ─────────────────────────────────────────
+  def total_paid
+    purchase_payments.sum(:amount).to_f.round(2)
+  end
+
+  def outstanding_amount
+    (total_amount.to_f - total_paid).round(2)
+  end
+
+  def fully_paid?
+    outstanding_amount <= 0
+  end
+
+  def overdue?
+    payment_due_date.present? && payment_due_date < Date.today && !fully_paid?
+  end
+
+  def payment_status
+    if fully_paid?
+      'paid'
+    elsif total_paid > 0
+      'partial'
+    else
+      'unpaid'
+    end
   end
 
   private

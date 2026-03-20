@@ -1,0 +1,217 @@
+<%# app/views/purchasing/supplier_payments/payment_show.html.erb %>
+<% content_for :title, @payment.payment_label %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Supplier Payments', purchasing_supplier_payments_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @payment.payment_label %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div style="margin-bottom:6px">
+      <span style="font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:4px;
+                   text-transform:uppercase;letter-spacing:.07em;
+                   background:var(--bg);border:1px solid var(--border);color:var(--text-dim)">
+        <%= @payment.payment_mode %>
+      </span>
+    </div>
+    <div class="page-title"><%= @payment.payment_label %></div>
+    <div class="page-subtitle" style="font-family:var(--mono)">
+      <%= @payment.payment_date.strftime('%d %B %Y') %>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to '← Back', purchasing_supplier_payments_path, class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<div class="detail-card" style="margin-bottom:20px">
+  <div class="detail-section">
+    <div class="detail-section-title">Payment Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Payment Number</label>
+        <div class="value mono"><%= @payment.payment_label %></div>
+      </div>
+      <div class="detail-field">
+        <label>Payment Date</label>
+        <div class="value mono"><%= @payment.payment_date.strftime('%d %b %Y') %></div>
+      </div>
+      <div class="detail-field">
+        <label>Amount Paid</label>
+        <div class="value" style="font-family:var(--mono);font-size:22px;font-weight:700;
+                                   color:var(--danger)">
+          ₹ <%= number_with_precision(@payment.amount, precision: 2, delimiter: ',') %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Payment Mode</label>
+        <div class="value">
+          <span style="font-family:var(--mono);font-size:12px;padding:3px 10px;border-radius:5px;
+                       text-transform:uppercase;letter-spacing:.07em;
+                       background:var(--bg);border:1px solid var(--border);color:var(--text)">
+            <%= @payment.payment_mode %>
+          </span>
+        </div>
+      </div>
+      <% if @payment.reference_number.present? %>
+        <div class="detail-field">
+          <label>Reference / UTR</label>
+          <div class="value mono"><%= @payment.reference_number %></div>
+        </div>
+      <% end %>
+      <% if @payment.notes.present? %>
+        <div class="detail-field" style="grid-column:span 2">
+          <label>Notes</label>
+          <div class="value"><%= @payment.notes %></div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @supplier %>
+    <div class="detail-section">
+      <div class="detail-section-title">Supplier</div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Name</label>
+          <div class="value"><%= @supplier.name %></div>
+        </div>
+        <% if @supplier.gstin.present? %>
+          <div class="detail-field">
+            <label>GSTIN</label>
+            <div class="value mono"><%= @supplier.gstin %></div>
+          </div>
+        <% end %>
+        <% if @supplier.state.present? %>
+          <div class="detail-field">
+            <label>State</label>
+            <div class="value"><%= @supplier.state %></div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Invoice ── %>
+<% if @invoice %>
+  <div class="detail-card" style="margin-bottom:20px">
+    <div class="detail-section">
+      <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Purchase Invoice</span>
+        <%= link_to 'Open Invoice →', purchasing_purchase_invoice_path(@invoice),
+              style: "font-size:12px;color:var(--accent);text-decoration:none;font-weight:400" %>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Invoice Number</label>
+          <div class="value mono">
+            <%= link_to @invoice.display_number, purchasing_purchase_invoice_path(@invoice),
+                  style: "color:var(--accent);text-decoration:none" %>
+          </div>
+        </div>
+        <div class="detail-field">
+          <label>Invoice Date</label>
+          <div class="value mono"><%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %></div>
+        </div>
+        <div class="detail-field">
+          <label>Due Date</label>
+          <% overdue = @invoice.overdue? %>
+          <div class="value mono" style="color:<%= overdue ? 'var(--danger)' : 'var(--text)' %>">
+            <%= @invoice.payment_due_date ? @invoice.payment_due_date.strftime('%d %b %Y') : '—' %>
+            <% if overdue %>
+              <span style="font-size:10px;font-weight:700;margin-left:6px;
+                           color:var(--danger)">OVERDUE</span>
+            <% end %>
+          </div>
+        </div>
+        <div class="detail-field">
+          <label>Invoice Total</label>
+          <div class="value mono">₹ <%= number_with_precision(@invoice.total_amount, precision: 2, delimiter: ',') %></div>
+        </div>
+        <div class="detail-field">
+          <label>Total Paid</label>
+          <div class="value mono" style="color:var(--success)">
+            ₹ <%= number_with_precision(@invoice.total_paid, precision: 2, delimiter: ',') %>
+          </div>
+        </div>
+        <div class="detail-field">
+          <label>Outstanding</label>
+          <% outstanding = @invoice.outstanding_amount %>
+          <div class="value mono" style="color:<%= outstanding > 0 ? 'var(--danger)' : 'var(--success)' %>;font-weight:600">
+            ₹ <%= number_with_precision(outstanding, precision: 2, delimiter: ',') %>
+            <% if outstanding <= 0 %>
+              <span style="font-size:11px;font-weight:400;color:var(--success);margin-left:6px">✓ Fully paid</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%# Progress bar %>
+    <% total = @invoice.total_amount.to_f %>
+    <% paid  = @invoice.total_paid %>
+    <% pct   = total > 0 ? [(paid / total * 100).round, 100].min : 0 %>
+    <div style="padding:0 20px 16px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;
+                  color:var(--text-dim);margin-bottom:5px">
+        <span>Payment progress</span>
+        <span style="font-family:var(--mono);font-weight:600;color:var(--text)"><%= pct %>%</span>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px">
+        <div style="height:6px;width:<%= pct %>%;border-radius:3px;
+                    background:<%= pct >= 100 ? 'var(--success)' : 'var(--accent)' %>"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;
+                  color:var(--text-dim);margin-top:4px;font-family:var(--mono)">
+        <span>Paid ₹<%= number_with_delimiter(paid.round(0)) %></span>
+        <span>Total ₹<%= number_with_delimiter(total.round(0)) %></span>
+      </div>
+    </div>
+
+    <%# All payments on this invoice %>
+    <% all_payments = @invoice.purchase_payments.order(payment_date: :asc) %>
+    <% if all_payments.size > 1 %>
+      <div class="detail-section">
+        <div class="detail-section-title">All Payments on This Invoice</div>
+        <% all_payments.each do |p| %>
+          <div style="display:flex;align-items:center;gap:14px;padding:10px 0;
+                      border-bottom:1px solid var(--border);
+                      <%= p.id == @payment.id ? 'background:rgba(79,142,247,0.04);margin:0 -20px;padding:10px 20px;' : '' %>">
+            <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0;
+                         background:<%= p.id == @payment.id ? 'var(--accent)' : 'var(--border)' %>"></span>
+            <span style="font-family:var(--mono);font-size:12px;min-width:160px;
+                         color:<%= p.id == @payment.id ? 'var(--accent)' : 'var(--text-dim)' %>">
+              <%= p.payment_label %>
+            </span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);min-width:100px">
+              <%= p.payment_date.strftime('%d %b %Y') %>
+            </span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);min-width:80px">
+              <%= p.payment_mode %>
+            </span>
+            <span style="font-family:var(--mono);font-weight:600;color:var(--danger);margin-left:auto">
+              ₹ <%= number_with_precision(p.amount, precision: 2, delimiter: ',') %>
+            </span>
+            <% if p.id == @payment.id %>
+              <span style="font-size:10px;color:var(--accent);font-weight:600">← this payment</span>
+            <% else %>
+              <%= link_to 'View', purchasing_supplier_payment_path(p),
+                    style: "font-size:11px;color:var(--accent);text-decoration:none" %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<div style="margin-top:20px;display:flex;gap:10px">
+  <%= link_to '← Back to Payments', purchasing_supplier_payments_path, class: 'btn btn-secondary' %>
+  <% if @supplier %>
+    <%= link_to 'AP Ledger →', purchasing_accounts_payable_path(@supplier), class: 'btn btn-secondary' %>
+  <% end %>
+</div>
