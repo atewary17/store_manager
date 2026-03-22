@@ -1,0 +1,240 @@
+<%# app/views/users/profile.html.erb %>
+<% content_for :title, "My Profile" %>
+<% content_for :breadcrumb do %>
+  <span class="breadcrumb-current">My Profile</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">My Profile</div>
+    <div class="page-subtitle"><%= current_user.email %></div>
+  </div>
+</div>
+
+<%= form_with url: update_profile_path, method: :patch, local: true,
+      style: "max-width:640px" do |f| %>
+
+  <%# ── Personal details ── %>
+  <div class="detail-card" style="margin-bottom:20px">
+    <div class="detail-section">
+      <div class="detail-section-title">Personal Details</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+        <div class="form-group">
+          <%= f.label :first_name, "First Name" %>
+          <%= f.text_field :first_name, value: @user.first_name,
+                class: 'form-control', placeholder: 'First name' %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :last_name, "Last Name" %>
+          <%= f.text_field :last_name, value: @user.last_name,
+                class: 'form-control', placeholder: 'Last name' %>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="text" value="<%= @user.email %>" disabled
+                 class="form-control" style="opacity:0.5;cursor:not-allowed"
+                 title="Email cannot be changed here">
+          <div class="form-hint">Contact super admin to change email</div>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :phone_number, "Phone" %>
+          <%= f.text_field :phone_number, value: @user.phone_number,
+                class: 'form-control', placeholder: '+91 98765 43210' %>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <input type="text" value="<%= @user.role.humanize %>" disabled
+                 class="form-control" style="opacity:0.5;cursor:not-allowed">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Organisation</label>
+          <input type="text" value="<%= @user.organisation&.name || '—' %>" disabled
+                 class="form-control" style="opacity:0.5;cursor:not-allowed">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Change password ── %>
+  <div class="detail-card" style="margin-bottom:20px">
+    <div class="detail-section">
+      <div class="detail-section-title">Change Password</div>
+      <div class="form-hint" style="margin-bottom:12px">Leave blank to keep your current password</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <%= f.label :password, "New Password" %>
+          <%= f.password_field :password, class: 'form-control',
+                autocomplete: 'new-password', placeholder: 'Min 8 characters' %>
+        </div>
+        <div class="form-group">
+          <%= f.label :password_confirmation, "Confirm Password" %>
+          <%= f.password_field :password_confirmation, class: 'form-control',
+                autocomplete: 'new-password', placeholder: 'Repeat new password' %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── App preferences ── %>
+  <div class="detail-card" style="margin-bottom:20px">
+    <div class="detail-section">
+      <div class="detail-section-title">
+        App Preferences
+        <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
+          These settings apply only to your account
+        </span>
+      </div>
+
+      <%# AI Provider preference %>
+      <div class="form-group" style="margin-bottom:20px">
+        <label class="form-label">
+          AI Provider for Invoice Scanning
+          <% if current_user.super_admin? %>
+            <span style="font-size:10px;color:var(--accent);margin-left:6px">
+              (you set the global default — your preference overrides it for your account)
+            </span>
+          <% end %>
+        </label>
+
+        <% current_pref = @user.preferences&.dig('ai_provider').presence || '' %>
+        <% global_provider = ENV['INVOICE_AI_PROVIDER'] || 'gemini' %>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+
+          <%# Use global default option %>
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;
+                        padding:12px 14px;border:1px solid var(--border);border-radius:8px;
+                        background:<%= current_pref.blank? ? 'rgba(79,142,247,0.06)' : 'var(--bg)' %>">
+            <input type="radio" name="preferences[ai_provider]" value=""
+                   <%= 'checked' if current_pref.blank? %>
+                   style="margin-top:2px;accent-color:var(--accent)">
+            <div>
+              <div style="font-size:13px;font-weight:500;color:var(--text)">
+                Use global default
+                <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:6px">
+                  (currently: <%= global_provider.upcase %>)
+                </span>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+                Follows whatever the server is configured to use
+              </div>
+            </div>
+          </label>
+
+          <%# Groq option %>
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;
+                        padding:12px 14px;border:1px solid var(--border);border-radius:8px;
+                        background:<%= current_pref == 'groq' ? 'rgba(79,142,247,0.06)' : 'var(--bg)' %>">
+            <input type="radio" name="preferences[ai_provider]" value="groq"
+                   <%= 'checked' if current_pref == 'groq' %>
+                   style="margin-top:2px;accent-color:var(--accent)">
+            <div>
+              <div style="font-size:13px;font-weight:500;color:var(--text)">
+                Groq — Llama 4 Scout
+                <span style="font-size:10px;padding:1px 6px;margin-left:6px;border-radius:3px;
+                             background:rgba(52,217,139,0.1);color:var(--success);
+                             font-family:var(--mono)">FREE</span>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+                Fast, free tier up to ~14,400 requests/day. Best for most use cases.
+              </div>
+            </div>
+          </label>
+
+          <%# OpenRouter option — for invoice scanning only, not enrichment %>
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;
+                        padding:12px 14px;border:1px solid var(--border);border-radius:8px;
+                        background:<%= current_pref == 'openrouter' ? 'rgba(79,142,247,0.06)' : 'var(--bg)' %>">
+            <input type="radio" name="preferences[ai_provider]" value="openrouter"
+                   <%= 'checked' if current_pref == 'openrouter' %>
+                   style="margin-top:2px;accent-color:var(--accent)">
+            <div>
+              <div style="font-size:13px;font-weight:500;color:var(--text)">
+                OpenRouter — Llama 3.2 Vision
+                <span style="font-size:10px;padding:1px 6px;margin-left:6px;border-radius:3px;
+                             background:rgba(52,217,139,0.1);color:var(--success);
+                             font-family:var(--mono)">FREE</span>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+                For invoice scanning only. Product enrichment always uses Groq regardless.
+                Requires <code style="font-family:var(--mono)">OPENROUTER_API_KEY</code> — get free key at <strong>openrouter.ai</strong>
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <%# Future settings placeholder %>
+      <div style="padding:12px 14px;border:1px dashed var(--border);border-radius:8px;
+                  font-size:12px;color:var(--text-dim)">
+        <div style="font-weight:500;margin-bottom:4px">More settings coming soon</div>
+        <div>Default invoice view, notification preferences, language, and more</div>
+      </div>
+
+    </div>
+  </div>
+
+  <%# ── Super admin: global API config ── %>
+  <% if current_user.super_admin? %>
+    <div class="detail-card" style="margin-bottom:20px">
+      <div class="detail-section">
+        <div class="detail-section-title" style="color:var(--warning)">
+          ⚙ Global API Configuration
+          <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
+            Super admin only
+          </span>
+        </div>
+
+        <div style="padding:10px 14px;background:rgba(247,195,79,0.06);
+                    border:1px solid rgba(247,195,79,0.2);border-radius:6px;
+                    font-size:12px;color:var(--text-dim);margin-bottom:14px">
+          The global provider is set via the <code style="font-family:var(--mono)">INVOICE_AI_PROVIDER</code>
+          environment variable in <code style="font-family:var(--mono)">config/local_env.yml</code>.
+          Changing it requires a server restart. The values below are read-only — for display only.
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="detail-field">
+            <label>Active Provider</label>
+            <div class="value">
+              <span style="font-family:var(--mono);font-size:13px;font-weight:600;
+                           color:var(--accent)">
+                <%= (ENV['INVOICE_AI_PROVIDER'] || 'gemini').upcase %>
+              </span>
+            </div>
+          </div>
+          <div class="detail-field">
+            <label>Groq API Key</label>
+            <div class="value mono" style="color:<%= ENV['GROQ_API_KEY'].present? ? 'var(--success)' : 'var(--danger)' %>">
+              <%= ENV['GROQ_API_KEY'].present? ? "#{ENV['GROQ_API_KEY'][0..6]}••••••••  ✓ Set" : '✗ Not set — get free key at console.groq.com' %>
+            </div>
+          </div>
+          <div class="detail-field">
+            <label>OpenRouter API Key</label>
+            <div class="value mono" style="color:<%= ENV['OPENROUTER_API_KEY'].present? ? 'var(--success)' : 'var(--text-dim)' %>">
+              <%= ENV['OPENROUTER_API_KEY'].present? ? "#{ENV['OPENROUTER_API_KEY'][0..6]}••••••••  ✓ Set" : 'Not set (optional fallback — openrouter.ai)' %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <% if @user.errors.any? %>
+    <div class="flash alert" style="margin-bottom:16px">
+      <%= @user.errors.full_messages.join(', ') %>
+    </div>
+  <% end %>
+
+  <div style="display:flex;gap:10px;align-items:center">
+    <%= f.submit 'Save Changes', class: 'btn btn-primary' %>
+    <%= link_to 'Cancel', dashboard_path, class: 'btn btn-secondary' %>
+  </div>
+
+<% end %>

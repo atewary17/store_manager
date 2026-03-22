@@ -12,7 +12,7 @@
 #
 class GeminiInvoiceParser
 
-  GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent".freeze
+  GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent".freeze
 
   PROMPT = <<~PROMPT.freeze
     You are an expert at reading Indian B2B purchase invoices for paint/hardware distributors.
@@ -98,8 +98,8 @@ class GeminiInvoiceParser
     - quantity: total volume/weight (num_packs × pack_size volume). e.g. if 4 packs of 3.6 LT → quantity = 14.400
     - unit: e.g. "LT", "ML", "KG", "PCS", "EA"
     - unit_rate: rate per unit of volume (total_amount / quantity). If not shown, calculate it.
-    - For invoices with a single cash_discount applied to the whole invoice (not per line),
-      put it in header.cash_discount_amount and set item-level discount_amount to 0.
+    - Cash discount (Disc.%) is applied PER LINE ITEM. Extract discount_percent and discount_amount
+      for each line from the "Disc.%" or "Cash Disc" column. Set header cash_discount fields to 0.
     - hsn_code: digits only, no slashes or "HSN" prefix. e.g. "320890" not "HSN - 320890"
     - If a field is genuinely absent, use null for strings and 0 for numbers.
     - Do not invent data. Extract only what is visible.

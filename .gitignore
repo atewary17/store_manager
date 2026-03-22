@@ -37,7 +37,8 @@ tmp/screenshots
 /config/master.key
 
 # Ignore environment variables
-# /.env
+/.env
+config/local_env.yml
 # /.env.development.local
 
 #---------------------------------------#

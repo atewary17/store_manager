@@ -35,6 +35,16 @@
         List
       </button>
     </div>
+    <%= link_to export_inventory_stock_levels_path(format: :xlsx,
+                  **request.query_parameters.slice('category_id','brand_id','q','stock_status','sort')),
+              class: 'btn btn-secondary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Export Stock
+    <% end %>
     <%= link_to new_inventory_opening_stock_path, class: 'btn btn-primary' do %>
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>

@@ -61,13 +61,155 @@ class Setup::ProductsController < Setup::BaseController
     @enrolled_count     = OrganisationProduct.select(:product_id).distinct.count
     @unenrolled_count   = @total_count - @enrolled_count
     @orgs               = Organisation.order(:name)
+
+    # AI-enriched pending products — for the "Unmatched" review tab
+    @pending_products = Product
+      .where(active: false)
+      .where("metadata->>'source' = 'ai_enrichment'")
+      .includes(:product_category, :base_uom, :brand, organisation_products: :organisation)
+      .order('products.created_at DESC')
+    @pending_count = @pending_products.count
   end
 
   def show; end
 
+  # POST /setup/products/:id/approve
+  # Super admin promotes an AI-enriched product to active
+  def approve_pending
+    unless current_user.super_admin?
+      redirect_to product_register_setup_products_path, alert: 'Access denied.'
+      return
+    end
+    @product = Product.find(params[:id])
+    unless @product.metadata&.dig('source') == 'ai_enrichment'
+      redirect_to product_register_setup_products_path, alert: 'Not an AI-enriched product.'
+      return
+    end
+    @product.update!(
+      active:   true,
+      metadata: @product.metadata.merge(
+        'validation_status' => 'approved',
+        'approved_by'       => current_user.id,
+        'approved_at'       => Time.current.iso8601
+      )
+    )
+    redirect_to product_register_setup_products_path,
+      notice: "#{@product.description} approved and is now active."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_setup_product_path(@product),
+      alert: "Cannot approve — please complete the product first: #{e.record.errors.full_messages.join(', ')}"
+  end
+
+  # DELETE /setup/products/:id/reject_pending
+  # Super admin rejects and deletes a pending AI-enriched product (only if no stock)
+  def reject_pending
+    unless current_user.super_admin?
+      redirect_to product_register_setup_products_path, alert: 'Access denied.'
+      return
+    end
+    @product = Product.find(params[:id])
+    stock_qty = StockLevel.where(product_id: @product.id).sum(:quantity).to_f
+    if stock_qty > 0
+      redirect_to product_register_setup_products_path,
+        alert: "Cannot delete — #{@product.description} has #{stock_qty} units in stock. Edit and approve instead."
+      return
+    end
+    name = @product.description
+    @product.destroy!
+    redirect_to product_register_setup_products_path,
+      notice: "#{name} removed from pending products."
+  end
+
+  # GET /setup/products/product_register_export  (superadmin only)
+  # Exports ALL products globally with comma-separated organisation_ids column
+  def product_register_export
+    unless current_user.super_admin?
+      redirect_to setup_products_path, alert: 'Access denied.'
+      return
+    end
+
+    @products = Product.includes(:product_category, :base_uom, :brand,
+                                  organisation_products: :organisation)
+                       .order('products.id ASC')
+
+    # Build map: product_id -> "org1,org2,org3"
+    org_ids_map = OrganisationProduct
+                    .select(:product_id, :organisation_id)
+                    .group_by(&:product_id)
+                    .transform_values { |ops| ops.map(&:organisation_id).join(',') }
+
+    package = Axlsx::Package.new
+    wb      = package.workbook
+
+    hdr     = wb.styles.add_style(bg_color: '1F3864', fg_color: 'FFFFFF', b: true, sz: 11,
+                alignment: { horizontal: :center, vertical: :center })
+    even    = wb.styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10)
+    odd     = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10)
+    num     = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10,
+                alignment: { horizontal: :right })
+    txt     = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10,
+                format_code: '@')
+    txt_even = wb.styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10,
+                 format_code: '@')
+
+    wb.add_worksheet(name: 'Product Register') do |sheet|
+      sheet.add_row(
+        ['Category', 'UOM', 'Brand', 'Pack Code', 'Description',
+         'Material Code', 'Product Code', 'HSN Code', 'GST Rate',
+         'Active', 'Organisation IDs'],
+        style: hdr, height: 24
+      )
+
+      @products.each_with_index do |p, i|
+        row_style  = i.even? ? even : odd
+        code_style = i.even? ? txt_even : txt
+
+        sheet.add_row([
+          p.product_category&.name,
+          p.base_uom&.short_name,
+          p.brand&.name,
+          p.pack_code,
+          p.description,
+          p.material_code.to_s,
+          p.product_code.to_s,
+          p.hsn_code.to_s,
+          p.gst_rate,
+          p.active,
+          org_ids_map[p.id] || ''
+        ], style: [row_style, row_style, row_style, row_style, row_style,
+                   code_style, code_style, code_style, num,
+                   row_style, row_style],
+           height: 18)
+      end
+
+      sheet.column_widths 22, 10, 18, 12, 36, 20, 18, 12, 10, 8, 24
+    end
+
+    send_data package.to_stream.read,
+      filename:    "product_register_#{Date.today.strftime('%Y%m%d')}.xlsx",
+      type:        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment'
+  end
+
   # GET /setup/products/export
+  # Exports products scoped to current org, including org-level overrides.
+  # Used both as a data export and as a pre-filled import template.
   def export
-    @products = Product.includes(:product_category, :base_uom, :brand).ordered
+    if @organisation
+      # Org export: only products enrolled in this org (INNER JOIN)
+      org_products = OrganisationProduct
+                       .where(organisation_id: @organisation.id)
+                       .includes(product: [:product_category, :base_uom, :brand])
+                       .order('products.id ASC')
+                       .joins(:product)
+
+      @products       = org_products.map(&:product)
+      org_product_map = org_products.index_by(&:product_id)
+    else
+      # Super admin with no org — export everything (no org overrides)
+      @products       = Product.includes(:product_category, :base_uom, :brand).order('products.id ASC')
+      org_product_map = {}
+    end
 
     package = Axlsx::Package.new
     wb      = package.workbook
@@ -78,38 +220,52 @@ class Setup::ProductsController < Setup::BaseController
     odd  = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10)
     num  = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10,
              alignment: { horizontal: :right })
+    # Text format — forces Excel to treat codes as strings, preserving leading zeros
+    txt  = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10,
+             format_code: '@')
+    txt_even = wb.styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10,
+                 format_code: '@')
 
     wb.add_worksheet(name: 'Products') do |sheet|
       sheet.add_row(
         ['Category', 'UOM', 'Brand', 'Pack Code', 'Description',
-         'Material Code', 'Product Code', 'HSN Code', 'GST Rate', 'MRP', 'Active'],
+         'Material Code', 'Product Code', 'HSN Code', 'GST Rate',
+         'MRP', 'Internal Code', 'Local Description', 'Active'],
         style: hdr, height: 24
       )
 
       @products.each_with_index do |p, i|
+        op        = org_product_map[p.id]
         row_style = i.even? ? even : odd
+
+        # Use text style for code fields to preserve leading zeros
+        code_style = i.even? ? txt_even : txt
+
         sheet.add_row([
           p.product_category&.name,
           p.base_uom&.short_name,
           p.brand&.name,
           p.pack_code,
           p.description,
-          p.material_code,
-          p.product_code,
-          p.hsn_code,
+          p.material_code.to_s,   # force string
+          p.product_code.to_s,    # force string
+          p.hsn_code.to_s,        # force string
           p.gst_rate,
-          Product.column_names.include?('mrp') ? p.mrp : nil,
+          op&.mrp,
+          op&.internal_code,
+          op&.local_description,
           p.active
         ], style: [row_style, row_style, row_style, row_style, row_style,
-                   row_style, row_style, row_style, num, num, row_style],
+                   code_style, code_style, code_style, num, num,
+                   row_style, row_style, row_style],
            height: 18)
       end
 
-      sheet.column_widths 22, 10, 18, 12, 34, 18, 18, 12, 10, 12, 8
+      sheet.column_widths 22, 10, 18, 12, 34, 18, 18, 12, 10, 12, 20, 30, 8
     end
 
     send_data package.to_stream.read,
-      filename:    "products_export_#{Date.today.strftime('%Y%m%d')}.xlsx",
+      filename:    "products_#{@organisation&.name&.parameterize || 'all'}_#{Date.today.strftime('%Y%m%d')}.xlsx",
       type:        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       disposition: 'attachment'
   end

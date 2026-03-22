@@ -10,8 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_20_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_22_000002) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_trgm"
   enable_extension "plpgsql"
 
   create_table "brands", force: :cascade do |t|
@@ -154,7 +155,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000001) do
     t.datetime "updated_at", null: false
     t.decimal "mrp", precision: 10, scale: 2
     t.jsonb "metadata", default: {}
-    t.bigint "brand_id"
+    t.bigint "brand_id", null: false
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"
@@ -433,8 +434,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000001) do
     t.string "first_name"
     t.string "last_name"
     t.string "phone_number"
+    t.jsonb "preferences", default: {}, null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["organisation_id"], name: "index_users_on_organisation_id"
+    t.index ["preferences"], name: "index_users_on_preferences", using: :gin
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 

@@ -2,6 +2,11 @@
 Rails.application.routes.draw do
   devise_for :users
 
+  # User profile — any logged-in user
+  get   '/profile', to: 'users#profile',       as: :profile
+  patch '/profile', to: 'users#update_profile', as: :update_profile
+  put   '/profile', to: 'users#update_profile'
+
   # Organisations & Users
   resources :organisations, only: [:index, :show, :new, :create, :edit, :update] do
     resources :users, only: [:index, :show, :new, :create, :edit, :update]
@@ -16,8 +21,11 @@ Rails.application.routes.draw do
     resources :product_categories
     resources :products do
       collection do
-        get :export
-        get :product_register
+        get  :export
+        get  :product_register
+        get  :product_register_export
+        post :approve_pending,  path: ':id/approve'
+        delete :reject_pending, path: ':id/reject_pending'
       end
     end
     resources :shade_catalogues do
@@ -41,6 +49,7 @@ Rails.application.routes.draw do
   namespace :inventory do
     resources :stock_levels, only: [:index] do
       member { post :quick_adjust }
+      collection { get :export }
     end
     resource  :opening_stock, only: [:new, :create] do
       get :ledger, on: :collection
@@ -58,6 +67,9 @@ Rails.application.routes.draw do
       resources :supplier_payments, only: [:create, :destroy],
                                     controller: 'supplier_payments'
     end
+    # Product enrichment endpoints
+    post 'enrich_product',       to: 'enrich#enrich_product'
+    post 'save_enriched_product', to: 'enrich#save_enriched_product'
     # Accounting — Purchasing side
     resources :accounts_payable, only: [:index, :show],
                                   controller: 'accounts_payable'

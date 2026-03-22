@@ -116,6 +116,97 @@ class Inventory::StockLevelsController < Inventory::BaseController
     end
   end
 
+  # GET /inventory/stock_levels/export
+  # Exports all in-stock items (qty > 0) for current org as Excel.
+  # Fields: Product, Brand, Category, Material Code, Quantity, UOM, Stock Value
+  def export
+    require 'axlsx'
+
+    # In-stock only — qty > 0, with all needed associations
+    levels = StockLevel
+      .for_org(@organisation.id)
+      .in_stock
+      .joins(product: [:brand, :product_category, :base_uom])
+      .includes(product: [:brand, :product_category, :base_uom])
+      .order('brands.name ASC, products.description ASC')
+
+    package = Axlsx::Package.new
+    wb      = package.workbook
+
+    hdr  = wb.styles.add_style(
+      bg_color: '1F3864', fg_color: 'FFFFFF', b: true, sz: 11,
+      alignment: { horizontal: :center, vertical: :center }
+    )
+    even = wb.styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10)
+    odd  = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10)
+    num  = wb.styles.add_style(
+      bg_color: 'FFFFFF', fg_color: '404040', sz: 10,
+      alignment: { horizontal: :right }
+    )
+    num_even = wb.styles.add_style(
+      bg_color: 'F7F9FC', fg_color: '404040', sz: 10,
+      alignment: { horizontal: :right }
+    )
+    txt  = wb.styles.add_style(bg_color: 'FFFFFF', fg_color: '404040', sz: 10, format_code: '@')
+    txt_even = wb.styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10, format_code: '@')
+
+    wb.add_worksheet(name: 'Stock') do |sheet|
+      sheet.add_row(
+        ['Product', 'Brand', 'Category', 'Material Code',
+         'Quantity', 'UOM', 'Avg Cost (₹)', 'Stock Value (₹)'],
+        style: hdr, height: 24
+      )
+
+      levels.each_with_index do |sl, i|
+        p          = sl.product
+        row_style  = i.even? ? even : odd
+        n_style    = i.even? ? num_even : num
+        code_style = i.even? ? txt_even : txt
+        qty        = sl.quantity.to_f.round(3)
+        avg_cost   = sl.avg_cost.to_f.round(2)
+        value      = (qty * avg_cost).round(2)
+
+        sheet.add_row([
+          p.description,
+          p.brand&.name,
+          p.product_category&.name,
+          p.material_code.to_s,
+          qty,
+          p.base_uom&.short_name,
+          avg_cost,
+          value
+        ], style: [row_style, row_style, row_style, code_style,
+                   n_style, row_style, n_style, n_style],
+           height: 18)
+      end
+
+      # Summary row at the bottom
+      total_value = levels.sum('stock_levels.quantity * COALESCE(stock_levels.avg_cost, 0)').round(2)
+      total_qty   = levels.sum(:quantity).round(3)
+      summary_style = wb.styles.add_style(
+        bg_color: 'E8F0FE', fg_color: '1F3864', b: true, sz: 10,
+        alignment: { horizontal: :right }
+      )
+      summary_label = wb.styles.add_style(
+        bg_color: 'E8F0FE', fg_color: '1F3864', b: true, sz: 10
+      )
+      sheet.add_row(
+        ["#{levels.count} products", '', '', 'TOTAL',
+         total_qty, '', '', total_value],
+        style: [summary_label, summary_label, summary_label, summary_label,
+                summary_style, summary_style, summary_style, summary_style],
+        height: 20
+      )
+
+      sheet.column_widths 36, 18, 20, 20, 12, 8, 14, 16
+    end
+
+    send_data package.to_stream.read,
+      filename:    "stock_#{@organisation.name.parameterize}_#{Date.today.strftime('%Y%m%d')}.xlsx",
+      type:        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment'
+  end
+
   # POST /inventory/stock_levels/:id/quick_adjust
   def quick_adjust
     @level  = StockLevel.for_org(@organisation.id).find(params[:id])

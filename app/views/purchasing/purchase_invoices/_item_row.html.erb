@@ -12,8 +12,12 @@
   subtotal   = discount > 0 ? (total_pre / (1 - discount / 100.0)).round(2) : total_pre
   unit_rate  = qty > 0 ? (subtotal / qty).round(4) : item.unit_rate.to_f
   disc_amt   = discount > 0 ? (subtotal - total_pre).round(2) : 0
+  is_unmatched = item.unmatched?
+  is_pending   = item.product.present? && !item.product.active? &&
+                 item.product.metadata&.dig('source') == 'ai_enrichment'
 %>
 <tr data-row="<%= idx %>"
+    data-unmatched="<%= is_unmatched %>"
     style="border-bottom:1px solid var(--border)<%= '; display:none' if item.marked_for_destruction? %>">
 
   <%= f.hidden_field :id %>
@@ -23,14 +27,43 @@
   <td style="padding:14px 16px;min-width:260px">
     <div class="autocomplete-wrap" style="position:relative">
       <%= f.hidden_field :product_id, class: 'product-id-input' %>
-      <input type="text"
-             class="product-search-input"
-             placeholder="Search by name, code…"
-             autocomplete="off"
-             value="<%= item.product ? [item.product.brand&.name, item.product.pack_code, item.product.description].compact_blank.join(' — ') : '' %>"
-             style="width:100%;background:var(--bg);border:1px solid var(--border);
-                    border-radius:5px;padding:9px 11px;color:var(--text);
-                    font-size:12.5px;outline:none<%= ';border-color:var(--warning)' if item.unmatched? %>">
+
+      <%# Search input + match badge side by side %>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="text"
+               class="product-search-input"
+               placeholder="Search by name, code…"
+               autocomplete="off"
+               value="<%= item.product ? [item.product.brand&.name, item.product.pack_code, item.product.description].compact_blank.join(' — ') : (item.metadata['raw_description'].presence || '') %>"
+               style="flex:1;background:var(--bg);border:1px solid <%= is_unmatched ? 'var(--danger)' : is_pending ? 'var(--warning)' : 'var(--border)' %>;
+                      border-radius:5px;padding:9px 11px;color:var(--text);
+                      font-size:12.5px;outline:none">
+
+        <%# Match badge %>
+        <% if is_unmatched %>
+          <button type="button" class="enrich-trigger"
+                  data-row="<%= idx %>"
+                  data-name="<%= h(item.metadata['raw_description'].to_s) %>"
+                  data-code="<%= h(item.metadata['material_code'].to_s) %>"
+                  title="Click to enrich with AI"
+                  style="flex-shrink:0;width:26px;height:26px;border-radius:50%;
+                         background:var(--danger);border:none;cursor:pointer;
+                         display:flex;align-items:center;justify-content:center;
+                         font-size:13px;font-weight:700;color:white;
+                         box-shadow:0 2px 6px rgba(247,97,79,0.4)">!</button>
+        <% elsif is_pending %>
+          <span title="AI-enriched — awaiting admin approval"
+                style="flex-shrink:0;width:26px;height:26px;border-radius:50%;
+                       background:var(--warning);display:flex;align-items:center;
+                       justify-content:center;font-size:11px;font-weight:700;color:#1a1a1a">⏳</span>
+        <% else %>
+          <span title="Matched to product catalogue"
+                style="flex-shrink:0;width:22px;height:22px;border-radius:50%;
+                       background:rgba(52,217,139,0.15);display:flex;align-items:center;
+                       justify-content:center;font-size:12px;color:var(--success)">✓</span>
+        <% end %>
+      </div>
+
       <div class="product-meta-line"
            style="font-family:var(--mono);font-size:12px;color:var(--text-dim);
                   margin-top:2px;min-height:14px">
@@ -38,19 +71,88 @@
           <% parts = [] %>
           <% parts << "M: #{item.product.material_code}" if item.product.material_code.present? %>
           <% parts << "Pack: #{item.product.pack_code}"  if item.product.pack_code.present? %>
+          <% parts << "[PENDING APPROVAL]" if is_pending %>
           <%= parts.join('  ·  ') %>
+        <% elsif is_unmatched %>
+          <span style="color:var(--danger);font-size:11px">Not matched — click <strong>!</strong> to enrich with AI</span>
         <% end %>
       </div>
-      <% if item.unmatched? %>
-        <div style="font-size:10px;color:var(--warning);margin-top:2px">
-          ⚠ Not matched — stock skipped
-        </div>
-      <% end %>
+
       <div class="ac-dropdown"
            style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
                   background:var(--surface);border:1px solid var(--border);
                   border-radius:6px;box-shadow:var(--shadow-lg);max-height:260px;
                   overflow-y:auto;margin-top:2px"></div>
+
+      <%# ── AI Enrichment Panel ── %>
+      <div class="enrich-panel" data-row="<%= idx %>"
+           style="display:none;position:absolute;top:calc(100% + 8px);left:0;
+                  width:400px;z-index:10000;background:var(--surface);
+                  border:1px solid var(--border);border-radius:10px;
+                  box-shadow:0 8px 32px rgba(0,0,0,0.4);overflow:hidden">
+        <div style="padding:12px 16px;background:rgba(247,97,79,0.08);
+                    border-bottom:1px solid var(--border);
+                    display:flex;align-items:center;gap:8px">
+          <span style="width:20px;height:20px;border-radius:50%;background:var(--danger);
+                       display:flex;align-items:center;justify-content:center;
+                       font-size:11px;font-weight:700;color:white;flex-shrink:0">!</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text)">Unmatched Product — AI Enrichment</span>
+          <button type="button" onclick="closeEnrichPanel(<%= idx %>)"
+                  style="margin-left:auto;background:none;border:none;
+                         color:var(--text-dim);cursor:pointer;font-size:16px;
+                         line-height:1;padding:0">×</button>
+        </div>
+        <div class="enrich-loading"
+             style="padding:24px;text-align:center;color:var(--text-dim);font-size:12px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+               stroke="var(--accent)" stroke-width="2"
+               style="animation:spin 1s linear infinite;display:inline-block;margin-bottom:8px">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg><br>Fetching product details from AI…
+        </div>
+        <div class="enrich-result" style="display:none">
+          <div style="padding:14px 16px">
+            <div class="enrich-confidence-badge"
+                 style="display:inline-block;font-size:10px;padding:2px 8px;
+                        border-radius:10px;margin-bottom:10px;
+                        font-family:var(--mono);font-weight:600"></div>
+            <div class="enrich-fields" style="font-size:12px;line-height:1.9"></div>
+            <a class="enrich-images-link" href="#" target="_blank" rel="noopener"
+               style="display:inline-flex;align-items:center;gap:5px;margin-top:10px;
+                      font-size:11px;color:var(--accent);text-decoration:none;
+                      font-family:var(--mono)">
+              <svg width="11" height="11" fill="none" stroke="currentColor"
+                   stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>Search Google Images →
+            </a>
+          </div>
+          <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+            <button type="button" class="enrich-confirm-btn" data-row="<%= idx %>"
+                    style="flex:1;padding:8px;background:rgba(52,217,139,0.1);
+                           border:1px solid var(--success);border-radius:6px;
+                           color:var(--success);font-size:13px;cursor:pointer">✅ Confirm &amp; Save</button>
+            <button type="button" class="enrich-reject-btn" data-row="<%= idx %>"
+                    style="flex:1;padding:8px;background:rgba(247,97,79,0.08);
+                           border:1px solid var(--danger);border-radius:6px;
+                           color:var(--danger);font-size:13px;cursor:pointer">❌ Not Correct</button>
+          </div>
+          <div class="enrich-saved-msg"
+               style="display:none;padding:10px 16px;background:rgba(52,217,139,0.08);
+                      border-top:1px solid var(--border);font-size:12px;
+                      color:var(--success);text-align:center"></div>
+        </div>
+        <div class="enrich-error"
+             style="display:none;padding:16px;font-size:12px;
+                    color:var(--danger);text-align:center">
+          <div class="enrich-error-msg" style="margin-bottom:8px"></div>
+          <a class="enrich-images-link-error" href="#" target="_blank"
+             style="font-size:11px;color:var(--accent);font-family:var(--mono)">
+            Search Google Images instead →
+          </a>
+        </div>
+      </div>
     </div>
   </td>
 
@@ -82,7 +184,7 @@
     </span>
   </td>
 
-  <%# ── Discount % (editable; row-1 value copies to new rows) ── %>
+  <%# ── Discount % ── %>
   <td style="padding:14px 12px">
     <input type="number"
            class="discount-input"
@@ -94,7 +196,8 @@
                   border-radius:5px;padding:9px 10px;color:var(--text);
                   font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
     <div class="disc-amt-label"
-         style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px;text-align:right">
+         style="font-family:var(--mono);font-size:11px;color:var(--text-dim);
+                margin-top:2px;text-align:right">
       <%= disc_amt > 0 ? "₹#{number_with_precision(disc_amt, precision: 2)}" : '' %>
     </div>
   </td>
@@ -107,7 +210,7 @@
     </span>
   </td>
 
-  <%# ── GST Amount (calculated, read-only; CGST+SGST stored hidden) ── %>
+  <%# ── GST Amount (CGST+SGST stored hidden) ── %>
   <td style="padding:14px 12px;text-align:right">
     <input type="hidden" class="cgst-input"
            name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][cgst_percent]"
@@ -115,17 +218,21 @@
     <input type="hidden" class="sgst-input"
            name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][sgst_percent]"
            value="<%= sgst > 0 ? sgst : '' %>">
-    <div class="gst-display" style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
+    <div class="gst-display"
+         style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
       <%= gst_amt > 0 ? number_with_precision(gst_amt, precision: 2) : '—' %>
     </div>
-    <div class="gst-breakdown" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.4;text-align:right">
+    <div class="gst-breakdown"
+         style="font-family:var(--mono);font-size:10px;color:var(--text-dim);
+                margin-top:2px;line-height:1.4;text-align:right">
       <% if gst_pct > 0 && gst_amt > 0 %>
-        C: <%= number_with_precision(gst_amt / 2.0, precision: 2) %> · S: <%= number_with_precision(gst_amt / 2.0, precision: 2) %>
+        C: <%= number_with_precision(gst_amt / 2.0, precision: 2) %> ·
+        S: <%= number_with_precision(gst_amt / 2.0, precision: 2) %>
       <% end %>
     </div>
   </td>
 
-  <%# ── Payable Amount (editable — user enters this) ── %>
+  <%# ── Payable Amount (editable) ── %>
   <td style="padding:14px 12px">
     <%= f.hidden_field :total_amount, class: 'payable-hidden',
           value: payable > 0 ? payable : '' %>
@@ -136,8 +243,8 @@
            min="0" step="0.01"
            style="width:110px;background:var(--bg);border:1px solid var(--border);
                   border-radius:5px;padding:9px 10px;color:var(--text);
-                  font-family:var(--mono);font-size:12.5px;outline:none;text-align:right;
-                  font-weight:600">
+                  font-family:var(--mono);font-size:12.5px;outline:none;
+                  text-align:right;font-weight:600">
   </td>
 
   <%# ── Actions (+ and ×) ── %>
