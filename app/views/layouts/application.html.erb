@@ -663,6 +663,14 @@
             </svg>
             Opening Stock
           <% end %>
+          <%= link_to inventory_tinting_machine_path,
+                class: "nav-link #{controller_name == 'tinting_machine' ? 'active' : ''}", data: { tooltip: 'Tinting Machine' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/>
+            </svg>
+            Tinting Machine
+          <% end %>
         </div>
       </div>
 

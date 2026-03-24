@@ -22,7 +22,15 @@ class ProductImportJob < ApplicationJob
     xlsx  = Roo::Spreadsheet.open(tmp.path, extension: :xlsx)
     sheet = xlsx.sheet(0)
 
-    headers = sheet.row(1).map { |h| h.to_s.strip.downcase.gsub(/\s+/, '_') }
+    headers = sheet.row(1).map do |h|
+      h = h.to_s.strip.downcase
+      # Preserve meta: prefix — just normalise spaces within the key part
+      if h.start_with?('meta:')
+        'meta:' + h.sub('meta:', '').gsub(/\s+/, '_')
+      else
+        h.gsub(/\s+/, '_')
+      end
+    end
 
     # Skip meta/descriptor rows from template
     data_start = 2
@@ -120,6 +128,8 @@ class ProductImportJob < ApplicationJob
       if is_master_org
         # Master org: allowed to update product master fields
         attrs = build_product_attrs(row, category, uom)
+        # Merge metadata — don't wipe keys that aren't in the import file
+        attrs[:metadata] = (existing.metadata || {}).merge(attrs[:metadata] || {})
         existing.assign_attributes(attrs)
         raise existing.errors.full_messages.join(', ') unless existing.valid?
         existing.save!
@@ -139,6 +149,7 @@ class ProductImportJob < ApplicationJob
       product = Product.new(attrs)
       raise product.errors.full_messages.join(', ') unless product.valid?
       product.save!
+      Rails.logger.info "[ProductImportJob] Created product ##{product.id}: #{product.description}"                         "#{attrs[:metadata].any? ? ' (with metadata)' : ''}"
 
       upsert_org_product(product, organisation, org_overrides)
       :created
@@ -176,8 +187,50 @@ class ProductImportJob < ApplicationJob
       product_code:     row['product_code'].to_s.strip.presence,
       hsn_code:         row['hsn_code'].to_s.strip.presence,
       gst_rate:         gst,
-      active:           active
+      active:           active,
+      metadata:         build_metadata_from_row(row)
     }
+  end
+
+  # Reads ALL meta:* columns from the import row and returns a metadata hash.
+  # Works for both the well-known keys AND any custom meta: columns the user adds.
+  # On update, existing metadata is merged — import only overwrites keys present in the file.
+  def build_metadata_from_row(row)
+    meta = {}
+
+    # Scan every column in the row for the meta: prefix — handles custom columns too
+    row.each do |col, raw_val|
+      next unless col.to_s.start_with?('meta:')
+      key = col.to_s.sub('meta:', '').strip
+      val = raw_val.to_s.strip
+
+      next if key.blank?
+
+      # Coerce known boolean fields
+      if key == 'tint'
+        meta[key] = val.downcase == 'true' ? 'true' : (val.downcase == 'false' ? 'false' : val.presence)
+      elsif key == 'ai_confidence' && val.present?
+        meta[key] = val.to_f.to_s
+      elsif key == 'canister_volume_ml' && val.present?
+        meta[key] = val.to_i.to_s
+      else
+        meta[key] = val.presence
+      end
+
+      meta.delete(key) if meta[key].nil?
+    end
+
+    # Also accept a raw JSON column "metadata" (power user override)
+    if row['metadata'].to_s.strip.start_with?('{')
+      begin
+        parsed = JSON.parse(row['metadata'])
+        meta   = parsed.merge(meta)   # explicit meta: columns win over raw JSON
+      rescue JSON::ParserError
+        # ignore malformed JSON
+      end
+    end
+
+    meta
   end
 
   # Fields that belong to organisation_products — org-specific overrides

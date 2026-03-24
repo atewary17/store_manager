@@ -31,7 +31,13 @@
               <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)"><%= p.pack_code %></div>
             <% end %>
           </td>
-          <td style="color:var(--text-dim);font-size:13px"><%= p.brand&.name || '—' %></td>
+          <td style="color:var(--text-dim);font-size:13px">
+            <%= p.brand&.name || '—' %>
+            <% if !p.active? && p.metadata&.dig('source') == 'ai_enrichment' %>
+              <div style="font-size:9px;font-weight:700;color:var(--warning);
+                          font-family:var(--mono)">PENDING REVIEW</div>
+            <% end %>
+          </td>
           <td>
             <span class="badge badge-plan" style="font-size:10px"><%= p.product_category&.name %></span>
           </td>

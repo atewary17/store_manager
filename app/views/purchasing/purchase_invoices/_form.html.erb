@@ -189,15 +189,13 @@
          style="display:none;margin-bottom:12px;padding:10px 14px;
                 background:rgba(247,97,79,0.08);border:1px solid rgba(247,97,79,0.3);
                 border-radius:6px;font-size:12px;color:var(--danger);
-                display:flex;align-items:center;gap:8px">
+                flex-align:center;gap:8px">
       <span style="background:var(--danger);color:white;width:20px;height:20px;
-                   border-radius:50%;display:flex;align-items:center;justify-content:center;
-                   font-size:12px;font-weight:700;flex-shrink:0">!</span>
-      <span>
-        This invoice has <strong id="unmatched-count">0</strong> unmatched product(s).
-        Click the red <strong>!</strong> on each item to look up details with AI.
-        Stock will be updated on confirmation even for unmatched items.
-      </span>
+                   border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+                   font-size:12px;font-weight:700;margin-right:8px">!</span>
+      <strong><span id="unmatched-count">0</span> unmatched product(s) found.</strong>
+      Click the red <strong>!</strong> on each item to enrich with AI and save a product record.
+      <strong>You must resolve all unmatched items before saving.</strong>
     </div>
 
     <div style="overflow-x:auto">
@@ -228,7 +226,14 @@
         </thead>
         <tbody id="items-tbody">
           <%= f.fields_for :purchase_invoice_items do |item_f| %>
-            <%= render 'item_row', f: item_f, item: item_f.object %>
+            <%# On edit, skip unsaved blank rows (new_record? with no description/product) %>
+            <%# On new, render all rows including blank starter rows %>
+            <% item = item_f.object %>
+            <% skip = !invoice.new_record? &&
+                      item.new_record? &&
+                      item.product_id.blank? &&
+                      item.total_amount.to_f == 0 %>
+            <%= render 'item_row', f: item_f, item: item unless skip %>
           <% end %>
         </tbody>
       </table>
@@ -251,7 +256,9 @@
   </div>
 
   <div style="display:flex;gap:12px;align-items:center">
-    <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Invoice', class: 'btn btn-primary' %>
+    <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Invoice',
+          id: 'invoice-submit-btn',
+          class: 'btn btn-primary' %>
     <%= link_to 'Cancel',
           invoice.new_record? ? purchasing_purchase_invoices_path : purchasing_purchase_invoice_path(invoice),
           class: 'btn btn-secondary' %>
@@ -736,7 +743,7 @@
     document.head.appendChild(style);
   }
 
-  // ── Update the unmatched warning banner ──────────────────────
+  // ── Update the unmatched warning banner + disable submit if needed ──
   window.updateUnmatchedBanner = function() {
     var rows     = document.querySelectorAll('#items-tbody tr[data-row]');
     var count    = 0;
@@ -744,14 +751,34 @@
       if (r.getAttribute('data-unmatched') === 'true' &&
           r.style.display !== 'none') count++;
     });
-    var banner = document.getElementById('unmatched-banner');
-    var countEl = document.getElementById('unmatched-count');
+
+    var banner    = document.getElementById('unmatched-banner');
+    var countEl   = document.getElementById('unmatched-count');
+    var submitBtn = document.getElementById('invoice-submit-btn');
+
     if (!banner) return;
+
     if (count > 0) {
-      banner.style.display = 'flex';
+      // Show banner
+      banner.style.display = 'block';
       if (countEl) countEl.textContent = count;
+
+      // Disable submit button — must resolve unmatched items first
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.45';
+        submitBtn.style.cursor = 'not-allowed';
+        submitBtn.title = 'Resolve all unmatched items before saving';
+      }
     } else {
+      // Hide banner, re-enable submit
       banner.style.display = 'none';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+        submitBtn.title = '';
+      }
     }
   };
 

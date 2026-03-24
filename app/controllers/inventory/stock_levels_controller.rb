@@ -14,7 +14,10 @@ class Inventory::StockLevelsController < Inventory::BaseController
     filtered = base_scope
 
     if params[:category_id].present? || params[:brand_id].present? || params[:q].present?
-      filtered = filtered.joins(product: [:brand])
+      # LEFT JOIN brand — preserves pending products that may have no brand
+      filtered = filtered
+        .joins('INNER JOIN products ON products.id = stock_levels.product_id')
+        .joins('LEFT OUTER JOIN brands ON brands.id = products.brand_id')
     end
 
     filtered = filtered.where(products: { product_category_id: params[:category_id] }) if params[:category_id].present?
@@ -60,20 +63,22 @@ class Inventory::StockLevelsController < Inventory::BaseController
     sort_sql = case params[:sort]
                when 'qty_asc'  then 'stock_levels.quantity ASC'
                when 'qty_desc' then 'stock_levels.quantity DESC'
-               else                 'brands.name ASC, products.description ASC'
+               else                 Arel.sql("COALESCE(brands.name, 'zzz') ASC, products.description ASC")
                end
 
     # PostgreSQL requires ORDER BY columns to appear in SELECT when using DISTINCT.
-    # Solution: select the sort columns alongside the id, then extract just the ids.
     sort_select = case params[:sort]
                   when 'qty_asc', 'qty_desc'
                     'stock_levels.id, stock_levels.quantity'
                   else
-                    'stock_levels.id, brands.name, products.description'
+                    "stock_levels.id, COALESCE(brands.name, 'zzz') as brand_sort, products.description"
                   end
 
+    # Use LEFT JOIN for brand — AI-enriched pending products may have no brand
+    # INNER JOIN would silently exclude them from the stock dashboard
     sorted_ids = filtered
-      .joins(product: :brand)
+      .joins('INNER JOIN products ON products.id = stock_levels.product_id')
+      .joins('LEFT OUTER JOIN brands ON brands.id = products.brand_id')
       .select(sort_select)
       .order(Arel.sql(sort_sql))
       .map(&:id)
@@ -126,9 +131,12 @@ class Inventory::StockLevelsController < Inventory::BaseController
     levels = StockLevel
       .for_org(@organisation.id)
       .in_stock
-      .joins(product: [:brand, :product_category, :base_uom])
+      .joins('INNER JOIN products ON products.id = stock_levels.product_id')
+      .joins('LEFT OUTER JOIN brands ON brands.id = products.brand_id')
+      .joins('LEFT OUTER JOIN product_categories ON product_categories.id = products.product_category_id')
+      .joins('LEFT OUTER JOIN uoms ON uoms.id = products.base_uom_id')
       .includes(product: [:brand, :product_category, :base_uom])
-      .order('brands.name ASC, products.description ASC')
+      .order(Arel.sql("COALESCE(brands.name, 'zzz') ASC, products.description ASC"))
 
     package = Axlsx::Package.new
     wb      = package.workbook

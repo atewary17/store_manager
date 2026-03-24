@@ -65,21 +65,28 @@ class PurchaseInvoice < ApplicationRecord
       self.confirmed_at     = Time.current
       save!
 
-      # Create stock ledger entries for matched items only
-      # Use in-memory collection (already loaded above) — avoids extra query inside transaction
-      purchase_invoice_items.select { |i| !i.unmatched? && i.product_id.present? }.each do |item|
-        StockLedger.create!(
-          organisation: organisation,
-          product_id:   item.product_id,
-          user:         current_user,
-          entry_type:   'purchase',
-          quantity:     item.quantity,
-          unit_cost:    item.unit_rate,
-          notes:        "Purchase Invoice #{invoice_number.presence || id}",
-          reference_type: 'PurchaseInvoice',
-          reference_id:   id
-        )
-      end
+      # Create stock ledger entries for ALL items that have a product_id —
+      # including AI-enriched pending products (active: false, source: ai_enrichment).
+      # Stock must be tracked regardless of product active status.
+      # Only sales invoice search excludes inactive products — purchasing and stock do not.
+      #
+      # Items with no product_id at all (truly unmatched, no product record created)
+      # are skipped — there is nothing to track stock against.
+      purchase_invoice_items
+        .select { |i| i.product_id.present? }
+        .each do |item|
+          StockLedger.create!(
+            organisation:   organisation,
+            product_id:     item.product_id,
+            user:           current_user,
+            entry_type:     'purchase',
+            quantity:       item.quantity,
+            unit_cost:      item.unit_rate,
+            notes:          "Purchase Invoice #{invoice_number.presence || id}"                             "#{item.unmatched? ? ' [pending product — awaiting admin review]' : ''}",
+            reference_type: 'PurchaseInvoice',
+            reference_id:   id
+          )
+        end
     end
 
     true

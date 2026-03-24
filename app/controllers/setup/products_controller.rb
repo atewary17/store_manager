@@ -152,17 +152,28 @@ class Setup::ProductsController < Setup::BaseController
     txt_even = wb.styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10,
                  format_code: '@')
 
+    meta_hdr  = wb.styles.add_style(bg_color: '2E4057', fg_color: 'FFFFFF', b: true, sz: 10,
+                  alignment: { horizontal: :center, vertical: :center })
+    meta_cell = wb.styles.add_style(bg_color: 'FAFBFC', fg_color: '666666', sz: 9,
+                  format_code: '@')
+
     wb.add_worksheet(name: 'Product Register') do |sheet|
       sheet.add_row(
         ['Category', 'UOM', 'Brand', 'Pack Code', 'Description',
          'Material Code', 'Product Code', 'HSN Code', 'GST Rate',
-         'Active', 'Organisation IDs'],
-        style: hdr, height: 24
+         'Active', 'Organisation IDs',
+         'meta:source', 'meta:validation_status', 'meta:ai_confidence',
+         'meta:ai_brand_guess', 'meta:ai_category_guess', 'meta:ai_notes',
+         'meta:original_name', 'meta:created_by_org'],
+        style: [hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,
+                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr],
+        height: 24
       )
 
       @products.each_with_index do |p, i|
         row_style  = i.even? ? even : odd
         code_style = i.even? ? txt_even : txt
+        meta       = p.metadata || {}
 
         sheet.add_row([
           p.product_category&.name,
@@ -175,14 +186,24 @@ class Setup::ProductsController < Setup::BaseController
           p.hsn_code.to_s,
           p.gst_rate,
           p.active,
-          org_ids_map[p.id] || ''
+          org_ids_map[p.id] || '',
+          meta['source'].to_s,
+          meta['validation_status'].to_s,
+          meta['ai_confidence'].to_s,
+          meta['ai_brand_guess'].to_s,
+          meta['ai_category_guess'].to_s,
+          meta['ai_notes'].to_s,
+          meta['original_name'].to_s,
+          meta['created_by_org'].to_s
         ], style: [row_style, row_style, row_style, row_style, row_style,
-                   code_style, code_style, code_style, num,
-                   row_style, row_style],
+                   code_style, code_style, code_style, num, row_style, row_style,
+                   meta_cell, meta_cell, meta_cell, meta_cell,
+                   meta_cell, meta_cell, meta_cell, meta_cell],
            height: 18)
       end
 
-      sheet.column_widths 22, 10, 18, 12, 36, 20, 18, 12, 10, 8, 24
+      sheet.column_widths 22, 10, 18, 12, 36, 20, 18, 12, 10, 8, 24,
+                          14, 18, 14, 18, 18, 28, 28, 14
     end
 
     send_data package.to_stream.read,
@@ -226,20 +247,32 @@ class Setup::ProductsController < Setup::BaseController
     txt_even = wb.styles.add_style(bg_color: 'F7F9FC', fg_color: '404040', sz: 10,
                  format_code: '@')
 
+    # Extra metadata styles
+    meta_hdr = wb.styles.add_style(bg_color: '2E4057', fg_color: 'FFFFFF', b: true, sz: 10,
+                 alignment: { horizontal: :center, vertical: :center })
+    meta_cell = wb.styles.add_style(bg_color: 'FAFBFC', fg_color: '666666', sz: 9,
+                  format_code: '@')
+
     wb.add_worksheet(name: 'Products') do |sheet|
+      # Row 1: Column headers
       sheet.add_row(
         ['Category', 'UOM', 'Brand', 'Pack Code', 'Description',
          'Material Code', 'Product Code', 'HSN Code', 'GST Rate',
-         'MRP', 'Internal Code', 'Local Description', 'Active'],
-        style: hdr, height: 24
+         'MRP', 'Internal Code', 'Local Description', 'Active',
+         # ── Metadata columns ──
+         'meta:source', 'meta:validation_status', 'meta:ai_confidence',
+         'meta:ai_brand_guess', 'meta:ai_category_guess', 'meta:ai_notes',
+         'meta:original_name', 'meta:created_by_org'],
+        style: [hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,
+                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr],
+        height: 24
       )
 
       @products.each_with_index do |p, i|
-        op        = org_product_map[p.id]
-        row_style = i.even? ? even : odd
-
-        # Use text style for code fields to preserve leading zeros
+        op         = org_product_map[p.id]
+        row_style  = i.even? ? even : odd
         code_style = i.even? ? txt_even : txt
+        meta       = p.metadata || {}
 
         sheet.add_row([
           p.product_category&.name,
@@ -247,21 +280,33 @@ class Setup::ProductsController < Setup::BaseController
           p.brand&.name,
           p.pack_code,
           p.description,
-          p.material_code.to_s,   # force string
-          p.product_code.to_s,    # force string
-          p.hsn_code.to_s,        # force string
+          p.material_code.to_s,
+          p.product_code.to_s,
+          p.hsn_code.to_s,
           p.gst_rate,
           op&.mrp,
           op&.internal_code,
           op&.local_description,
-          p.active
+          p.active,
+          # ── Metadata values ──
+          meta['source'].to_s,
+          meta['validation_status'].to_s,
+          meta['ai_confidence'].to_s,
+          meta['ai_brand_guess'].to_s,
+          meta['ai_category_guess'].to_s,
+          meta['ai_notes'].to_s,
+          meta['original_name'].to_s,
+          meta['created_by_org'].to_s
         ], style: [row_style, row_style, row_style, row_style, row_style,
                    code_style, code_style, code_style, num, num,
-                   row_style, row_style, row_style],
+                   row_style, row_style, row_style,
+                   meta_cell, meta_cell, meta_cell, meta_cell,
+                   meta_cell, meta_cell, meta_cell, meta_cell],
            height: 18)
       end
 
-      sheet.column_widths 22, 10, 18, 12, 34, 18, 18, 12, 10, 12, 20, 30, 8
+      sheet.column_widths 22, 10, 18, 12, 34, 18, 18, 12, 10, 12, 20, 30, 8,
+                          14, 18, 14, 18, 18, 28, 28, 14
     end
 
     send_data package.to_stream.read,
@@ -354,9 +399,27 @@ class Setup::ProductsController < Setup::BaseController
     allowed = %i[product_category_id base_uom_id brand_id
                  material_code product_code pack_code
                  description hsn_code gst_rate active]
-    allowed << :mrp      if Product.column_names.include?('mrp')
-    allowed << :metadata if Product.column_names.include?('metadata')
-    params.require(:product).permit(*allowed)
+    allowed << :mrp if Product.column_names.include?('mrp')
+    # Permit metadata as a hash with any keys (known fields + custom)
+    if Product.column_names.include?('metadata')
+      allowed << { metadata: {} }
+    end
+    p = params.require(:product).permit(*allowed,
+          metadata_custom_keys:   [],
+          metadata_custom_values: [])
+
+    # Merge custom key-value pairs into metadata
+    if p[:metadata_custom_keys].present?
+      custom = {}
+      p[:metadata_custom_keys].each_with_index do |k, i|
+        key = k.to_s.strip
+        val = p[:metadata_custom_values][i].to_s.strip
+        custom[key] = val if key.present?
+      end
+      p[:metadata] = (p[:metadata] || {}).merge(custom)
+    end
+
+    p.except(:metadata_custom_keys, :metadata_custom_values)
   end
 
 end

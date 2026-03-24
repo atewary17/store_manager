@@ -26,19 +26,44 @@
     <% if @invoice.draft? %>
       <%= link_to 'Edit', edit_purchasing_purchase_invoice_path(@invoice),
             class: 'btn btn-secondary' %>
-      <%= button_to 'Confirm & Update Stock',
-            confirm_purchasing_purchase_invoice_path(@invoice),
-            method: :post,
-            class: 'btn btn-primary',
-            data: { turbo_confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' } %>
+      <%# Disable confirm if any item has no product record (unmatched AND product_id blank) %>
+      <% unresolved = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.blank? } %>
+      <% if unresolved.any? %>
+        <span title="<%= unresolved.count %> item(s) have no product record — edit the invoice and use AI enrichment (!) to resolve them before confirming."
+              style="display:inline-block">
+          <button type="button" disabled
+                  style="opacity:0.4;cursor:not-allowed;"
+                  class="btn btn-primary">
+            Confirm &amp; Update Stock
+          </button>
+        </span>
+      <% else %>
+        <%= button_to 'Confirm & Update Stock',
+              confirm_purchasing_purchase_invoice_path(@invoice),
+              method: :post,
+              class: 'btn btn-primary',
+              data: { turbo_confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' } %>
+      <% end %>
     <% end %>
   </div>
 </div>
 
-<% if @invoice.unmatched_count > 0 %>
-  <div class="flash alert" style="margin-bottom:20px">
-    ⚠ <%= @invoice.unmatched_count %> item(s) could not be matched to a product.
-    These rows will be skipped when updating stock. Edit the invoice to fix them.
+<%
+  items_with_product    = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.present? }
+  items_without_product = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.blank? }
+%>
+<% if items_without_product.any? %>
+  <div class="flash alert" style="margin-bottom:20px;line-height:1.7">
+    <strong>⚠ <%= items_without_product.count %> item(s) must be resolved before confirming.</strong><br>
+    These items have no product record — the Confirm button is disabled until you fix them.<br>
+    <%= link_to '→ Edit invoice and use the ! button to enrich each item with AI',
+          edit_purchasing_purchase_invoice_path(@invoice),
+          style: 'color:var(--danger);font-weight:600' %>
+  </div>
+<% elsif items_with_product.any? %>
+  <div class="flash warning" style="margin-bottom:20px;line-height:1.7">
+    <strong>⏳ <%= items_with_product.count %> item(s) are pending admin review.</strong><br>
+    Stock will be tracked on confirmation. These products need approval before appearing in sales.
   </div>
 <% end %>
 
@@ -200,12 +225,18 @@
             <% end %>
           </td>
           <td>
-            <% if item.unmatched? %>
-              <span class="badge" style="background:rgba(247,195,79,0.12);color:var(--warning)">
-                Unmatched
+            <% if item.unmatched? && item.product_id.present? %>
+              <span class="badge" style="background:rgba(247,195,79,0.12);color:var(--warning)"
+                    title="Saved as pending product — stock tracked, awaiting admin approval">
+                Pending ⏳
+              </span>
+            <% elsif item.unmatched? %>
+              <span class="badge" style="background:rgba(247,97,79,0.12);color:var(--danger)"
+                    title="No product record — click ! on the invoice form to enrich with AI">
+                No Product !
               </span>
             <% else %>
-              <span class="badge badge-active">Matched</span>
+              <span class="badge badge-active">Matched ✓</span>
             <% end %>
           </td>
         </tr>
