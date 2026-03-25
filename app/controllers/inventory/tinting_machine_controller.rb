@@ -3,24 +3,22 @@ class Inventory::TintingMachineController < Inventory::BaseController
 
   DISPENSE_STEP_ML = 50
 
-  before_action :set_brand,    only: [:show, :load_canister, :adjust, :remove_canister]
-  before_action :set_canister, only: [:adjust, :remove_canister]
+  before_action :set_brand,    only: [:show, :load_canister, :adjust]
+  before_action :set_canister, only: [:adjust]
 
-  # GET /inventory/tinting_machine
   def index
     @brands          = Brand.active.ordered
     @brand_summaries = @brands.index_with { |b| canisters_for(b.id) }
   end
 
-  # GET /inventory/tinting_machine/:brand_id
   def show
     @canisters         = canisters_for(@brand.id)
     @slot_count        = slot_count_for(@brand)
-    @tintable_products = tintable_products_in_stock
+    # Fix #5: only show tintable products for THIS brand
+    @tintable_products = tintable_products_in_stock(@brand)
   end
 
   # POST /inventory/tinting_machine/:brand_id/load
-  # Loads a tintable product into a canister slot — deducts 1 unit from stock
   def load_canister
     product = Product.find_by(id: params[:product_id])
     return render json: { success: false, error: 'Product not found' } unless product
@@ -47,10 +45,14 @@ class Inventory::TintingMachineController < Inventory::BaseController
         loaded_at:           Time.current,
         initial_volume_ml:   vol_ml,
         dispensed_volume_ml: 0,
-        status:              'active'
+        status:              'active',
+        # Store last colour in metadata when loading — also clears previous last
+        metadata:            (canister.metadata || {}).merge(
+          'last_family_colour' => product.metadata['family_colour'].presence,
+          'last_product_name'  => product.description
+        ).compact
       )
 
-      # Deduct 1 unit from stock
       StockLedger.create!(
         organisation:   @organisation,
         product:        product,
@@ -70,7 +72,8 @@ class Inventory::TintingMachineController < Inventory::BaseController
   end
 
   # PATCH /inventory/tinting_machine/:brand_id/adjust/:id
-  # ± DISPENSE_STEP_ML adjustment — no logging
+  # Fix #2: warn before last step empties canister
+  # Fix #3: no remove button — − button handles emptying
   def adjust
     step = DISPENSE_STEP_ML
 
@@ -80,34 +83,41 @@ class Inventory::TintingMachineController < Inventory::BaseController
       new_d = [@canister.dispensed_volume_ml - step, 0].max
     end
 
-    @canister.update!(dispensed_volume_ml: new_d)
-    @canister.refresh_status!
+    will_be_empty = new_d >= @canister.initial_volume_ml
+
+    # Save last colour to metadata BEFORE clearing, so history is kept
+    meta_update = @canister.metadata || {}
+    if will_be_empty && @canister.product_id.present?
+      fc   = @canister.product.metadata['family_colour'].presence
+      meta_update = meta_update.merge(
+        'last_family_colour' => fc,
+        'last_product_name'  => @canister.product.description
+      ).compact
+    end
+
+    @canister.update!(dispensed_volume_ml: new_d, metadata: meta_update)
+
+    # If empty — clear the product from the slot (keep metadata for history)
+    if will_be_empty
+      @canister.update!(
+        product_id:   nil,
+        loaded_at:    nil,
+        loaded_by_id: nil,
+        status:       'empty'
+      )
+    else
+      @canister.refresh_status!
+    end
 
     render json: {
-      success:       true,
-      remaining_ml:  @canister.remaining_ml,
-      level_percent: @canister.level_percent,
-      level_status:  @canister.level_status.to_s,
-      level_color:   @canister.level_color
+      success:        true,
+      remaining_ml:   @canister.remaining_ml,
+      level_percent:  @canister.level_percent,
+      level_status:   @canister.level_status.to_s,
+      level_color:    @canister.level_color,
+      now_empty:      will_be_empty,
+      last_colour:    meta_update['last_family_colour']
     }
-  rescue => e
-    render json: { success: false, error: e.message }
-  end
-
-  # DELETE /inventory/tinting_machine/:brand_id/remove/:id
-  # Clears a canister slot — no stock adjustment on removal
-  def remove_canister
-    name = @canister.product&.description || "Slot #{@canister.slot_number}"
-    slot = @canister.slot_number
-    @canister.update!(
-      product_id:          nil,
-      status:              'empty',
-      loaded_at:           nil,
-      loaded_by_id:        nil,
-      dispensed_volume_ml: 0,
-      initial_volume_ml:   0
-    )
-    render json: { success: true, message: "#{name} removed from Slot #{slot}" }
   rescue => e
     render json: { success: false, error: e.message }
   end
@@ -121,7 +131,10 @@ class Inventory::TintingMachineController < Inventory::BaseController
   end
 
   def set_canister
-    @canister = TintingMachineCanister.for_org(@organisation.id).find(params[:id])
+    @canister = TintingMachineCanister
+                  .for_org(@organisation.id)
+                  .includes(:product)
+                  .find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: { success: false, error: 'Canister not found' }, status: :not_found
   end
@@ -138,7 +151,8 @@ class Inventory::TintingMachineController < Inventory::BaseController
     brand.name.downcase.include?('salimar') ? 12 : 16
   end
 
-  def tintable_products_in_stock
+  # Fix #5: scope tintable products to this brand only
+  def tintable_products_in_stock(brand)
     Product
       .for_org(@organisation)
       .joins("INNER JOIN stock_levels ON stock_levels.product_id = products.id
@@ -147,6 +161,7 @@ class Inventory::TintingMachineController < Inventory::BaseController
       .where("products.metadata->>'family_colour' IS NOT NULL
               AND products.metadata->>'family_colour' != ''")
       .where('stock_levels.quantity >= 1')
+      .where(brand_id: brand.id)
       .includes(:brand, :product_category)
       .order('products.description ASC')
   end

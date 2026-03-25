@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_23_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -422,8 +422,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000002) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "metadata", default: {}, null: false
     t.index ["brand_id"], name: "index_tinting_machine_canisters_on_brand_id"
     t.index ["loaded_by_id"], name: "index_tinting_machine_canisters_on_loaded_by_id"
+    t.index ["metadata"], name: "index_tinting_machine_canisters_on_metadata", using: :gin
     t.index ["organisation_id", "brand_id", "slot_number"], name: "idx_tinting_canisters_org_brand_slot", unique: true
     t.index ["organisation_id"], name: "index_tinting_machine_canisters_on_organisation_id"
     t.index ["product_id"], name: "index_tinting_machine_canisters_on_product_id"
