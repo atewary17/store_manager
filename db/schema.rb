@@ -10,8 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_trgm"
   enable_extension "plpgsql"
 
   create_table "brands", force: :cascade do |t|
@@ -154,7 +155,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
     t.datetime "updated_at", null: false
     t.decimal "mrp", precision: 10, scale: 2
     t.jsonb "metadata", default: {}
-    t.bigint "brand_id"
+    t.bigint "brand_id", null: false
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"
@@ -205,6 +206,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
     t.index ["status"], name: "index_purchase_invoices_on_status"
     t.index ["supplier_id"], name: "index_purchase_invoices_on_supplier_id"
     t.index ["user_id"], name: "index_purchase_invoices_on_user_id"
+  end
+
+  create_table "purchase_payments", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "purchase_invoice_id", null: false
+    t.bigint "supplier_id"
+    t.bigint "user_id", null: false
+    t.date "payment_date", null: false
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.string "payment_mode", default: "bank_transfer", null: false
+    t.string "reference_number"
+    t.string "payment_number"
+    t.text "notes"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["metadata"], name: "index_purchase_payments_on_metadata", using: :gin
+    t.index ["organisation_id"], name: "index_purchase_payments_on_organisation_id"
+    t.index ["payment_date"], name: "index_purchase_payments_on_payment_date"
+    t.index ["payment_mode"], name: "index_purchase_payments_on_payment_mode"
+    t.index ["payment_number"], name: "index_purchase_payments_on_payment_number", unique: true, where: "(payment_number IS NOT NULL)"
+    t.index ["purchase_invoice_id"], name: "index_purchase_payments_on_purchase_invoice_id"
+    t.index ["supplier_id"], name: "index_purchase_payments_on_supplier_id"
+    t.index ["user_id"], name: "index_purchase_payments_on_user_id"
   end
 
   create_table "sale_payments", force: :cascade do |t|
@@ -384,6 +409,42 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
     t.index ["organisation_id"], name: "index_suppliers_on_organisation_id"
   end
 
+  create_table "tinting_machine_canisters", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "brand_id", null: false
+    t.bigint "product_id"
+    t.bigint "loaded_by_id"
+    t.integer "slot_number", null: false
+    t.integer "initial_volume_ml", null: false
+    t.string "status", default: "empty", null: false
+    t.decimal "dispensed_volume_ml", precision: 10, scale: 2, default: "0.0", null: false
+    t.datetime "loaded_at"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.index ["brand_id"], name: "index_tinting_machine_canisters_on_brand_id"
+    t.index ["loaded_by_id"], name: "index_tinting_machine_canisters_on_loaded_by_id"
+    t.index ["metadata"], name: "index_tinting_machine_canisters_on_metadata", using: :gin
+    t.index ["organisation_id", "brand_id", "slot_number"], name: "idx_tinting_canisters_org_brand_slot", unique: true
+    t.index ["organisation_id"], name: "index_tinting_machine_canisters_on_organisation_id"
+    t.index ["product_id"], name: "index_tinting_machine_canisters_on_product_id"
+  end
+
+  create_table "tinting_machine_logs", force: :cascade do |t|
+    t.bigint "tinting_machine_canister_id", null: false
+    t.bigint "organisation_id", null: false
+    t.bigint "user_id"
+    t.string "action", null: false
+    t.decimal "volume_ml", precision: 10, scale: 2, null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organisation_id"], name: "index_tinting_machine_logs_on_organisation_id"
+    t.index ["tinting_machine_canister_id"], name: "index_tinting_machine_logs_on_tinting_machine_canister_id"
+    t.index ["user_id"], name: "index_tinting_machine_logs_on_user_id"
+  end
+
   create_table "uoms", force: :cascade do |t|
     t.string "name", null: false
     t.string "short_name", null: false
@@ -409,8 +470,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
     t.string "first_name"
     t.string "last_name"
     t.string "phone_number"
+    t.jsonb "preferences", default: {}, null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["organisation_id"], name: "index_users_on_organisation_id"
+    t.index ["preferences"], name: "index_users_on_preferences", using: :gin
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
@@ -429,6 +492,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
   add_foreign_key "purchase_invoices", "organisations"
   add_foreign_key "purchase_invoices", "suppliers"
   add_foreign_key "purchase_invoices", "users"
+  add_foreign_key "purchase_payments", "organisations"
+  add_foreign_key "purchase_payments", "purchase_invoices"
+  add_foreign_key "purchase_payments", "suppliers"
+  add_foreign_key "purchase_payments", "users"
   add_foreign_key "sale_payments", "customers"
   add_foreign_key "sale_payments", "organisations"
   add_foreign_key "sale_payments", "sales_invoices"
@@ -452,4 +519,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_000002) do
   add_foreign_key "stock_levels", "organisations"
   add_foreign_key "stock_levels", "products"
   add_foreign_key "suppliers", "organisations"
+  add_foreign_key "tinting_machine_canisters", "brands"
+  add_foreign_key "tinting_machine_canisters", "organisations"
+  add_foreign_key "tinting_machine_canisters", "products"
+  add_foreign_key "tinting_machine_canisters", "users", column: "loaded_by_id"
+  add_foreign_key "tinting_machine_logs", "organisations"
+  add_foreign_key "tinting_machine_logs", "tinting_machine_canisters"
+  add_foreign_key "tinting_machine_logs", "users"
 end

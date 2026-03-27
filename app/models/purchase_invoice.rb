@@ -8,6 +8,7 @@ class PurchaseInvoice < ApplicationRecord
   belongs_to :supplier,     optional: true
   belongs_to :user
   has_many   :purchase_invoice_items, dependent: :destroy
+  has_many   :purchase_payments,       dependent: :destroy
 
   accepts_nested_attributes_for :purchase_invoice_items,
     reject_if: ->(attrs) { attrs[:quantity].blank? && attrs[:total_amount].blank? },
@@ -64,21 +65,28 @@ class PurchaseInvoice < ApplicationRecord
       self.confirmed_at     = Time.current
       save!
 
-      # Create stock ledger entries for matched items only
-      # Use in-memory collection (already loaded above) — avoids extra query inside transaction
-      purchase_invoice_items.select { |i| !i.unmatched? && i.product_id.present? }.each do |item|
-        StockLedger.create!(
-          organisation: organisation,
-          product_id:   item.product_id,
-          user:         current_user,
-          entry_type:   'purchase',
-          quantity:     item.quantity,
-          unit_cost:    item.unit_rate,
-          notes:        "Purchase Invoice #{invoice_number.presence || id}",
-          reference_type: 'PurchaseInvoice',
-          reference_id:   id
-        )
-      end
+      # Create stock ledger entries for ALL items that have a product_id —
+      # including AI-enriched pending products (active: false, source: ai_enrichment).
+      # Stock must be tracked regardless of product active status.
+      # Only sales invoice search excludes inactive products — purchasing and stock do not.
+      #
+      # Items with no product_id at all (truly unmatched, no product record created)
+      # are skipped — there is nothing to track stock against.
+      purchase_invoice_items
+        .select { |i| i.product_id.present? }
+        .each do |item|
+          StockLedger.create!(
+            organisation:   organisation,
+            product_id:     item.product_id,
+            user:           current_user,
+            entry_type:     'purchase',
+            quantity:       item.quantity,
+            unit_cost:      item.unit_rate,
+            notes:          "Purchase Invoice #{invoice_number.presence || id}"                             "#{item.unmatched? ? ' [pending product — awaiting admin review]' : ''}",
+            reference_type: 'PurchaseInvoice',
+            reference_id:   id
+          )
+        end
     end
 
     true
@@ -102,6 +110,33 @@ class PurchaseInvoice < ApplicationRecord
 
   def display_number
     invoice_number.presence || "Draft ##{id}"
+  end
+
+  # ── Payment helpers ─────────────────────────────────────────
+  def total_paid
+    purchase_payments.sum(:amount).to_f.round(2)
+  end
+
+  def outstanding_amount
+    (total_amount.to_f - total_paid).round(2)
+  end
+
+  def fully_paid?
+    outstanding_amount <= 0
+  end
+
+  def overdue?
+    payment_due_date.present? && payment_due_date < Date.today && !fully_paid?
+  end
+
+  def payment_status
+    if fully_paid?
+      'paid'
+    elsif total_paid > 0
+      'partial'
+    else
+      'unpaid'
+    end
   end
 
   private

@@ -26,19 +26,44 @@
     <% if @invoice.draft? %>
       <%= link_to 'Edit', edit_purchasing_purchase_invoice_path(@invoice),
             class: 'btn btn-secondary' %>
-      <%= button_to 'Confirm & Update Stock',
-            confirm_purchasing_purchase_invoice_path(@invoice),
-            method: :post,
-            class: 'btn btn-primary',
-            data: { turbo_confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' } %>
+      <%# Disable confirm if any item has no product record (unmatched AND product_id blank) %>
+      <% unresolved = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.blank? } %>
+      <% if unresolved.any? %>
+        <span title="<%= unresolved.count %> item(s) have no product record — edit the invoice and use AI enrichment (!) to resolve them before confirming."
+              style="display:inline-block">
+          <button type="button" disabled
+                  style="opacity:0.4;cursor:not-allowed;"
+                  class="btn btn-primary">
+            Confirm &amp; Update Stock
+          </button>
+        </span>
+      <% else %>
+        <%= button_to 'Confirm & Update Stock',
+              confirm_purchasing_purchase_invoice_path(@invoice),
+              method: :post,
+              class: 'btn btn-primary',
+              data: { turbo_confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' } %>
+      <% end %>
     <% end %>
   </div>
 </div>
 
-<% if @invoice.unmatched_count > 0 %>
-  <div class="flash alert" style="margin-bottom:20px">
-    ⚠ <%= @invoice.unmatched_count %> item(s) could not be matched to a product.
-    These rows will be skipped when updating stock. Edit the invoice to fix them.
+<%
+  items_with_product    = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.present? }
+  items_without_product = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.blank? }
+%>
+<% if items_without_product.any? %>
+  <div class="flash alert" style="margin-bottom:20px;line-height:1.7">
+    <strong>⚠ <%= items_without_product.count %> item(s) must be resolved before confirming.</strong><br>
+    These items have no product record — the Confirm button is disabled until you fix them.<br>
+    <%= link_to '→ Edit invoice and use the ! button to enrich each item with AI',
+          edit_purchasing_purchase_invoice_path(@invoice),
+          style: 'color:var(--danger);font-weight:600' %>
+  </div>
+<% elsif items_with_product.any? %>
+  <div class="flash warning" style="margin-bottom:20px;line-height:1.7">
+    <strong>⏳ <%= items_with_product.count %> item(s) are pending admin review.</strong><br>
+    Stock will be tracked on confirmation. These products need approval before appearing in sales.
   </div>
 <% end %>
 
@@ -200,16 +225,158 @@
             <% end %>
           </td>
           <td>
-            <% if item.unmatched? %>
-              <span class="badge" style="background:rgba(247,195,79,0.12);color:var(--warning)">
-                Unmatched
+            <% if item.unmatched? && item.product_id.present? %>
+              <span class="badge" style="background:rgba(247,195,79,0.12);color:var(--warning)"
+                    title="Saved as pending product — stock tracked, awaiting admin approval">
+                Pending ⏳
+              </span>
+            <% elsif item.unmatched? %>
+              <span class="badge" style="background:rgba(247,97,79,0.12);color:var(--danger)"
+                    title="No product record — click ! on the invoice form to enrich with AI">
+                No Product !
               </span>
             <% else %>
-              <span class="badge badge-active">Matched</span>
+              <span class="badge badge-active">Matched ✓</span>
             <% end %>
           </td>
         </tr>
       <% end %>
     </tbody>
   </table>
+
+<%# ── Payment Section (confirmed invoices only) ── %>
+<% if @invoice.confirmed? %>
+  <% total_paid    = @invoice.total_paid %>
+  <% outstanding   = @invoice.outstanding_amount %>
+  <% payment_status = @invoice.payment_status %>
+  <% pct = @invoice.total_amount.to_f > 0 ? [(total_paid / @invoice.total_amount.to_f * 100).round, 100].min : 0 %>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              margin-top:24px;overflow:hidden">
+
+    <%# Header %>
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);
+                display:flex;align-items:center;justify-content:space-between">
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+                   text-transform:uppercase;color:var(--text-dim)">Payments</span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;
+                     text-transform:uppercase;letter-spacing:.05em;
+                     background:<%= payment_status=='paid' ? 'rgba(52,217,139,0.12)' : payment_status=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                     color:<%= payment_status=='paid' ? 'var(--success)' : payment_status=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
+          <%= payment_status %>
+        </span>
+        <% if outstanding > 0 %>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--danger);font-weight:600">
+            ₹ <%= number_with_precision(outstanding, precision: 2, delimiter: ',') %> outstanding
+          </span>
+        <% end %>
+      </div>
+    </div>
+
+    <%# Progress bar %>
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;
+                  color:var(--text-dim);margin-bottom:6px">
+        <span>Paid ₹<%= number_with_delimiter(total_paid.round(0)) %> of ₹<%= number_with_delimiter(@invoice.total_amount.to_f.round(0)) %></span>
+        <span style="font-family:var(--mono);font-weight:600;color:var(--text)"><%= pct %>%</span>
+      </div>
+      <div style="height:8px;background:var(--border);border-radius:4px">
+        <div style="height:8px;width:<%= pct %>%;border-radius:4px;
+                    background:<%= pct >= 100 ? 'var(--success)' : 'var(--accent)' %>;
+                    transition:width .3s"></div>
+      </div>
+    </div>
+
+    <%# Existing payments list %>
+    <% payments = @invoice.purchase_payments.order(payment_date: :asc) %>
+    <% if payments.any? %>
+      <div style="padding:8px 0">
+        <% payments.each do |pmt| %>
+          <div style="display:flex;align-items:center;gap:14px;padding:10px 20px;
+                      border-bottom:1px solid var(--border)">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--success);flex-shrink:0"></div>
+            <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                         color:var(--accent);min-width:160px"><%= pmt.payment_label %></span>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);min-width:100px">
+              <%= pmt.payment_date.strftime('%d %b %Y') %>
+            </span>
+            <span style="font-size:11px;padding:1px 7px;border-radius:3px;font-family:var(--mono);
+                         text-transform:uppercase;background:var(--bg);border:1px solid var(--border);
+                         color:var(--text-dim)"><%= pmt.payment_mode %></span>
+            <% if pmt.reference_number.present? %>
+              <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+                Ref: <%= pmt.reference_number %>
+              </span>
+            <% end %>
+            <span style="font-family:var(--mono);font-weight:700;color:var(--success);margin-left:auto">
+              ₹ <%= number_with_precision(pmt.amount, precision: 2, delimiter: ',') %>
+            </span>
+            <%= link_to 'View', purchasing_supplier_payment_path(pmt),
+                  style: "font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--mono);
+                          padding:3px 8px;border:1px solid var(--accent-dim);border-radius:4px" %>
+            <%= button_to '✕', purchasing_purchase_invoice_supplier_payment_path(@invoice, pmt),
+                  method: :delete,
+                  style: "background:transparent;border:1px solid var(--border);color:var(--text-dim);
+                          font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer",
+                  data: { turbo_confirm: "Delete payment #{pmt.payment_label}? This cannot be undone." } %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%# Add payment form (only if not fully paid) %>
+    <% if outstanding > 0 %>
+      <div style="padding:16px 20px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-dim);
+                    text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">
+          Record Payment
+        </div>
+        <%= form_with url: purchasing_purchase_invoice_supplier_payments_path(@invoice),
+              scope: :purchase_payment,
+              method: :post, local: true,
+              style: "display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end" do |f| %>
+          <div>
+            <%= f.label :payment_date, "Date", style: "display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px" %>
+            <%= f.date_field :payment_date, value: Date.today,
+                  class: 'form-control', style: 'width:150px' %>
+          </div>
+          <div>
+            <%= f.label :amount, "Amount (₹)", style: "display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px" %>
+            <div style="position:relative">
+              <%= f.number_field :amount, value: outstanding, step: '0.01', min: '0.01',
+                    class: 'form-control', style: 'width:150px;font-family:var(--mono)',
+                    placeholder: '0.00' %>
+            </div>
+          </div>
+          <div>
+            <%= f.label :payment_mode, "Mode", style: "display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px" %>
+            <%= f.select :payment_mode,
+                  PurchasePayment::PAYMENT_MODES.map { |m| [m.humanize, m] },
+                  { selected: 'bank_transfer' },
+                  { class: 'form-control', style: 'width:150px' } %>
+          </div>
+          <div>
+            <%= f.label :reference_number, "UTR / Ref No.", style: "display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px" %>
+            <%= f.text_field :reference_number, class: 'form-control',
+                  style: 'width:170px;font-family:var(--mono)', placeholder: 'Optional' %>
+          </div>
+          <div>
+            <%= f.label :notes, "Notes", style: "display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px" %>
+            <%= f.text_field :notes, class: 'form-control', style: 'width:170px', placeholder: 'Optional' %>
+          </div>
+          <div style="padding-bottom:1px">
+            <%= f.submit 'Record Payment',
+                  class: 'btn btn-primary',
+                  style: 'white-space:nowrap' %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div style="padding:16px 20px;text-align:center;color:var(--success);font-size:13px">
+        ✓ Invoice fully paid
+      </div>
+    <% end %>
+  </div>
+<% end %>
 </div>

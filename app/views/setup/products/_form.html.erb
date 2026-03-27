@@ -178,6 +178,183 @@
   </div>
 </div>
 
+<%# ── Metadata section ── %>
+<div class="form-section">
+  <div class="form-section-title">
+    Metadata
+    <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
+      Key-value pairs — used for tinting, AI enrichment, custom attributes
+    </span>
+  </div>
+
+  <%
+    meta            = product.metadata || {}
+    # Well-known keys shown as dedicated fields
+    known_meta_keys = %w[tint family_colour canister_volume_ml source validation_status
+                         ai_confidence ai_brand_guess ai_category_guess ai_notes original_name]
+  %>
+
+  <%# ── Tinting machine fields ── %>
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;
+              padding:14px 16px;margin-bottom:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--accent);
+                text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">
+      🎨 Tinting Machine
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Tintable?</label>
+        <select name="product[metadata][tint]" class="form-control">
+          <option value="" <%= 'selected' if meta['tint'].blank? %>>— not set —</option>
+          <option value="true"  <%= 'selected' if meta['tint'].to_s == 'true' %>>Yes — colorant/tint product</option>
+          <option value="false" <%= 'selected' if meta['tint'].to_s == 'false' %>>No</option>
+        </select>
+        <div class="form-hint">Set to Yes for colorants that can be loaded into the tinting machine</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Family Colour</label>
+        <input type="text" name="product[metadata][family_colour]"
+               value="<%= meta['family_colour'] %>"
+               placeholder="e.g. Red Oxide, Burnt Amber, Black"
+               class="form-control">
+        <div class="form-hint">Colour family shown in tinting machine UI</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Canister Volume (ml)</label>
+        <input type="number" name="product[metadata][canister_volume_ml]"
+               value="<%= meta['canister_volume_ml'] %>"
+               placeholder="e.g. 500, 1000"
+               min="50" step="50"
+               class="form-control" style="font-family:var(--mono)">
+        <div class="form-hint">Default ml loaded per can — derived from pack_code if blank</div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── AI Enrichment fields (read-ish — show if present) ── %>
+  <% if meta['source'].present? || meta['validation_status'].present? %>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;
+                padding:14px 16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--warning);
+                  text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">
+        🤖 AI Enrichment
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Source</label>
+          <input type="text" name="product[metadata][source]"
+                 value="<%= meta['source'] %>"
+                 class="form-control" style="font-family:var(--mono)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Validation Status</label>
+          <select name="product[metadata][validation_status]" class="form-control">
+            <option value="" <%= 'selected' if meta['validation_status'].blank? %>>— not set —</option>
+            <option value="pending"          <%= 'selected' if meta['validation_status'] == 'pending' %>>Pending</option>
+            <option value="approved"         <%= 'selected' if meta['validation_status'] == 'approved' %>>Approved</option>
+            <option value="needs_validation" <%= 'selected' if meta['validation_status'] == 'needs_validation' %>>Needs Validation</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">AI Confidence</label>
+          <input type="number" name="product[metadata][ai_confidence]"
+                 value="<%= meta['ai_confidence'] %>"
+                 placeholder="0.0 – 1.0" min="0" max="1" step="0.01"
+                 class="form-control" style="font-family:var(--mono)">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">AI Brand Guess</label>
+          <input type="text" name="product[metadata][ai_brand_guess]"
+                 value="<%= meta['ai_brand_guess'] %>"
+                 class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">AI Category Guess</label>
+          <input type="text" name="product[metadata][ai_category_guess]"
+                 value="<%= meta['ai_category_guess'] %>"
+                 class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Original Invoice Name</label>
+          <input type="text" name="product[metadata][original_name]"
+                 value="<%= meta['original_name'] %>"
+                 class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">AI Notes</label>
+        <input type="text" name="product[metadata][ai_notes]"
+               value="<%= meta['ai_notes'] %>"
+               class="form-control">
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Custom / extra metadata key-value pairs ── %>
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;
+              padding:14px 16px">
+    <div style="font-size:11px;font-weight:600;color:var(--text-dim);
+                text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">
+      Custom Fields
+      <span style="font-size:10px;font-weight:400;text-transform:none;margin-left:6px">
+        — any extra key-value pairs
+      </span>
+    </div>
+    <div id="custom-meta-rows">
+      <%
+        custom_meta = meta.reject { |k, _| known_meta_keys.include?(k) ||
+                                           k.start_with?('created', 'approved', 'created_by') }
+      %>
+      <% custom_meta.each do |key, val| %>
+        <div class="custom-meta-row"
+             style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <input type="text"
+                 name="product[metadata_custom_keys][]"
+                 value="<%= key %>"
+                 placeholder="key"
+                 class="form-control"
+                 style="max-width:200px;font-family:var(--mono);font-size:12px">
+          <input type="text"
+                 name="product[metadata_custom_values][]"
+                 value="<%= val %>"
+                 placeholder="value"
+                 class="form-control"
+                 style="font-size:12px">
+          <button type="button"
+                  onclick="this.closest('.custom-meta-row').remove()"
+                  style="background:none;border:none;color:var(--danger);
+                         cursor:pointer;font-size:18px;padding:0 4px;flex-shrink:0">×</button>
+        </div>
+      <% end %>
+    </div>
+    <button type="button" onclick="addCustomMeta()"
+            style="font-size:12px;padding:6px 14px;border-radius:6px;
+                   border:1px dashed var(--border);background:none;
+                   color:var(--text-dim);cursor:pointer;margin-top:4px">
+      + Add custom field
+    </button>
+  </div>
+</div>
+
+<script>
+function addCustomMeta() {
+  var row = document.createElement('div');
+  row.className = 'custom-meta-row';
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px';
+  row.innerHTML =
+    '<input type="text" name="product[metadata_custom_keys][]" placeholder="key" ' +
+    'class="form-control" style="max-width:200px;font-family:var(--mono);font-size:12px">' +
+    '<input type="text" name="product[metadata_custom_values][]" placeholder="value" ' +
+    'class="form-control" style="font-size:12px">' +
+    '<button type="button" onclick="this.closest('.custom-meta-row').remove()" ' +
+    'style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;' +
+    'padding:0 4px;flex-shrink:0">×</button>';
+  document.getElementById('custom-meta-rows').appendChild(row);
+}
+</script>
+
 <%# Superadmin-only: manage which orgs have this product in their catalogue %>
 <% if defined?(@all_orgs) && @all_orgs.present? %>
   <div class="form-section">

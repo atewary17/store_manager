@@ -12,7 +12,9 @@
 
 <div class="actions" style="margin-bottom:24px;display:flex;gap:12px">
   <%= link_to '+ Import Products', new_setup_product_import_path, class: 'btn btn-primary' %>
-  <%= link_to '+ Import Shades',   import_new_setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+  <% if current_user.super_admin? %>
+    <%= link_to '+ Import Shades', import_new_setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+  <% end %>
 </div>
 
 <%# ── Product Imports ── %>
@@ -27,16 +29,17 @@
             <th>Uploaded By</th>
             <th>Date</th>
             <th>Status</th>
-            <th>Total</th>
-            <th>Created</th>
-            <th>Updated</th>
-            <th>Errors</th>
+            <th>Total Rows</th>
+            <th style="color:var(--success)">New Products</th>
+            <th style="color:var(--accent)">Updated / Enrolled</th>
+            <th style="color:var(--danger)">Errors</th>
             <th>Size</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           <% @product_imports.each do |imp| %>
+            <% created_count = imp.success_count - imp.update_count %>
             <tr>
               <td style="font-family:var(--mono);font-size:12px"><%= imp.file_name %></td>
               <td><%= imp.user.full_name %></td>
@@ -50,9 +53,11 @@
               </td>
               <td style="font-family:var(--mono)"><%= imp.total_rows %></td>
               <td style="font-family:var(--mono);color:var(--success)">
-                <%= imp.success_count - imp.update_count %>
+                <%= created_count > 0 ? created_count : '—' %>
               </td>
-              <td style="font-family:var(--mono);color:var(--accent)"><%= imp.update_count %></td>
+              <td style="font-family:var(--mono);color:var(--accent)">
+                <%= imp.update_count > 0 ? imp.update_count : '—' %>
+              </td>
               <td>
                 <% if imp.error_count > 0 %>
                   <span style="color:var(--danger);font-family:var(--mono)"><%= imp.error_count %></span>
@@ -80,7 +85,8 @@
   </div>
 </div>
 
-<%# ── Shade Catalogue Imports ── %>
+<%# ── Shade Catalogue Imports — super_admin only ── %>
+<% if current_user.super_admin? %>
 <div>
   <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px">Shade Catalogue Imports</div>
   <div class="table-wrap">
@@ -147,3 +153,4 @@
     <% end %>
   </div>
 </div>
+<% end %><%# end super_admin guard %>

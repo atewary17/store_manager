@@ -15,9 +15,13 @@ class DigitiseImportJob < ApplicationJob
 
     base64_data = import.file_data.to_s.gsub(/\s+/, '')
 
+    # Respect the uploading user's AI provider preference if set
+    user_pref = import.user&.preferences&.dig('ai_provider').presence
+
     result = InvoiceAiService.call(
       base64_data: base64_data,
-      mime_type:   import.file_content_type
+      mime_type:   import.file_content_type,
+      user_pref:   user_pref
     )
 
     # Append this attempt to the log
@@ -36,7 +40,8 @@ class DigitiseImportJob < ApplicationJob
         parsed_data:   result[:data],
         raw_response:  result[:raw_response],
         error_message: nil,
-        attempt_log:   new_log
+        attempt_log:   new_log,
+        ai_provider:   result[:provider] || ENV['INVOICE_AI_PROVIDER'] || 'gemini'
       )
     else
       is_rate_limit = result[:error].to_s.include?('429')
