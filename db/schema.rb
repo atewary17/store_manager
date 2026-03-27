@@ -155,7 +155,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.datetime "updated_at", null: false
     t.decimal "mrp", precision: 10, scale: 2
     t.jsonb "metadata", default: {}
-    t.bigint "brand_id"
+    t.bigint "brand_id", null: false
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"

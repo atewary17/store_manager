@@ -1,9 +1,9 @@
 # app/controllers/inventory/tinting_machine_controller.rb
 class Inventory::TintingMachineController < Inventory::BaseController
 
-  DISPENSE_STEP_ML = 50
+  DISPENSE_STEP_PCT = 25  # each ± tap moves 25% of initial volume
 
-  before_action :set_brand,    only: [:show, :load_canister, :adjust]
+  before_action :set_brand,    only: [:show, :load_canister, :adjust, :reload_last]
   before_action :set_canister, only: [:adjust]
 
   def index
@@ -72,10 +72,10 @@ class Inventory::TintingMachineController < Inventory::BaseController
   end
 
   # PATCH /inventory/tinting_machine/:brand_id/adjust/:id
-  # Fix #2: warn before last step empties canister
-  # Fix #3: no remove button — − button handles emptying
+  # Each tap subtracts/adds 25% of the canister's initial volume.
+  # Warns before the last step that will empty the canister.
   def adjust
-    step = DISPENSE_STEP_ML
+    step = (@canister.initial_volume_ml * DISPENSE_STEP_PCT / 100.0).round
 
     if params[:direction] == 'subtract'
       new_d = [@canister.dispensed_volume_ml + step, @canister.initial_volume_ml].min
@@ -117,6 +117,82 @@ class Inventory::TintingMachineController < Inventory::BaseController
       level_color:    @canister.level_color,
       now_empty:      will_be_empty,
       last_colour:    meta_update['last_family_colour']
+    }
+  rescue => e
+    render json: { success: false, error: e.message }
+  end
+
+  # POST /inventory/tinting_machine/:brand_id/reload_last/:slot_number
+  # Reloads the last colourant that was in this slot, if stock exists.
+  def reload_last
+    slot_num  = params[:slot_number].to_i
+    canister  = TintingMachineCanister.for_org(@organisation.id)
+                                      .find_by(brand_id: @brand.id, slot_number: slot_num)
+
+    unless canister
+      return render json: { success: false, error: "Slot #{slot_num} not found" }
+    end
+
+    last_name = canister.metadata&.dig('last_product_name').presence
+    unless last_name
+      return render json: { success: false, error: 'No previous colourant recorded for this slot' }
+    end
+
+    # Find the product by description match within this brand
+    product = Product
+                .for_org(@organisation)
+                .where(brand_id: @brand.id)
+                .where("products.metadata->>'tint' = 'true'")
+                .find_by(description: last_name)
+
+    unless product
+      return render json: {
+        success: false,
+        error:   ""#{last_name}" is no longer in the product catalogue"
+      }
+    end
+
+    stock = StockLevel.for_org(@organisation.id).find_by(product_id: product.id)
+    if stock.nil? || stock.quantity < 1
+      return render json: {
+        success:    false,
+        no_stock:   true,
+        error:      "No stock available for #{product.description}. Please purchase more stock first."
+      }
+    end
+
+    vol_ml = TintingMachineCanister.volume_from_pack_code(product.pack_code)
+
+    ActiveRecord::Base.transaction do
+      canister.update!(
+        product:             product,
+        loaded_by:           current_user,
+        loaded_at:           Time.current,
+        initial_volume_ml:   vol_ml,
+        dispensed_volume_ml: 0,
+        status:              'active',
+        metadata:            (canister.metadata || {}).merge(
+          'last_family_colour' => product.metadata['family_colour'].presence,
+          'last_product_name'  => product.description
+        ).compact
+      )
+
+      StockLedger.create!(
+        organisation:   @organisation,
+        product:        product,
+        user:           current_user,
+        entry_type:     'adjustment',
+        quantity:       -1,
+        unit_cost:      stock.avg_cost || 0,
+        notes:          "Reloaded into tinting machine — #{@brand.name} Slot #{slot_num}",
+        reference_type: 'TintingMachineCanister',
+        reference_id:   canister.id
+      )
+    end
+
+    render json: {
+      success: true,
+      message: "#{product.description} reloaded into Slot #{slot_num}"
     }
   rescue => e
     render json: { success: false, error: e.message }

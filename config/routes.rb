@@ -51,7 +51,8 @@ Rails.application.routes.draw do
     get  'tinting_machine/:brand_id',              to: 'tinting_machine#show',       as: :tinting_machine_brand
     post 'tinting_machine/:brand_id/load',         to: 'tinting_machine#load_canister',   as: :tinting_machine_load
     patch 'tinting_machine/:brand_id/adjust/:id',  to: 'tinting_machine#adjust',          as: :tinting_machine_adjust
-    delete 'tinting_machine/:brand_id/remove/:id', to: 'tinting_machine#remove_canister', as: :tinting_machine_remove
+    delete 'tinting_machine/:brand_id/remove/:id',       to: 'tinting_machine#remove_canister', as: :tinting_machine_remove
+    post   'tinting_machine/:brand_id/reload_last/:slot_number', to: 'tinting_machine#reload_last',      as: :tinting_machine_reload_last
     resources :stock_levels, only: [:index] do
       member { post :quick_adjust }
       collection { get :export }

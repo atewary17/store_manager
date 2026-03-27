@@ -27,8 +27,8 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       delivery_date: Date.today,
       status: 'draft'
     )
-    # Start with 5 blank item rows
-    5.times { @invoice.purchase_invoice_items.build }
+    # Start with 3 blank item rows
+    3.times { @invoice.purchase_invoice_items.build }
     load_form_data
   end
 

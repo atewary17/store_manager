@@ -198,7 +198,7 @@
                   display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:13px;font-weight:600;color:var(--text)">Canister Slots</span>
         <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
-          ± <%= Inventory::TintingMachineController::DISPENSE_STEP_ML %>ml per tap
+          ± <%= Inventory::TintingMachineController::DISPENSE_STEP_PCT %>% per tap
         </span>
       </div>
 
@@ -296,36 +296,44 @@
               </div>
               <%# Fix #2: warn on last step, Fix #3: no × remove button %>
               <div style="display:flex;gap:5px">
-                <button onclick="adjustSlot(<%= c.id %>,<%= sn %>,'subtract',<%= c.remaining_ml.round %>)"
-                        title="−<%= Inventory::TintingMachineController::DISPENSE_STEP_ML %>ml dispensed"
+                <button onclick="adjustSlot(<%= c.id %>,<%= sn %>,'subtract',<%= c.remaining_ml.round %>,<%= c.initial_volume_ml %>)"
+                        title="−<%= Inventory::TintingMachineController::DISPENSE_STEP_PCT %>% dispensed"
                         style="flex:1;padding:5px;background:rgba(247,97,79,0.08);
                                border:1px solid var(--danger);border-radius:6px;
                                color:var(--danger);font-size:15px;font-weight:700;cursor:pointer">−</button>
-                <button onclick="adjustSlot(<%= c.id %>,<%= sn %>,'add',<%= c.remaining_ml.round %>)"
-                        title="+<%= Inventory::TintingMachineController::DISPENSE_STEP_ML %>ml correction"
+                <button onclick="adjustSlot(<%= c.id %>,<%= sn %>,'add',<%= c.remaining_ml.round %>,<%= c.initial_volume_ml %>)"
+                        title="+<%= Inventory::TintingMachineController::DISPENSE_STEP_PCT %>% correction"
                         style="flex:1;padding:5px;background:rgba(52,217,139,0.08);
                                border:1px solid var(--success);border-radius:6px;
                                color:var(--success);font-size:15px;font-weight:700;cursor:pointer">+</button>
               </div>
             <% else %>
-              <% last_fc = c&.metadata&.dig('last_family_colour').presence %>
+              <%
+                last_fc   = c&.metadata&.dig('last_family_colour').presence
+                last_name = c&.metadata&.dig('last_product_name').presence
+                reload_url = "/inventory/tinting_machine/#{@brand.id}/reload_last/#{sn}"
+              %>
               <div style="height:5px;background:var(--border);border-radius:3px;margin-bottom:5px;opacity:.3"></div>
-              <%# Fix #6: show last colour name if available %>
+              <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                          text-align:center;margin-bottom:4px">no canister</div>
               <% if last_fc %>
-                <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
-                            text-align:center;margin-bottom:4px">no canister</div>
                 <div style="font-size:10px;color:var(--text-dim);text-align:center;
                             margin-bottom:8px;font-style:italic">
                   Last: <span style="font-weight:600;color:var(--text-dim)"><%= last_fc %></span>
                 </div>
-              <% else %>
-                <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
-                            text-align:center;margin-bottom:8px">no canister</div>
+                <%# Reload last button %>
+                <button onclick="reloadLast('<%= reload_url %>','<%= h(last_name) %>',<%= sn %>)"
+                        style="width:100%;padding:5px;background:rgba(79,142,247,0.08);
+                               border:1px solid var(--accent);border-radius:6px;
+                               color:var(--accent);font-size:11px;cursor:pointer;
+                               margin-bottom:5px">
+                  ↺ Reload <strong><%= last_fc %></strong>
+                </button>
               <% end %>
               <button onclick="quickLoad(<%= sn %>)"
                       style="width:100%;padding:5px;background:none;
                              border:1px dashed var(--border);border-radius:6px;
-                             color:var(--text-dim);font-size:11px;cursor:pointer">+ Load here</button>
+                             color:var(--text-dim);font-size:11px;cursor:pointer">+ Load different</button>
             <% end %>
           </div>
         <% end %>
@@ -340,7 +348,7 @@
   bcolor_hex:    bcolor,
   brand_name:    @brand.name,
   slot_count:    @slot_count,
-  dispense_step: Inventory::TintingMachineController::DISPENSE_STEP_ML,
+  dispense_step_pct: Inventory::TintingMachineController::DISPENSE_STEP_PCT,
   load_url:      load_url,
   adjust_base:   adjust_base,
   remove_base:   remove_base
@@ -854,17 +862,19 @@ window.loadCanister = function() {
   });
 };
 
-// Fix #2: warn when − will empty the canister (remaining <= step)
-window.adjustSlot = function(canisterId, slotNum, direction, remainingMl) {
-  var step = TM.dispense_step || 50;
+// Each tap = 25% of initial volume. Warn when next subtract will empty canister.
+window.adjustSlot = function(canisterId, slotNum, direction, remainingMl, initialMl) {
+  var pct  = TM.dispense_step_pct || 25;
+  var step = Math.round((initialMl || remainingMl) * pct / 100);
 
-  // Show warning dialog if this subtract will empty the canister
+  // Warn if this subtract will empty (remaining <= one step)
   if (direction === 'subtract' && remainingMl <= step) {
     var confirmed = window.confirm(
       '⚠️ Warning: Emptying Canister\n\n' +
-      'Slot #' + String(slotNum).padStart(2,'0') + ' has only ' + remainingMl + 'ml remaining.\n\n' +
+      'Slot #' + String(slotNum).padStart(2,'0') + ' has only ' + remainingMl + 'ml remaining (' +
+      Math.round(remainingMl / (initialMl || remainingMl) * 100) + '%).\n\n' +
       'Tapping − will completely empty this slot and clear the colorant.\n' +
-      'You will need to load a new tint colour before using this slot again.\n\n' +
+      'You will need to reload a tint colour before using this slot again.\n\n' +
       'This action cannot be undone.\n\nProceed?'
     );
     if (!confirmed) return;
@@ -894,6 +904,30 @@ window.adjustSlot = function(canisterId, slotNum, direction, remainingMl) {
     if (rem) { rem.textContent = Math.round(d.remaining_ml) + 'ml'; }
     if (pct) { pct.textContent = Math.round(d.level_percent) + '%'; pct.style.color = d.level_color; }
     showToast('Slot #' + String(slotNum).padStart(2,'0') + ': ' + Math.round(d.remaining_ml) + 'ml remaining', 'success');
+  });
+};
+
+// Reload the last colourant into an empty slot
+window.reloadLast = function(url, productName, slotNum) {
+  if (!window.confirm(
+    'Reload "' + productName + '" into Slot #' + String(slotNum).padStart(2,'0') + '?\n\n' +
+    'This will deduct 1 unit from stock.'
+  )) return;
+
+  fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      showToast(d.message, 'success');
+      setTimeout(function() { location.reload(); }, 900);
+    } else if (d.no_stock) {
+      window.alert('⚠️ Out of Stock\n\n' + d.error);
+    } else {
+      showToast(d.error, 'error');
+    }
   });
 };
 

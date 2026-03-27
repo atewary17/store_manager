@@ -1,17 +1,30 @@
 <%# app/views/purchasing/purchase_invoices/_item_row.html.erb %>
+<%#
+  COLUMN ORDER (must match _form.html.erb thead):
+    1. Product
+    2. UOM
+    3. Qty
+    4. Unit Rate  (read-only, calculated = subtotal / qty)
+    5. Disc %     (editable, with ₹ amount shown below)
+    6. Pre-GST    (read-only = payable / (1 + gst_rate/100))
+    7. GST        (read-only, calculated from product.gst_rate)
+    8. Payable    (editable = what was actually paid incl. GST)
+    9. Actions
+%>
 <% idx = f.index %>
 <%
-  qty        = item.quantity.to_f
-  payable    = item.total_amount.to_f
-  discount   = item.metadata['discount_percent'].to_f
-  cgst       = item.metadata['cgst_percent'].to_f
-  sgst       = item.metadata['sgst_percent'].to_f
-  gst_pct    = cgst + sgst
-  total_pre  = gst_pct > 0 ? (payable / (1 + gst_pct / 100.0)).round(2) : payable
-  gst_amt    = (payable - total_pre).round(2)
-  subtotal   = discount > 0 ? (total_pre / (1 - discount / 100.0)).round(2) : total_pre
-  unit_rate  = qty > 0 ? (subtotal / qty).round(4) : item.unit_rate.to_f
-  disc_amt   = discount > 0 ? (subtotal - total_pre).round(2) : 0
+  qty       = item.quantity.to_f
+  payable   = item.total_amount.to_f
+  discount  = item.metadata['discount_percent'].to_f
+  # GST from product table — single rate, no cgst/sgst split
+  gst_rate  = item.product&.gst_rate.to_f
+  gst_pct   = gst_rate
+  total_pre = gst_pct > 0 ? (payable / (1 + gst_pct / 100.0)).round(2) : payable
+  gst_amt   = (payable - total_pre).round(2)
+  subtotal  = discount > 0 ? (total_pre / (1 - discount / 100.0)).round(2) : total_pre
+  unit_rate = qty > 0 ? (subtotal / qty).round(4) : item.unit_rate.to_f
+  disc_amt  = discount > 0 ? (subtotal - total_pre).round(2) : 0
+
   is_unmatched = item.unmatched?
   is_pending   = item.product.present? && !item.product.active? &&
                  item.product.metadata&.dig('source') == 'ai_enrichment'
@@ -22,13 +35,14 @@
 
   <%= f.hidden_field :id %>
   <%= f.hidden_field :_destroy, value: item.marked_for_destruction? ? '1' : '0', class: 'destroy-input' %>
+  <%# Store gst_rate as hidden so JS recalcRow can read it without re-fetching product %>
+  <input type="hidden" class="gst-rate-input" value="<%= gst_rate %>">
 
-  <%# ── Product ── %>
+  <%# ══ 1. Product ══ %>
   <td style="padding:14px 16px;min-width:260px">
     <div class="autocomplete-wrap" style="position:relative">
       <%= f.hidden_field :product_id, class: 'product-id-input' %>
 
-      <%# Search input + match badge side by side %>
       <div style="display:flex;align-items:center;gap:6px">
         <input type="text"
                class="product-search-input"
@@ -39,7 +53,6 @@
                       border-radius:5px;padding:9px 11px;color:var(--text);
                       font-size:12.5px;outline:none">
 
-        <%# Match badge %>
         <% if is_unmatched %>
           <button type="button" class="enrich-trigger"
                   data-row="<%= idx %>"
@@ -79,12 +92,12 @@
       </div>
 
       <div class="ac-dropdown"
-           style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+           style="display:none;position:absolute;top:100%;left:0;right:0;z-index:99999;
                   background:var(--surface);border:1px solid var(--border);
                   border-radius:6px;box-shadow:var(--shadow-lg);max-height:260px;
                   overflow-y:auto;margin-top:2px"></div>
 
-      <%# ── AI Enrichment Panel ── %>
+      <%# AI Enrichment Panel %>
       <div class="enrich-panel" data-row="<%= idx %>"
            style="display:none;position:absolute;top:calc(100% + 8px);left:0;
                   width:400px;z-index:10000;background:var(--surface);
@@ -156,14 +169,14 @@
     </div>
   </td>
 
-  <%# ── UOM ── %>
+  <%# ══ 2. UOM ══ %>
   <td class="uom-cell"
       style="padding:14px 12px;font-family:var(--mono);font-size:11px;
              color:var(--text-dim);white-space:nowrap;text-align:center">
     <%= item.product&.base_uom&.short_name || '—' %>
   </td>
 
-  <%# ── Qty (editable) ── %>
+  <%# ══ 3. Qty ══ %>
   <td style="padding:14px 12px">
     <%= f.number_field :quantity,
           class: 'qty-input',
@@ -174,17 +187,17 @@
                   font-family:var(--mono);font-size:12.5px;outline:none;text-align:right' %>
   </td>
 
-  <%# ── Rate (calculated, read-only) ── %>
+  <%# ══ 4. Unit Rate (read-only, calculated) ══ %>
   <td style="padding:14px 12px;text-align:right;font-family:var(--mono);
              font-size:12.5px;color:var(--text-dim)">
     <%= f.hidden_field :unit_rate, class: 'rate-input',
           value: unit_rate > 0 ? unit_rate.round(4) : '' %>
-    <span class="rate-display" style="font-size:12.5px">
+    <span class="rate-display">
       <%= unit_rate > 0 ? number_with_precision(unit_rate, precision: 2) : '—' %>
     </span>
   </td>
 
-  <%# ── Discount % ── %>
+  <%# ══ 5. Discount % ══ %>
   <td style="padding:14px 12px">
     <input type="number"
            class="discount-input"
@@ -202,7 +215,7 @@
     </div>
   </td>
 
-  <%# ── Total before GST (calculated, read-only) ── %>
+  <%# ══ 6. Pre-GST amount (read-only) ══ %>
   <td style="padding:14px 12px;text-align:right;font-family:var(--mono);
              font-size:12.5px;color:var(--text-dim)">
     <span class="total-pre-display">
@@ -210,34 +223,28 @@
     </span>
   </td>
 
-  <%# ── GST Amount (CGST+SGST stored hidden) ── %>
+  <%# ══ 7. GST Amount (single rate from product table) ══ %>
   <td style="padding:14px 12px;text-align:right">
-    <input type="hidden" class="cgst-input"
-           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][cgst_percent]"
-           value="<%= cgst > 0 ? cgst : '' %>">
-    <input type="hidden" class="sgst-input"
-           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][sgst_percent]"
-           value="<%= sgst > 0 ? sgst : '' %>">
     <div class="gst-display"
          style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
       <%= gst_amt > 0 ? number_with_precision(gst_amt, precision: 2) : '—' %>
-    </div>
-    <div class="gst-breakdown"
-         style="font-family:var(--mono);font-size:10px;color:var(--text-dim);
-                margin-top:2px;line-height:1.4;text-align:right">
-      <% if gst_pct > 0 && gst_amt > 0 %>
-        C: <%= number_with_precision(gst_amt / 2.0, precision: 2) %> ·
-        S: <%= number_with_precision(gst_amt / 2.0, precision: 2) %>
+      <% if gst_pct > 0 %>
+        <span class="gst-breakdown"
+              style="font-size:10px;color:var(--text-dim);margin-left:3px">
+          (<%= gst_pct.to_i %>%)
+        </span>
+      <% else %>
+        <span class="gst-breakdown" style="display:none"></span>
       <% end %>
     </div>
   </td>
 
-  <%# ── Payable Amount (editable) ── %>
+  <%# ══ 8. Payable (editable — total incl. GST) ══ %>
   <td style="padding:14px 12px">
-    <%= f.hidden_field :total_amount, class: 'payable-hidden',
+    <%= f.hidden_field :total_amount, class: 'total-input',
           value: payable > 0 ? payable : '' %>
     <input type="number"
-           class="payable-input"
+           class="total-editable"
            placeholder="0.00"
            value="<%= payable > 0 ? payable : '' %>"
            min="0" step="0.01"
@@ -247,10 +254,10 @@
                   text-align:right;font-weight:600">
   </td>
 
-  <%# ── Actions (+ and ×) ── %>
+  <%# ══ 9. Actions ══ %>
   <td style="padding:14px 8px;text-align:center;white-space:nowrap">
     <button type="button" onclick="addItemRow()"
-            style="background:none;border:none;color:var(--success, #22c55e);
+            style="background:none;border:none;color:var(--success,#22c55e);
                    cursor:pointer;font-size:18px;line-height:1;padding:4px 2px"
             title="Add row">+</button>
     <button type="button" onclick="deleteRow(this)"
