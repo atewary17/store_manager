@@ -181,6 +181,8 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       metadata: {},
       purchase_invoice_items_attributes: [
         :id, :product_id, :quantity, :unit_rate, :total_amount,
+        :gst_rate, :taxable_amount, :tax_amount,
+        :discount_percent, :discount_amount,
         :unmatched, :_destroy,
         metadata: {}
       ]

@@ -130,14 +130,20 @@
         items = @invoice.purchase_invoice_items
         show_grand   = items.sum { |i| i.total_amount.to_f }
         show_taxable = items.sum { |i|
-          total     = i.total_amount.to_f
-          cgst_pct  = i.metadata['cgst_percent'].to_f
-          sgst_pct  = i.metadata['sgst_percent'].to_f
-          igst_pct  = i.metadata['igst_percent'].to_f
-          gst_total = cgst_pct + sgst_pct + igst_pct
-          gst_total > 0 ? (total / (1 + gst_total / 100.0)) : total
-        }
-        show_tax = show_grand - show_taxable
+          # Use proper column if available (written by form recalcRow),
+          # else fall back to metadata, else derive from total + gst_rate
+          if i.taxable_amount.to_f > 0
+            i.taxable_amount.to_f
+          else
+            total    = i.total_amount.to_f
+            gst_rate = i.gst_rate.to_f > 0 ? i.gst_rate.to_f :
+                       (i.metadata['cgst_percent'].to_f + i.metadata['sgst_percent'].to_f + i.metadata['igst_percent'].to_f)
+            gst_rate > 0 ? (total / (1 + gst_rate / 100.0)).round(2) : total
+          end
+        }.round(2)
+        show_tax = items.sum { |i|
+          i.tax_amount.to_f > 0 ? i.tax_amount.to_f : (i.total_amount.to_f - i.taxable_amount.to_f)
+        }.round(2)
       end
     %>
     <div class="detail-grid">
@@ -179,7 +185,7 @@
         <th style="text-align:right">Qty</th>
         <th style="text-align:right">Unit Rate (₹)</th>
         <th style="text-align:right">Total (₹)</th>
-        <th>GST</th>
+        <th style="text-align:right">Pre-GST / Tax</th>
         <th>Match</th>
       </tr>
     </thead>
@@ -215,13 +221,29 @@
                      color:var(--accent)">
             <%= number_with_precision(item.total_amount, precision: 2) %>
           </td>
-          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-            <% cgst = item.metadata['cgst_percent'] %>
-            <% sgst = item.metadata['sgst_percent'] %>
-            <% if cgst.present? || sgst.present? %>
-              CGST: <%= cgst %>% / SGST: <%= sgst %>%
+          <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+            <%
+              # Use proper columns first, fall back to metadata/derivation
+              item_taxable = item.taxable_amount.to_f > 0 ? item.taxable_amount.to_f : nil
+              item_tax     = item.tax_amount.to_f     > 0 ? item.tax_amount.to_f     : nil
+              item_gst_rate = item.gst_rate.to_f > 0 ? item.gst_rate.to_f :
+                              (item.metadata['cgst_percent'].to_f + item.metadata['sgst_percent'].to_f +
+                               item.metadata['igst_percent'].to_f)
+              unless item_taxable
+                item_taxable = item_gst_rate > 0 ? (item.total_amount.to_f / (1 + item_gst_rate / 100.0)).round(2) : item.total_amount.to_f
+              end
+              unless item_tax
+                item_tax = (item.total_amount.to_f - item_taxable).round(2)
+              end
+            %>
+            <% if item_gst_rate > 0 %>
+              <div>₹ <%= number_with_precision(item_taxable, precision: 2, delimiter: ',') %></div>
+              <div style="font-size:10px;color:var(--text-dim)">
+                GST <%= item_gst_rate.to_i %>% · ₹<%= number_with_precision(item_tax, precision: 2) %>
+              </div>
             <% else %>
-              —
+              <div>₹ <%= number_with_precision(item_taxable, precision: 2, delimiter: ',') %></div>
+              <div style="font-size:10px;color:var(--text-dim)">No GST</div>
             <% end %>
           </td>
           <td>

@@ -63,6 +63,18 @@ Rails.application.routes.draw do
   end
 
   # Purchasing
+  # Accounting — using scope so inner `as:` names get the accounting_ prefix correctly
+  # scope(as: :accounting) prepends "accounting_" to each route's `as:` name.
+  # URL prefix /accounting, controllers in Accounting:: module.
+  scope '/accounting', module: :accounting, as: :accounting do
+    get  'gst',              to: 'gst_reports#index',        as: :gst_reports
+    get  'gst/gstr1',        to: 'gst_reports#gstr1',        as: :gstr1
+    get  'gst/gstr3b',       to: 'gst_reports#gstr3b',       as: :gstr3b
+    get  'gst/itc',          to: 'gst_reports#itc',          as: :gst_itc
+    get  'gst/hsn',          to: 'gst_reports#hsn',          as: :gst_hsn
+    post 'gst/close_period', to: 'gst_reports#close_period', as: :gst_close_period
+  end
+
   namespace :purchasing do
     resources :suppliers do
       collection { get :search }

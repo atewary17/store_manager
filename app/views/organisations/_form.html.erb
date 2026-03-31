@@ -1,3 +1,5 @@
+<%# app/views/organisations/_form.html.erb %>
+
 <% if organisation.errors.any? %>
   <div class="flash alert" style="margin:20px 24px 0">
     <strong><%= organisation.errors.count %> error(s) prevented saving:</strong>
@@ -9,55 +11,153 @@
   </div>
 <% end %>
 
+<%# ── Organisation Details ──────────────────────────────────────────────── %>
 <div class="form-section">
   <div class="form-section-title">Organisation Details</div>
 
   <div class="form-group">
     <%= f.label :name, "Organisation Name *" %>
-    <%= f.text_field :name, placeholder: 'e.g. Acme Stores Pvt Ltd' %>
+    <%= f.text_field :name, placeholder: 'e.g. Sharma Hardware & Paints Pvt Ltd' %>
     <% if organisation.errors[:name].any? %>
       <div class="form-error"><%= organisation.errors[:name].first %></div>
     <% end %>
   </div>
 
+  <div class="form-group">
+    <%= f.label :address, "Registered Business Address" %>
+    <%= f.text_area :address,
+          placeholder: '12 Park Street, Kolkata, West Bengal — 700016',
+          rows: 3 %>
+    <div class="form-hint">Used on invoices and GST filings</div>
+  </div>
+</div>
+
+<%# ── GST & Tax Details ──────────────────────────────────────────────────── %>
+<div class="form-section">
+  <div class="form-section-title">GST & Tax Details</div>
+
+  <div style="padding:10px 14px;background:rgba(52,152,219,0.07);
+              border:1px solid rgba(52,152,219,0.2);border-radius:8px;
+              font-size:12px;color:var(--text-dim);margin-bottom:16px">
+    ⚠ <strong>State is mandatory for correct GST.</strong>
+    Every purchase and sales invoice uses your organisation's state to decide
+    whether a transaction is intra-state (CGST+SGST) or inter-state (IGST).
+    Without it, all invoices default to intra-state.
+  </div>
+
   <div class="form-row">
     <div class="form-group">
-      <%= f.label :gst_number, "GST Number" %>
+      <%= f.label :gst_number, "GSTIN" %>
       <%= f.text_field :gst_number,
-            placeholder: 'e.g. 29ABCDE1234F1Z5',
-            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            placeholder: 'e.g. 19AAAAA0000A1Z5',
+            style: 'font-family:var(--mono);letter-spacing:0.06em;text-transform:uppercase',
             maxlength: 15 %>
-      <div class="form-hint">15-digit GSTIN (optional)</div>
+      <div class="form-hint">15-character GST registration number</div>
       <% if organisation.errors[:gst_number].any? %>
         <div class="form-error"><%= organisation.errors[:gst_number].first %></div>
       <% end %>
     </div>
 
     <div class="form-group">
+      <%= f.label :pan, "PAN" %>
+      <%= f.text_field :pan,
+            placeholder: 'e.g. AAAAA0000A',
+            style: 'font-family:var(--mono);letter-spacing:0.06em;text-transform:uppercase',
+            maxlength: 10 %>
+      <div class="form-hint">10-character PAN (embedded in GSTIN digits 3–12)</div>
+      <% if organisation.errors[:pan].any? %>
+        <div class="form-error"><%= organisation.errors[:pan].first %></div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :state, "State *" %>
+      <%= f.select :state,
+            [
+              ['Andhra Pradesh',        'Andhra Pradesh'],
+              ['Arunachal Pradesh',     'Arunachal Pradesh'],
+              ['Assam',                 'Assam'],
+              ['Bihar',                 'Bihar'],
+              ['Chhattisgarh',          'Chhattisgarh'],
+              ['Goa',                   'Goa'],
+              ['Gujarat',               'Gujarat'],
+              ['Haryana',               'Haryana'],
+              ['Himachal Pradesh',      'Himachal Pradesh'],
+              ['Jharkhand',             'Jharkhand'],
+              ['Karnataka',             'Karnataka'],
+              ['Kerala',                'Kerala'],
+              ['Madhya Pradesh',        'Madhya Pradesh'],
+              ['Maharashtra',           'Maharashtra'],
+              ['Manipur',               'Manipur'],
+              ['Meghalaya',             'Meghalaya'],
+              ['Mizoram',               'Mizoram'],
+              ['Nagaland',              'Nagaland'],
+              ['Odisha',                'Odisha'],
+              ['Punjab',                'Punjab'],
+              ['Rajasthan',             'Rajasthan'],
+              ['Sikkim',                'Sikkim'],
+              ['Tamil Nadu',            'Tamil Nadu'],
+              ['Telangana',             'Telangana'],
+              ['Tripura',               'Tripura'],
+              ['Uttar Pradesh',         'Uttar Pradesh'],
+              ['Uttarakhand',           'Uttarakhand'],
+              ['West Bengal',           'West Bengal'],
+              ['Andaman & Nicobar',     'Andaman & Nicobar'],
+              ['Chandigarh',            'Chandigarh'],
+              ['Dadra & Nagar Haveli and Daman & Diu', 'Dadra & Nagar Haveli and Daman & Diu'],
+              ['Delhi',                 'Delhi'],
+              ['Jammu & Kashmir',       'Jammu & Kashmir'],
+              ['Ladakh',                'Ladakh'],
+              ['Lakshadweep',           'Lakshadweep'],
+              ['Puducherry',            'Puducherry'],
+            ],
+            { include_blank: '— Select state —', selected: organisation.state },
+            { class: 'form-control' } %>
+      <div class="form-hint">Your registered state — determines CGST/SGST vs IGST</div>
+      <% if organisation.errors[:state].any? %>
+        <div class="form-error"><%= organisation.errors[:state].first %></div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :state_code, "State Code" %>
+      <%= f.text_field :state_code,
+            placeholder: 'e.g. 19',
+            style: 'font-family:var(--mono)',
+            maxlength: 2 %>
+      <div class="form-hint">2-digit GST state code (first 2 digits of GSTIN)</div>
+      <% if organisation.errors[:state_code].any? %>
+        <div class="form-error"><%= organisation.errors[:state_code].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%# ── Subscription & Status (super_admin only) ──────────────────────────── %>
+<% if current_user.super_admin? %>
+<div class="form-section">
+  <div class="form-section-title">Subscription & Status</div>
+
+  <div class="form-row">
+    <div class="form-group">
       <%= f.label :subscription_plan, "Subscription Plan" %>
       <%= f.select :subscription_plan,
             [['Basic',      'basic'],
-             ['Standard',   'standard'],
-             ['Premium',    'premium'],
+             ['Pro',        'pro'],
              ['Enterprise', 'enterprise']],
             { include_blank: '— Select plan —' } %>
       <% if organisation.errors[:subscription_plan].any? %>
         <div class="form-error"><%= organisation.errors[:subscription_plan].first %></div>
       <% end %>
     </div>
-  </div>
 
-  <div class="form-group">
-    <%= f.label :address, "Business Address" %>
-    <%= f.text_area :address, placeholder: 'Street, City, State, PIN', rows: 3 %>
+    <div class="form-group">
+      <%= f.label :status, "Status" %>
+      <%= f.select :status, [['Active', 'active'], ['Inactive', 'inactive']] %>
+      <div class="form-hint">Inactive organisations cannot log in</div>
+    </div>
   </div>
 </div>
-
-<div class="form-section">
-  <div class="form-section-title">Account Status</div>
-  <div class="form-group" style="max-width:240px">
-    <%= f.label :status, "Status" %>
-    <%= f.select :status, [['Active', 'active'], ['Inactive', 'inactive']] %>
-    <div class="form-hint">Inactive organisations cannot log in</div>
-  </div>
-</div>
+<% end %>

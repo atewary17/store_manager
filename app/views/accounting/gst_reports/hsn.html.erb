@@ -1,0 +1,71 @@
+<%# app/views/accounting/gst_reports/hsn.html.erb %>
+<% content_for :title, "HSN Summary — #{@period_label}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'GST Reports', accounting_gst_reports_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">HSN Summary</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">HSN-wise Summary</div>
+    <div class="page-subtitle"><%= @period_label %></div>
+  </div>
+  <div class="actions">
+    <%= link_to '← GST Dashboard', accounting_gst_reports_path(month: @period_month, year: @period_year), class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <% [['Sales (Outward)', @sales_hsn, 'var(--danger)'], ['Purchases (Inward / ITC)', @purchase_hsn, 'var(--success)']].each do |title, rows, color| %>
+    <div class="table-wrap">
+      <div style="padding:12px 18px;border-bottom:1px solid var(--border);
+                  font-weight:600;font-size:13px"><%= title %></div>
+      <% if rows.any? %>
+        <table>
+          <thead>
+            <tr>
+              <th>HSN</th>
+              <th style="text-align:right">GST%</th>
+              <th style="text-align:right">Qty</th>
+              <th style="text-align:right">Taxable (₹)</th>
+              <th style="text-align:right">Tax (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rows.each do |row| %>
+              <% hsn       = row['hsn_code'].presence || '—' %>
+              <% gst_rate  = row['gst_rate'].to_f %>
+              <% total_qty = row['total_qty'].to_f %>
+              <% total_taxable = row['total_taxable'].to_f %>
+              <% total_tax = row['total_tax'].to_f %>
+              <tr>
+                <td style="font-family:var(--mono);font-weight:600">
+                  <%= hsn %>
+                </td>
+                <td style="text-align:right;font-family:var(--mono)">
+                  <%= gst_rate > 0 ? "#{gst_rate.to_i}%" : '—' %>
+                </td>
+                <td style="text-align:right;font-family:var(--mono)">
+                  <%= number_with_precision(total_qty, precision: 3) %>
+                </td>
+                <td style="text-align:right;font-family:var(--mono)">
+                  <%= number_with_precision(total_taxable, precision: 2, delimiter: ',') %>
+                </td>
+                <td style="text-align:right;font-family:var(--mono);color:<%= color %>;font-weight:600">
+                  <%= number_with_precision(total_tax, precision: 2, delimiter: ',') %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px">
+          No data for <%= @period_label %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

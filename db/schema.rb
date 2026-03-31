@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -69,6 +69,35 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.index ["user_id"], name: "index_digitise_imports_on_user_id"
   end
 
+  create_table "gst_credit_ledger_entries", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.integer "period_year", null: false
+    t.integer "period_month", null: false
+    t.decimal "opening_igst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "opening_cgst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "opening_sgst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "period_igst_itc", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "period_cgst_itc", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "period_sgst_itc", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "period_igst_out", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "period_cgst_out", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "period_sgst_out", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "closing_igst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "closing_cgst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "closing_sgst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "cash_igst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "cash_cgst", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "cash_sgst", precision: 12, scale: 2, default: "0.0", null: false
+    t.boolean "period_closed", default: false, null: false
+    t.datetime "closed_at"
+    t.bigint "closed_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["closed_by_id"], name: "index_gst_credit_ledger_entries_on_closed_by_id"
+    t.index ["organisation_id", "period_year", "period_month"], name: "idx_gst_credit_ledger_unique_period", unique: true
+    t.index ["organisation_id"], name: "index_gst_credit_ledger_entries_on_organisation_id"
+  end
+
   create_table "organisation_product_categories", force: :cascade do |t|
     t.bigint "organisation_id", null: false
     t.bigint "product_category_id", null: false
@@ -104,6 +133,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.integer "status", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "state"
+    t.string "state_code"
+    t.string "gstin"
+    t.string "pan"
     t.index ["gst_number"], name: "index_organisations_on_gst_number", unique: true
   end
 
@@ -155,7 +188,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.datetime "updated_at", null: false
     t.decimal "mrp", precision: 10, scale: 2
     t.jsonb "metadata", default: {}
-    t.bigint "brand_id", null: false
+    t.bigint "brand_id"
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"
@@ -176,9 +209,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "gst_rate", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "taxable_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "tax_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "discount_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "discount_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "supply_type", default: "intra_state", null: false
+    t.decimal "cgst_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "sgst_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "igst_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.index ["gst_rate"], name: "index_purchase_invoice_items_on_gst_rate"
     t.index ["metadata"], name: "index_purchase_invoice_items_on_metadata", using: :gin
     t.index ["product_id"], name: "index_purchase_invoice_items_on_product_id"
     t.index ["purchase_invoice_id"], name: "index_purchase_invoice_items_on_purchase_invoice_id"
+    t.index ["supply_type"], name: "index_purchase_invoice_items_on_supply_type"
+    t.index ["taxable_amount"], name: "index_purchase_invoice_items_on_taxable_amount"
     t.index ["unmatched"], name: "index_purchase_invoice_items_on_unmatched"
   end
 
@@ -273,12 +318,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "description"
+    t.string "supply_type", default: "intra_state", null: false
+    t.decimal "gst_rate", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "cgst_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "sgst_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "igst_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.index ["base_product_id"], name: "index_sales_invoice_items_on_base_product_id"
+    t.index ["gst_rate"], name: "index_sales_invoice_items_on_gst_rate"
     t.index ["line_type"], name: "index_sales_invoice_items_on_line_type"
     t.index ["metadata"], name: "index_sales_invoice_items_on_metadata", using: :gin
     t.index ["product_id"], name: "index_sales_invoice_items_on_product_id"
     t.index ["sales_invoice_id"], name: "index_sales_invoice_items_on_sales_invoice_id"
     t.index ["shade_catalogue_id"], name: "index_sales_invoice_items_on_shade_catalogue_id"
+    t.index ["supply_type"], name: "index_sales_invoice_items_on_supply_type"
     t.index ["tinter_product_id"], name: "index_sales_invoice_items_on_tinter_product_id"
   end
 
@@ -294,12 +346,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.decimal "total_taxable_amount", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_tax_amount", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_discount_amount", precision: 12, scale: 2, default: "0.0"
+    t.decimal "overall_discount_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "total_amount", precision: 12, scale: 2, default: "0.0"
     t.datetime "confirmed_at"
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.decimal "overall_discount_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.date "payment_due_date"
     t.datetime "voided_at"
     t.bigint "voided_by_id"
@@ -392,6 +444,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
   end
 
   create_table "suppliers", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
     t.string "name", null: false
     t.string "gstin"
     t.string "pan"
@@ -401,7 +454,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "organisation_id", null: false
     t.index ["active"], name: "index_suppliers_on_active"
     t.index ["gstin"], name: "index_suppliers_on_gstin"
     t.index ["metadata"], name: "index_suppliers_on_metadata", using: :gin
@@ -478,6 +530,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_23_000003) do
   end
 
   add_foreign_key "customers", "organisations"
+  add_foreign_key "gst_credit_ledger_entries", "organisations"
+  add_foreign_key "gst_credit_ledger_entries", "users", column: "closed_by_id"
   add_foreign_key "organisation_product_categories", "organisations"
   add_foreign_key "organisation_product_categories", "product_categories"
   add_foreign_key "organisation_products", "organisations"

@@ -781,7 +781,7 @@
       <%# ── Accounting ── %>
       <div class="nav-section" id="ns-accounting"
            data-section="accounting"
-           data-active="<%= %w[accounts_receivable accounts_payable sale_payments supplier_payments].include?(controller_name) %>">
+           data-active="<%= %w[accounts_receivable accounts_payable sale_payments supplier_payments gst_reports].include?(controller_name) %>">
         <div class="nav-section-header" onclick="expandAndToggle(event,'accounting')" data-tooltip="Accounting">
           <div class="nav-section-header-left">
             <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="nav-section-icon">
@@ -851,6 +851,57 @@
               <line x1="7" y1="15" x2="12" y2="15"/>
             </svg>
             Supplier Payments
+          <% end %>
+
+          <%# ── GST Reports ── %>
+          <div style="padding:8px 16px 3px;font-size:10px;font-weight:600;
+                      text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim)">
+            GST
+          </div>
+
+          <%= link_to accounting_gst_reports_path,
+                class: "nav-link #{controller_name == 'gst_reports' && action_name == 'index' ? 'active' : ''}",
+                data: { tooltip: 'GST Dashboard' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <rect x="2" y="3" width="20" height="18" rx="2"/>
+              <line x1="2" y1="9" x2="22" y2="9"/>
+              <line x1="8" y1="3" x2="8" y2="21"/>
+            </svg>
+            GST Dashboard
+          <% end %>
+
+          <%= link_to accounting_gstr1_path,
+                class: "nav-link #{controller_name == 'gst_reports' && action_name == 'gstr1' ? 'active' : ''}",
+                data: { tooltip: 'GSTR-1 Outward Supplies' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            GSTR-1
+          <% end %>
+
+          <%= link_to accounting_gstr3b_path,
+                class: "nav-link #{controller_name == 'gst_reports' && action_name == 'gstr3b' ? 'active' : ''}",
+                data: { tooltip: 'GSTR-3B Summary Return' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            GSTR-3B
+          <% end %>
+
+          <%= link_to accounting_gst_itc_path,
+                class: "nav-link #{controller_name == 'gst_reports' && action_name == 'itc' ? 'active' : ''}",
+                data: { tooltip: 'Input Tax Credit Register' } do %>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <polyline points="17 1 21 5 17 9"/>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+              <polyline points="7 23 3 19 7 15"/>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+            </svg>
+            ITC Register
           <% end %>
 
         </div>

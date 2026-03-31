@@ -1,0 +1,179 @@
+<%# app/views/accounting/gst_reports/index.html.erb %>
+<% content_for :title, "GST Dashboard — #{@period_label}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">GST Reports</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">GST Dashboard</div>
+    <div class="page-subtitle"><%= @period_label %> — <%= @organisation.name %></div>
+  </div>
+  <div class="actions" style="display:flex;gap:8px;align-items:center">
+    <%# Period selector %>
+    <%= form_with url: accounting_gst_reports_path, method: :get, local: true,
+          style: 'display:flex;gap:8px;align-items:center' do |f| %>
+      <%= f.select :month,
+            Date::MONTHNAMES.compact.each_with_index.map { |n,i| [n, i+1] },
+            { selected: @period_month },
+            { class: 'form-control', style: 'width:130px' } %>
+      <%= f.select :year,
+            (Date.today.year - 2..Date.today.year).map { |y| [y, y] },
+            { selected: @period_year },
+            { class: 'form-control', style: 'width:90px' } %>
+      <%= f.submit 'Go', class: 'btn btn-secondary' %>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Filing deadlines ── %>
+<% today = Date.today %>
+<% gstr1_overdue  = today > @gstr1_due %>
+<% gstr3b_overdue = today > @gstr3b_due %>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+  <% [
+       ['GSTR-1 Due',  @gstr1_due,  gstr1_overdue,  accounting_gstr1_path(month: @period_month, year: @period_year)],
+       ['GSTR-3B Due', @gstr3b_due, gstr3b_overdue, accounting_gstr3b_path(month: @period_month, year: @period_year)]
+     ].each do |label, due, overdue, path| %>
+    <div style="padding:14px 18px;background:var(--surface);
+                border:1px solid <%= overdue ? 'rgba(247,97,79,0.4)' : 'var(--border)' %>;
+                border-radius:10px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim)"><%= label %></div>
+        <div style="font-family:var(--mono);font-size:15px;font-weight:700;
+                    color:<%= overdue ? 'var(--danger)' : 'var(--text)' %>">
+          <%= due.strftime('%d %b %Y') %>
+        </div>
+        <% if overdue %>
+          <div style="font-size:11px;color:var(--danger);margin-top:2px">⚠ Overdue</div>
+        <% else %>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+            <%= (due - today).to_i %> days remaining
+          </div>
+        <% end %>
+      </div>
+      <%= link_to 'View →', path, class: 'btn btn-secondary btn-sm' %>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Tax summary cards ── %>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">
+  <%
+    cards = [
+      { label: 'Output Tax (Collected)', sub: 'On Sales', val: @output[:tax], sub2: "Taxable: ₹#{number_with_delimiter(@output[:taxable].round(0))}", color: 'var(--danger)' },
+      { label: 'Input Tax Credit', sub: 'On Purchases', val: @input[:tax], sub2: "Taxable: ₹#{number_with_delimiter(@input[:taxable].round(0))}", color: 'var(--success)' },
+      { label: 'Net GST Payable', sub: 'Output − ITC', val: @net_gst[:total], sub2: @net_gst[:total] <= 0 ? "Credit carry-forward: ₹#{number_with_delimiter(@net_gst[:total].abs.round(0))}" : "Pay to government", color: @net_gst[:total] > 0 ? 'var(--warning)' : 'var(--success)' },
+    ]
+  %>
+  <% cards.each do |c| %>
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:12px;padding:18px 20px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                  letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+        <%= c[:label] %>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px"><%= c[:sub] %></div>
+      <div style="font-family:var(--mono);font-size:24px;font-weight:700;
+                  color:<%= c[:color] %>">
+        ₹ <%= number_with_delimiter(c[:val].abs.round(0)) %>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:4px"><%= c[:sub2] %></div>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Tax head breakdown ── %>
+<div style="background:var(--surface);border:1px solid var(--border);
+            border-radius:12px;overflow:hidden;margin-bottom:24px">
+  <div style="padding:14px 18px;border-bottom:1px solid var(--border);
+              font-size:13px;font-weight:600;color:var(--text)">
+    Tax Head Breakdown — <%= @period_label %>
+  </div>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:var(--bg)">
+        <% ['Tax Head', 'Output (Sales)', 'Input (Purchases)', 'Net Payable', 'Status'].each do |h| %>
+          <th style="padding:10px 18px;text-align:right;font-family:var(--mono);font-size:10px;
+                     letter-spacing:.07em;text-transform:uppercase;color:var(--text-dim);
+                     border-bottom:1px solid var(--border);
+                     <%= h == 'Tax Head' ? 'text-align:left' : '' %>"><%= h %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% [
+           ['CGST (Central)', @output[:cgst], @input[:cgst]],
+           ['SGST (State)',   @output[:sgst], @input[:sgst]],
+           ['IGST (Inter-state)', @output[:igst], @input[:igst]],
+         ].each do |label, out, inp| %>
+        <% net = (out - inp).round(2) %>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:12px 18px;font-weight:500"><%= label %></td>
+          <td style="padding:12px 18px;text-align:right;font-family:var(--mono);color:var(--danger)">
+            ₹ <%= number_with_precision(out, precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:12px 18px;text-align:right;font-family:var(--mono);color:var(--success)">
+            ₹ <%= number_with_precision(inp, precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:12px 18px;text-align:right;font-family:var(--mono);font-weight:600;
+                     color:<%= net > 0 ? 'var(--warning)' : 'var(--success)' %>">
+            ₹ <%= number_with_precision(net.abs, precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:12px 18px;text-align:right">
+            <span style="font-size:10px;padding:2px 8px;border-radius:4px;font-family:var(--mono);
+                         font-weight:600;text-transform:uppercase;
+                         background:<%= net > 0 ? 'rgba(247,195,79,0.12)' : 'rgba(52,217,139,0.12)' %>;
+                         color:<%= net > 0 ? 'var(--warning)' : 'var(--success)' %>">
+              <%= net > 0 ? 'Payable' : net < 0 ? 'Credit' : 'Nil' %>
+            </span>
+          </td>
+        </tr>
+      <% end %>
+      <%# Totals row %>
+      <% total_net = @net_gst[:total] %>
+      <tr style="background:var(--bg)">
+        <td style="padding:12px 18px;font-weight:700">Total</td>
+        <td style="padding:12px 18px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--danger)">
+          ₹ <%= number_with_precision(@output[:tax], precision: 2, delimiter: ',') %>
+        </td>
+        <td style="padding:12px 18px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--success)">
+          ₹ <%= number_with_precision(@input[:tax], precision: 2, delimiter: ',') %>
+        </td>
+        <td style="padding:12px 18px;text-align:right;font-family:var(--mono);font-weight:700;
+                   color:<%= total_net > 0 ? 'var(--warning)' : 'var(--success)' %>">
+          ₹ <%= number_with_precision(total_net.abs, precision: 2, delimiter: ',') %>
+        </td>
+        <td style="padding:12px 18px;text-align:right">
+          <span style="font-size:11px;font-weight:700;
+                       color:<%= total_net > 0 ? 'var(--warning)' : 'var(--success)' %>">
+            <%= total_net > 0 ? "Pay ₹#{number_with_delimiter(total_net.round(0))}" : "Credit ₹#{number_with_delimiter(total_net.abs.round(0))}" %>
+          </span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<%# ── Quick links ── %>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+  <% [
+       ['📤 GSTR-1',     'Outward Supplies',        accounting_gstr1_path(month: @period_month, year: @period_year)],
+       ['📋 GSTR-3B',    'Summary Return',           accounting_gstr3b_path(month: @period_month, year: @period_year)],
+       ['🏷 ITC Register','Input Tax Credit',         accounting_gst_itc_path(month: @period_month, year: @period_year)],
+       ['📦 HSN Summary', 'HSN-wise breakdown',       accounting_gst_hsn_path(month: @period_month, year: @period_year)],
+     ].each do |icon_label, sub, path| %>
+    <%= link_to path,
+          style: 'display:block;padding:16px 18px;background:var(--surface);
+                  border:1px solid var(--border);border-radius:10px;text-decoration:none;
+                  transition:border-color .15s' do %>
+      <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">
+        <%= icon_label %>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim)"><%= sub %></div>
+    <% end %>
+  <% end %>
+</div>

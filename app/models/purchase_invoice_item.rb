@@ -20,6 +20,7 @@ class PurchaseInvoiceItem < ApplicationRecord
   # ── Callbacks ─────────────────────────────────────────────────
   before_validation :resolve_product
   before_validation :compute_total_if_blank
+  before_validation :initialize_gst_columns
 
   # ── Helpers ───────────────────────────────────────────────────
   def product_display
@@ -27,8 +28,22 @@ class PurchaseInvoiceItem < ApplicationRecord
     product&.display_name || '—'
   end
 
-  def taxable_amount
-    metadata['taxable_amount'].to_f
+  # supply_type is now a proper column: 'intra_state' | 'inter_state'
+  # Set by PurchaseInvoice#confirm! based on organisation.state vs supplier.state.
+
+  def intra_state?
+    supply_type == 'intra_state'
+  end
+
+  def inter_state?
+    supply_type == 'inter_state'
+  end
+
+  # cgst_amount, sgst_amount, igst_amount are now proper decimal columns.
+  # No derivation needed — read directly from the database.
+
+  def hsn_code
+    product&.hsn_code.presence || '—'
   end
 
   private
@@ -54,6 +69,21 @@ class PurchaseInvoiceItem < ApplicationRecord
     return if total_amount.present? && total_amount.to_f > 0
     return unless quantity.present? && unit_rate.present?
     self.total_amount = (quantity.to_f * unit_rate.to_f).round(2)
+  end
+
+  # Ensure new columns that are NOT NULL default=0 are never left as nil.
+  # Rails sends explicit NULL for uninitialized attributes, overriding the DB default.
+  # discount_percent / discount_amount are set here on creation;
+  # the real values are written by PurchaseInvoice#confirm!
+  # supply_type, cgst/sgst/igst_amount default via the column default but
+  # we guard them here too for safety.
+  def initialize_gst_columns
+    self.discount_percent ||= metadata['discount_percent'].presence&.to_f || 0
+    self.discount_amount  ||= 0
+    self.supply_type      ||= 'intra_state'
+    self.cgst_amount      ||= 0
+    self.sgst_amount      ||= 0
+    self.igst_amount      ||= 0
   end
 
 end

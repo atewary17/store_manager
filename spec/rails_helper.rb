@@ -5,7 +5,8 @@ require_relative '../config/environment'
 abort("The Rails environment is running in production mode!") if Rails.env.production?
 require 'rspec/rails'
 require 'capybara/rspec'
-
+require 'support/capybara_chrome'
+require 'support/capybara_helpers'
 # Load support files
 Rails.root.glob('spec/support/**/*.rb').sort_by(&:to_s).each { |f| require f }
 

@@ -38,6 +38,10 @@ class SalesInvoiceItem < ApplicationRecord
   def sgst_percent  = metadata['sgst_percent'].to_f
   def gst_percent   = cgst_percent + sgst_percent
 
+  # supply_type is a proper column: 'intra_state' | 'inter_state'
+  def intra_state?; supply_type == 'intra_state'; end
+  def inter_state?; supply_type == 'inter_state'; end
+
   def shade_display
     [metadata['shade_code'], metadata['shade_name']].compact_blank.join(' — ').presence || '—'
   end
@@ -52,11 +56,22 @@ class SalesInvoiceItem < ApplicationRecord
 
   private
 
-  # User enters total_amount; we back-calculate unit_rate and taxable/tax split
+  # User enters total_amount; we back-calculate unit_rate and taxable/tax split.
+  # Also determines supply_type by comparing organisation.state vs customer.state
+  # and writes the per-head GST amounts to proper columns.
   def compute_amounts
+    # Always initialize NOT NULL columns so Rails never sends explicit NULL.
+    self.supply_type  ||= 'intra_state'
+    self.gst_rate     ||= 0
+    self.cgst_amount  ||= 0
+    self.sgst_amount  ||= 0
+    self.igst_amount  ||= 0
+
     total    = total_amount.to_f
     qty      = quantity.to_f
-    gst_pct  = metadata['cgst_percent'].to_f + metadata['sgst_percent'].to_f
+    cgst_pct = metadata['cgst_percent'].to_f
+    sgst_pct = metadata['sgst_percent'].to_f
+    gst_pct  = cgst_pct + sgst_pct
 
     return if total <= 0 || qty <= 0
 
@@ -68,9 +83,37 @@ class SalesInvoiceItem < ApplicationRecord
     self.unit_rate      = rate
     self.taxable_amount = taxable
     self.tax_amount     = tax_amt
+    self.gst_rate       = gst_pct
 
-    metadata['cgst_amount'] = (taxable * metadata['cgst_percent'].to_f / 100.0).round(2)
-    metadata['sgst_amount'] = (taxable * metadata['sgst_percent'].to_f / 100.0).round(2)
+    # Determine supply type: compare organisation state vs customer state
+    org_state      = sales_invoice&.organisation&.state.to_s.strip.downcase
+    customer_state = sales_invoice&.customer&.state.to_s.strip.downcase
+    is_igst        = org_state.present? && customer_state.present? &&
+                     org_state != customer_state
+
+    self.supply_type = is_igst ? 'inter_state' : 'intra_state'
+
+    # Per-head GST amounts (proper columns + metadata kept in sync)
+    if is_igst
+      self.cgst_amount         = 0
+      self.sgst_amount         = 0
+      self.igst_amount         = tax_amt
+      metadata['igst_percent'] = gst_pct
+      metadata['cgst_percent'] = 0
+      metadata['sgst_percent'] = 0
+      metadata['igst_amount']  = tax_amt
+      metadata['cgst_amount']  = 0
+      metadata['sgst_amount']  = 0
+    else
+      computed_cgst            = (taxable * cgst_pct / 100.0).round(2)
+      computed_sgst            = (taxable * sgst_pct / 100.0).round(2)
+      self.cgst_amount         = computed_cgst
+      self.sgst_amount         = computed_sgst
+      self.igst_amount         = 0
+      metadata['cgst_amount']  = computed_cgst
+      metadata['sgst_amount']  = computed_sgst
+      metadata['igst_amount']  = 0
+    end
   end
 
   def paint_item_has_shade

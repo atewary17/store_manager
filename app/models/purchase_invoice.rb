@@ -27,7 +27,10 @@ class PurchaseInvoice < ApplicationRecord
 
   # ── Confirm ───────────────────────────────────────────────────
   def confirm!(current_user)
-    return false if confirmed?
+    if confirmed?
+      errors.add(:base, 'Already confirmed')
+      return false
+    end
 
     ActiveRecord::Base.transaction do
       # Compute totals from items
@@ -36,30 +39,68 @@ class PurchaseInvoice < ApplicationRecord
         qty   = item.quantity.to_f
         total = item.total_amount.to_f
         item.unit_rate = (qty > 0 && total > 0) ? (total / qty).round(4) : 0
-        # Compute per-item taxable and tax amounts from stored GST %
-        cgst_pct = item.metadata['cgst_percent'].to_f
-        sgst_pct = item.metadata['sgst_percent'].to_f
-        igst_pct = item.metadata['igst_percent'].to_f
-        total_gst_pct = cgst_pct + sgst_pct + igst_pct
-        if total_gst_pct > 0
-          taxable = (total / (1 + total_gst_pct / 100.0)).round(2)
-          item.metadata = item.metadata.merge(
-            'taxable_amount' => taxable,
-            'cgst_amount'    => (taxable * cgst_pct / 100.0).round(2),
-            'sgst_amount'    => (taxable * sgst_pct / 100.0).round(2),
-            'igst_amount'    => (taxable * igst_pct / 100.0).round(2)
-          )
-        else
-          item.metadata = item.metadata.merge('taxable_amount' => total)
-        end
+
+        # ── GST: use new gst_rate column (from product), fall back to old metadata keys ──
+        # New form saves gst_rate via gst-rate-input hidden field in metadata temporarily;
+        # prefer product.gst_rate as the authoritative source.
+        rate = item.product&.gst_rate.to_f
+        rate = item.metadata['gst_rate'].to_f        if rate.zero? && item.metadata['gst_rate'].present?
+        rate = (item.metadata['cgst_percent'].to_f +
+                item.metadata['sgst_percent'].to_f +
+                item.metadata['igst_percent'].to_f)   if rate.zero?
+
+        disc_pct  = item.metadata['discount_percent'].to_f
+        taxable   = rate > 0 ? (total / (1 + rate / 100.0)).round(2) : total
+        tax_amt   = (total - taxable).round(2)
+
+        # Intra-state split (CGST + SGST) vs inter-state (IGST)
+        # Determined by comparing organisation state with supplier state.
+        # Defaults to intra-state (CGST+SGST) if states unavailable.
+        is_igst   = self.supplier&.state.present? &&
+                    self.organisation&.state.present? &&
+                    self.supplier.state.strip.downcase !=
+                      self.organisation.state.strip.downcase
+
+        cgst_pct  = is_igst ? 0 : (rate / 2.0).round(2)
+        sgst_pct  = is_igst ? 0 : (rate / 2.0).round(2)
+        igst_pct  = is_igst ? rate : 0
+
+        # ── Compute per-head GST amounts ─────────────────────────────────────
+        computed_cgst = is_igst ? 0 : (taxable * cgst_pct / 100.0).round(2)
+        computed_sgst = is_igst ? 0 : (taxable * sgst_pct / 100.0).round(2)
+        computed_igst = is_igst ? (taxable * igst_pct / 100.0).round(2) : 0
+        supply        = is_igst ? 'inter_state' : 'intra_state'
+
+        # ── Write proper decimal columns (source of truth) ────────────────
+        item.gst_rate        = rate
+        item.taxable_amount  = taxable
+        item.tax_amount      = tax_amt
+        item.discount_percent = disc_pct
+        item.discount_amount  = disc_pct > 0 ?
+          ((taxable / (1 - disc_pct / 100.0)) * (disc_pct / 100.0)).round(2) : 0
+        item.supply_type     = supply
+        item.cgst_amount     = computed_cgst
+        item.sgst_amount     = computed_sgst
+        item.igst_amount     = computed_igst
+
+        # ── Keep metadata in sync for backward compat ────────────────────
+        item.metadata = item.metadata.merge(
+          'gst_rate'       => rate,
+          'taxable_amount' => taxable,
+          'cgst_percent'   => cgst_pct,
+          'sgst_percent'   => sgst_pct,
+          'igst_percent'   => igst_pct,
+          'cgst_amount'    => computed_cgst,
+          'sgst_amount'    => computed_sgst,
+          'igst_amount'    => computed_igst,
+          'supply_type'    => supply
+        )
         item.save!
       end
 
-      # Aggregate totals
-      self.total_taxable_amount = purchase_invoice_items.sum { |i| i.metadata['taxable_amount'].to_f }
-      self.total_tax_amount     = purchase_invoice_items.sum { |i|
-        (i.metadata['cgst_amount'].to_f + i.metadata['sgst_amount'].to_f + i.metadata['igst_amount'].to_f)
-      }
+      # Aggregate totals from new proper columns
+      self.total_taxable_amount = purchase_invoice_items.sum(&:taxable_amount)
+      self.total_tax_amount     = purchase_invoice_items.sum(&:tax_amount)
       self.total_amount         = purchase_invoice_items.sum(&:total_amount)
       self.status           = 'confirmed'
       self.confirmed_at     = Time.current

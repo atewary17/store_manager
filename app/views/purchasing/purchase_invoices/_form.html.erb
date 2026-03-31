@@ -303,8 +303,18 @@
                     border-radius:5px;padding:6px 8px;color:var(--text);
                     font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
     </td>
-    <%# hidden gst rate — JS reads this per-row %>
+    <%# Hidden fields for proper columns — synced by recalcRow, finalised by confirm! %>
     <input type="hidden" class="gst-rate-input" value="0">
+    <input type="hidden" class="gst-rate-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][gst_rate]" value="">
+    <input type="hidden" class="taxable-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][taxable_amount]" value="">
+    <input type="hidden" class="tax-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][tax_amount]" value="">
+    <input type="hidden" class="disc-pct-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][discount_percent]" value="">
+    <input type="hidden" class="disc-amt-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][discount_amount]" value="">
     <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
       <input type="hidden" class="rate-input"
              name="purchase_invoice[purchase_invoice_items_attributes][INDEX][unit_rate]"
@@ -438,6 +448,21 @@
     var discLbl = row.querySelector('.disc-amt-label');
     if (discLbl) discLbl.textContent = discAmt > 0 ? '₹' + discAmt.toFixed(2) : '';
 
+    // ── Sync new proper-column hidden fields ──────────────────────────────
+    // These are written to the DB on save; confirm! will recalculate them
+    // precisely from the stored gst_rate, but having them pre-filled means
+    // the show page and draft totals display correctly before confirmation.
+    var gstRateField = row.querySelector('.gst-rate-field');
+    var taxableField = row.querySelector('.taxable-field');
+    var taxField     = row.querySelector('.tax-field');
+    var discPctField = row.querySelector('.disc-pct-field');
+    var discAmtField = row.querySelector('.disc-amt-field');
+    if (gstRateField) gstRateField.value = gstPct > 0 ? gstPct.toFixed(2) : '';
+    if (taxableField) taxableField.value = totalPre > 0 ? totalPre.toFixed(2) : '';
+    if (taxField)     taxField.value     = gstAmt  > 0 ? gstAmt.toFixed(2)  : '';
+    if (discPctField) discPctField.value = discPct > 0 ? discPct.toFixed(2) : '';
+    if (discAmtField) discAmtField.value = discAmt > 0 ? discAmt.toFixed(2) : '';
+
     updateGrandTotal();
   }
 
@@ -562,11 +587,15 @@
         if (uomCell)  uomCell.textContent  = p.uom || '—';
         if (metaLine) metaLine.textContent = metaParts.join('  ·  ');
 
-        // Set gst-rate-input from product.gst_rate
-        var gstRateInp = row.querySelector('.gst-rate-input');
-        if (gstRateInp && p.gst_rate != null) {
-          gstRateInp.value = p.gst_rate;
+        // Set gst-rate on both the JS-read input and the proper-column hidden field
+        var gstRateInp   = row.querySelector('.gst-rate-input');
+        var gstRateField = row.querySelector('.gst-rate-field');
+        if (p.gst_rate != null) {
+          if (gstRateInp)   gstRateInp.value   = p.gst_rate;
+          if (gstRateField) gstRateField.value = p.gst_rate;
         }
+        // Trigger recalc so taxable/tax fields get populated immediately
+        recalcRow(row);
         dropdown.style.display = 'none';
       });
       dropdown.appendChild(el);
