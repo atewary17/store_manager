@@ -19,14 +19,17 @@ RSpec.describe 'Intra-state Purchase Invoice (CGST + SGST)', type: :feature, js:
                             description: 'Asian Paints Emulsion 20L',
                             hsn_code: '32081090') }
 
-  before { sign_in_as(admin) }
+  before do
+    product.enrol_in!(org)
+    sign_in_as(admin)
+  end
 
   # ── Scenario 1: Create and confirm ────────────────────────────────────
   scenario 'Creates purchase invoice and confirms — CGST+SGST split applied' do
     visit new_purchasing_purchase_invoice_path
 
     # Fill supplier autocomplete
-    fill_in 'Search supplier name or GSTIN', with: 'Sharma'
+    fill_in 'supplier-search-input', with: 'Sharma'
     within('#supplier-ac-dropdown') do
       first('li, div', text: 'Sharma Paints WB', wait: 5).click
     end
@@ -44,12 +47,12 @@ RSpec.describe 'Intra-state Purchase Invoice (CGST + SGST)', type: :feature, js:
       find('input.total-editable, input[name*="total_amount"]').set('23600')
     end
 
-    click_button 'Save Invoice'
+    click_button 'Save Draft'
     expect(page).to have_current_path(%r{/purchasing/purchase_invoices/\d+})
     expect(page).to have_text('Draft')
 
     # Confirm the invoice
-    click_button 'Confirm Invoice'
+    click_button 'Confirm & Update Stock'
     expect(page).to have_text('confirmed', wait: 5)
 
     # ── Verify the DB record ──────────────────────────────────────────
@@ -87,7 +90,7 @@ RSpec.describe 'Intra-state Purchase Invoice (CGST + SGST)', type: :feature, js:
       supply_type: 'intra_state',
       cgst_amount: 0, sgst_amount: 0, igst_amount: 0, metadata: {}
     )
-    inv.confirm!
+    inv.confirm!(admin)
 
     visit accounting_gst_itc_path(month: Date.today.month, year: Date.today.year)
 
@@ -123,12 +126,12 @@ RSpec.describe 'Intra-state Purchase Invoice (CGST + SGST)', type: :feature, js:
       supply_type: 'intra_state',
       cgst_amount: 0, sgst_amount: 0, igst_amount: 0, metadata: {}
     )
-    inv.confirm!
+    inv.confirm!(admin)
 
     go_to_gst_dashboard(month: Date.today.month, year: Date.today.year)
 
     # ITC card should show ₹3,600
-    within(:css, '*', text: 'Input Tax Credit', wait: 5) do
+    within('.gst-summary-card', text: /Input Tax Credit/i, wait: 5) do
       expect(page).to have_text('3,600')
     end
 

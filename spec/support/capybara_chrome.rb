@@ -51,31 +51,21 @@ Capybara.javascript_driver = :chrome          # Chrome for :js => true specs
 Capybara.default_max_wait_time = 10           # seconds to wait for elements
 Capybara.server = :puma, { Silent: true }
 
-# ── DatabaseCleaner: use transactions for non-JS, truncation for JS ────────
+# ── DatabaseCleaner: use truncation for JS specs only ─────────────────────
+# NOTE: use_transactional_fixtures is set to true in rails_helper.rb.
+# For JS (Selenium) specs we override to truncation per-example since
+# the browser runs in a separate thread and can't share a transaction.
 RSpec.configure do |config|
-  config.use_transactional_fixtures = false
-
-  config.before(:suite) do
-    DatabaseCleaner.strategy = :transaction
-    DatabaseCleaner.clean_with(:truncation)
-  end
-
-  config.before(:each) do
-    DatabaseCleaner.strategy = :transaction
-  end
-
   config.before(:each, js: true) do
-    # Selenium runs in a separate thread; must use truncation or deletion
+    # Selenium runs in a separate thread; must use truncation
     DatabaseCleaner.strategy = :truncation, {
       except: %w[ar_internal_metadata schema_migrations]
     }
-  end
-
-  config.before(:each) do
     DatabaseCleaner.start
   end
 
-  config.after(:each) do
+  config.after(:each, js: true) do
     DatabaseCleaner.clean
+    DatabaseCleaner.strategy = :transaction
   end
 end

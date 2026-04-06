@@ -19,7 +19,7 @@ RSpec.describe 'Organisation GST Setup', type: :feature, js: true do
   scenario 'Admin fills in GST fields and verifies they are saved and displayed' do
     visit edit_organisation_path(org)
 
-    expect(page).to have_content('GST & Tax Details')
+    expect(page).to have_content(/GST.*Tax Details/i)
 
     # Fill GST fields
     select 'West Bengal', from: 'State'

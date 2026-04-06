@@ -25,7 +25,7 @@
        ['Total Taxable Value', "₹#{number_with_delimiter(@totals[:taxable].round(0))}", 'var(--text)'],
        ['Total Tax Collected', "₹#{number_with_delimiter(@totals[:tax].round(0))}", 'var(--danger)'],
      ].each do |label, val, color| %>
-    <div style="background:var(--surface);border:1px solid var(--border);
+    <div class="gst-summary-card" style="background:var(--surface);border:1px solid var(--border);
                 border-radius:10px;padding:14px 18px">
       <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;
                   letter-spacing:.06em;font-weight:600;margin-bottom:6px"><%= label %></div>
@@ -36,31 +36,31 @@
   <% end %>
 </div>
 
-<%# B2B invoices %>
-<% if @b2b.any? %>
-  <div class="table-wrap" style="margin-bottom:20px">
-    <div style="padding:12px 18px;border-bottom:1px solid var(--border);
-                display:flex;justify-content:space-between;align-items:center">
-      <span style="font-family:var(--mono);font-size:11px;text-transform:uppercase;
-                   letter-spacing:.08em;color:var(--text-dim)">
-        B2B — Registered Businesses (<%= @b2b.count %>)
-      </span>
-      <span style="font-size:11px;color:var(--text-dim)">
-        Table 4 — GSTR-1
-      </span>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Invoice Date</th><th>Invoice #</th><th>Customer</th>
-          <th>GSTIN</th><th style="text-align:right">Taxable (₹)</th>
-          <th style="text-align:right">IGST (₹)</th>
-          <th style="text-align:right">CGST (₹)</th>
-          <th style="text-align:right">SGST (₹)</th>
-          <th style="text-align:right">Invoice Total (₹)</th>
-        </tr>
-      </thead>
-      <tbody>
+<%# B2B invoices — always rendered (even when empty) so specs can assert have_no_text %>
+<div class="table-wrap" style="margin-bottom:20px">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border);
+              display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:var(--mono);font-size:11px;text-transform:uppercase;
+                 letter-spacing:.08em;color:var(--text-dim)">
+      B2B — Registered Businesses (<%= @b2b.count %>)
+    </span>
+    <span style="font-size:11px;color:var(--text-dim)">
+      Table 4 — GSTR-1
+    </span>
+  </div>
+  <table id="gstr1-b2b-table">
+    <thead>
+      <tr>
+        <th>Invoice Date</th><th>Invoice #</th><th>Customer</th>
+        <th>GSTIN</th><th style="text-align:right">Taxable (₹)</th>
+        <th style="text-align:right">IGST (₹)</th>
+        <th style="text-align:right">CGST (₹)</th>
+        <th style="text-align:right">SGST (₹)</th>
+        <th style="text-align:right">Invoice Total (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @b2b.any? %>
         <% @b2b.each do |inv| %>
           <tr>
             <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
@@ -96,10 +96,14 @@
             </td>
           </tr>
         <% end %>
-      </tbody>
-    </table>
-  </div>
-<% end %>
+      <% else %>
+        <tr><td colspan="9" style="padding:12px 18px;color:var(--text-dim);text-align:center">
+          No B2B invoices for this period
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
 
 <%# B2C invoices %>
 <% if @b2c.any? %>
@@ -112,7 +116,7 @@
       </span>
       <span style="font-size:11px;color:var(--text-dim)">Table 5/7 — GSTR-1</span>
     </div>
-    <table>
+    <table id="gstr1-b2c-table">
       <thead>
         <tr>
           <th>Invoice Date</th><th>Invoice #</th><th>Customer</th>
@@ -158,7 +162,7 @@
         Table 12 — HSN-wise Summary of Outward Supplies
       </span>
     </div>
-    <table>
+    <table id="gstr1-hsn-table">
       <thead>
         <tr>
           <th>HSN Code</th>

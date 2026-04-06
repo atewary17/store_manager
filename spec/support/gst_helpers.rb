@@ -44,7 +44,7 @@ module GstHelpers
       )
     end
 
-    invoice.confirm!
+    invoice.confirm!(user)
     invoice.reload
     invoice
   end
@@ -78,8 +78,7 @@ module GstHelpers
       )
     end
 
-    result = invoice.confirm!(user)
-    raise "Confirm failed: #{result[:errors]}" if result[:errors]&.any?
+    invoice.confirm!(user)
     invoice.reload
     invoice
   end

@@ -24,7 +24,12 @@ RSpec.describe 'Sales Invoice GST', type: :feature, js: true do
                                description: 'MS Rod 10mm',
                                hsn_code: '72141000') }
 
-  before { sign_in_as(admin) }
+  before do
+    sign_in_as(admin)
+    # Ensure sufficient stock exists for all sales scenarios
+    StockLevel.find_or_initialize_by(organisation: org, product: paint).tap { |sl| sl.quantity = 1000; sl.avg_cost ||= 0; sl.save! }
+    StockLevel.find_or_initialize_by(organisation: org, product: steel).tap { |sl| sl.quantity = 1000; sl.avg_cost ||= 0; sl.save! }
+  end
 
   # ── Helper: build confirmed sales invoice via model ─────────────────
   def make_sale(customer:, product:, qty:, total:, cgst_pct: 9.0, sgst_pct: 9.0)
@@ -64,12 +69,12 @@ RSpec.describe 'Sales Invoice GST', type: :feature, js: true do
 
     # B2C section — customer has no GSTIN
     expect(page).to have_text('B2C')
-    within('table', text: /B2C|Unregistered/) do
+    within('#gstr1-b2c-table') do
       expect(page).to have_text('Local Contractor Kolkata')
     end
 
     # B2B section must NOT contain this customer
-    within('table', text: /B2B|Registered/) do
+    within('#gstr1-b2b-table') do
       expect(page).to have_no_text('Local Contractor Kolkata')
     end
   end
@@ -89,7 +94,7 @@ RSpec.describe 'Sales Invoice GST', type: :feature, js: true do
 
     visit accounting_gstr1_path(month: Date.today.month, year: Date.today.year)
 
-    within('table', text: /B2B|Registered/) do
+    within('#gstr1-b2b-table') do
       expect(page).to have_text('Kolkata Hardware Pvt Ltd')
       # Should display GSTIN
       expect(page).to have_text(b2b_customer.gstin)
@@ -153,7 +158,7 @@ RSpec.describe 'Sales Invoice GST', type: :feature, js: true do
     end
 
     # Output tax card: 450 + 450 + 1800 = 2700
-    within(:css, '*', text: 'Output Tax') do
+    within('.gst-summary-card', text: /Output Tax/i) do
       expect(page).to have_text('2,700')
     end
   end
@@ -182,7 +187,7 @@ RSpec.describe 'Sales Invoice GST', type: :feature, js: true do
 
     # Appears in GSTR-1 B2C (no customer = no GSTIN)
     visit accounting_gstr1_path(month: Date.today.month, year: Date.today.year)
-    within('table', text: /B2C|Unregistered/) do
+    within('#gstr1-b2c-table') do
       expect(page).to have_text('Walk-in')
     end
   end
@@ -199,7 +204,7 @@ RSpec.describe 'Sales Invoice GST', type: :feature, js: true do
     visit accounting_gst_hsn_path(month: Date.today.month, year: Date.today.year)
 
     # Sales panel
-    within('div', text: 'Sales (Outward)') do
+    within('#sales-hsn-panel') do
       expect(page).to have_text('32081090')  # paint HSN
       expect(page).to have_text('72141000')  # steel HSN
     end

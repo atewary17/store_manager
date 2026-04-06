@@ -19,8 +19,8 @@
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-  <% [['Sales (Outward)', @sales_hsn, 'var(--danger)'], ['Purchases (Inward / ITC)', @purchase_hsn, 'var(--success)']].each do |title, rows, color| %>
-    <div class="table-wrap">
+  <% [['Sales (Outward)', @sales_hsn, 'var(--danger)', 'sales-hsn-panel'], ['Purchases (Inward / ITC)', @purchase_hsn, 'var(--success)', 'purchase-hsn-panel']].each do |title, rows, color, panel_id| %>
+    <div id="<%= panel_id %>" class="table-wrap">
       <div style="padding:12px 18px;border-bottom:1px solid var(--border);
                   font-weight:600;font-size:13px"><%= title %></div>
       <% if rows.any? %>

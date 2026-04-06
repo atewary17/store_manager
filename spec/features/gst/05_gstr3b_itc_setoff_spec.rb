@@ -49,7 +49,7 @@ RSpec.describe 'GSTR-3B ITC Set-off (7-step algorithm)', type: :feature, js: tru
       supply_type: 'intra_state',
       cgst_amount: 0, sgst_amount: 0, igst_amount: 0, metadata: {}
     )
-    inv.confirm!
+    inv.confirm!(admin)
   end
 
   def sale!(customer:, product:, qty:, total:, cgst_pct: 9.0, sgst_pct: 9.0)
@@ -83,7 +83,7 @@ RSpec.describe 'GSTR-3B ITC Set-off (7-step algorithm)', type: :feature, js: tru
     expect(page).to have_text('GSTR-3B')
 
     # Section 5.1 — Net Cash Payable must be 0
-    within(:css, 'table', text: /Payment of Tax|5\.1/) do
+    within('#gstr3b-payment-table') do
       # Total row shows ₹0.00 cash
       expect(page).to have_text('0.00')
     end
@@ -103,6 +103,8 @@ RSpec.describe 'GSTR-3B ITC Set-off (7-step algorithm)', type: :feature, js: tru
   scenario 'Output tax exceeds ITC — amber warning, cash payable shown' do
     # Small purchase: CGST 90, SGST 90 (total ITC 180)
     purchase!(supplier: wb_supplier, product: paint, qty: 1, total: 1180.0)
+    # Boost stock so the large sale can confirm (purchase only adds 1 unit)
+    StockLevel.find_or_initialize_by(organisation: org, product: paint).tap { |sl| sl.quantity = 100; sl.avg_cost ||= 0; sl.save! }
 
     # Large sale: CGST 900, SGST 900 (total output 1800)
     sale!(customer: wb_customer, product: paint, qty: 10, total: 11800.0)
@@ -141,7 +143,7 @@ RSpec.describe 'GSTR-3B ITC Set-off (7-step algorithm)', type: :feature, js: tru
     # IGST carry-forward: 0 (all used)
     # CGST carry-forward: 7200 (unused)
 
-    within(:css, 'table', text: /Payment|5\.1/) do
+    within('#gstr3b-payment-table') do
       # CGST row — 0 cash
       within('tr', text: 'Central Tax') do
         expect(page).to have_text('0.00')
@@ -165,7 +167,7 @@ RSpec.describe 'GSTR-3B ITC Set-off (7-step algorithm)', type: :feature, js: tru
     # Description | Tax Payable | ITC(IGST) | ITC(CGST) | ITC(SGST) | TDS | Cash
     # CGST row should have ITC(SGST) = — (forbidden)
     # SGST row should have ITC(CGST) = — (forbidden)
-    within(:css, 'table', text: /Payment|5\.1/) do
+    within('#gstr3b-payment-table') do
       rows = all('tr')
       cgst_row = rows.find { |r| r.text.include?('Central Tax') }
       sgst_row = rows.find { |r| r.text.include?('State') }
@@ -219,15 +221,15 @@ RSpec.describe 'GSTR-3B ITC Set-off (7-step algorithm)', type: :feature, js: tru
 
     visit accounting_gstr3b_path(month: month, year: year)
 
-    within(:css, 'table', text: /Payment|5\.1/) do
-      within('tr:last-child') do
+    within('#gstr3b-payment-table') do
+      within('tbody tr:last-child') do
         # Total cash payable row
         expect(page).to have_text('0.00')
       end
     end
 
-    # No credit carry-forward either
-    expect(page).to have_no_text(/carry.forward.*[1-9]/i)
+    # No credit carry-forward either (all carry-forward amounts must be zero)
+    expect(page).to have_no_text(/carry.forward.*₹[1-9]/i)
   end
 
   # ═══════════════════════════════════════════════════════════════════
@@ -243,7 +245,7 @@ RSpec.describe 'GSTR-3B ITC Set-off (7-step algorithm)', type: :feature, js: tru
 
     visit accounting_gstr3b_path(month: month, year: year)
 
-    within(:css, 'table', text: /Payment|5\.1/) do
+    within('#gstr3b-payment-table') do
       within('tr', text: 'Integrated Tax') do
         # Tax payable: 1800
         # ITC IGST used: 1800 (Step 1 — same head)

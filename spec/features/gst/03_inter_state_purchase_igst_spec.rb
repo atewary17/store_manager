@@ -20,7 +20,11 @@ RSpec.describe 'Inter-state Purchase Invoice (IGST)', type: :feature, js: true d
   let!(:paint)       { create(:gst_product, :gst_18,
                                description: 'Asian Paints 20L') }
 
-  before { sign_in_as(admin) }
+  before do
+    cement.enrol_in!(org)
+    paint.enrol_in!(org)
+    sign_in_as(admin)
+  end
 
   # Helper: create and confirm an inter-state purchase via model
   def create_inter_state_purchase(product:, qty:, total:)
@@ -38,7 +42,7 @@ RSpec.describe 'Inter-state Purchase Invoice (IGST)', type: :feature, js: true d
       supply_type: 'intra_state',
       cgst_amount: 0, sgst_amount: 0, igst_amount: 0, metadata: {}
     )
-    inv.confirm!
+    inv.confirm!(admin)
     inv.reload
   end
 
@@ -47,7 +51,7 @@ RSpec.describe 'Inter-state Purchase Invoice (IGST)', type: :feature, js: true d
     visit new_purchasing_purchase_invoice_path
 
     # Select inter-state supplier (Maharashtra)
-    fill_in 'Search supplier name or GSTIN', with: 'Ultratech'
+    fill_in 'supplier-search-input', with: 'Ultratech'
     within('#supplier-ac-dropdown') do
       first('li, div', text: 'Ultratech Mumbai Dist', wait: 5).click
     end
@@ -64,10 +68,10 @@ RSpec.describe 'Inter-state Purchase Invoice (IGST)', type: :feature, js: true d
       find('input.total-editable, input[name*="total_amount"]').set('22400')
     end
 
-    click_button 'Save Invoice'
+    click_button 'Save Draft'
     expect(page).to have_current_path(%r{/purchasing/purchase_invoices/\d+})
 
-    click_button 'Confirm Invoice'
+    click_button 'Confirm & Update Stock'
     expect(page).to have_text('confirmed', wait: 5)
 
     # Verify DB
@@ -103,12 +107,12 @@ RSpec.describe 'Inter-state Purchase Invoice (IGST)', type: :feature, js: true d
         expect(page).to have_text('28')
         # Taxable amount
         expect(page).to have_text('17,500')
-        # CGST column → dash
-        expect(all('td')[5].text).to match(/—|0\.00/)
-        # SGST column → dash
+        # CGST column → dash (index 6: Date, Invoice#, Supplier, Product/HSN, GST%, Taxable, CGST)
         expect(all('td')[6].text).to match(/—|0\.00/)
+        # SGST column → dash
+        expect(all('td')[7].text).to match(/—|0\.00/)
         # IGST column → 4,900
-        expect(all('td')[7].text).to have_text('4,900')
+        expect(all('td')[8].text).to have_text('4,900')
       end
     end
 
@@ -142,7 +146,7 @@ RSpec.describe 'Inter-state Purchase Invoice (IGST)', type: :feature, js: true d
       supply_type: 'intra_state',
       cgst_amount: 0, sgst_amount: 0, igst_amount: 0, metadata: {}
     )
-    inv.confirm!
+    inv.confirm!(admin)
 
     items = inv.purchase_invoice_items.reload
     items.each do |item|
@@ -174,7 +178,7 @@ RSpec.describe 'Inter-state Purchase Invoice (IGST)', type: :feature, js: true d
     expect(page).to have_text('GSTR-3B')
 
     # Section 4: ITC Available — Inward supplies (others)
-    within('table', text: /Eligible ITC|Section 4/) do
+    within('#gstr3b-itc-table') do
       # The row that shows inward supplies ITC should include 4900
       expect(page).to have_text('4,900')
     end

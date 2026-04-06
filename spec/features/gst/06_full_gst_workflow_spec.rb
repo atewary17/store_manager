@@ -23,20 +23,20 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
                                gst_number: '19AAAAA0000A1Z5') }
   let!(:admin)       { create(:user, organisation: org, role: :admin,
                                email: 'admin@test.com', password: 'password123') }
-  let!(:wb_supplier) { create(:supplier, :intra_state, organisation: org,
+  let!(:wb_supplier) { create(:gst_supplier, :intra_state, organisation: org,
                                name: 'Sharma Paints WB') }
-  let!(:mh_supplier) { create(:supplier, :inter_state, organisation: org,
+  let!(:mh_supplier) { create(:gst_supplier, :inter_state, organisation: org,
                                name: 'Ultratech Mumbai') }
-  let!(:wb_customer) { create(:customer, :intra_state, organisation: org,
+  let!(:wb_customer) { create(:gst_customer, :intra_state, organisation: org,
                                name: 'Local Contractor') }
-  let!(:b2b_cust)    { create(:customer, :intra_state, :b2b, organisation: org,
+  let!(:b2b_cust)    { create(:gst_customer, :intra_state, :b2b, organisation: org,
                                name: 'Kolkata Hardware Pvt Ltd') }
-  let!(:bi_customer) { create(:customer, :inter_state, organisation: org,
+  let!(:bi_customer) { create(:gst_customer, :inter_state, organisation: org,
                                name: 'Bihar Construction') }
-  let!(:paint)       { create(:product, :gst_18, organisation: org,
+  let!(:paint)       { create(:gst_product, :gst_18,
                                description: 'Asian Paints Emulsion',
                                hsn_code: '32081090') }
-  let!(:cement)      { create(:product, :gst_28, organisation: org,
+  let!(:cement)      { create(:gst_product, :gst_28,
                                description: 'OPC Cement 50kg',
                                hsn_code: '25010010') }
 
@@ -81,17 +81,17 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
     go_to_gst_dashboard(month: month, year: year)
 
     # Output Tax card ≈ 3600
-    within(:css, '*', text: /Output Tax/) do
+    within('.gst-summary-card', text: /Output Tax/i) do
       expect(page).to have_text(/3[,.]?600/)
     end
 
     # ITC card ≈ 8500
-    within(:css, '*', text: /Input Tax Credit/) do
+    within('.gst-summary-card', text: /Input Tax Credit/i) do
       expect(page).to have_text(/8[,.]?500/)
     end
 
     # Net GST card — should be credit (no cash to pay)
-    within(:css, '*', text: /Net GST/) do
+    within('.gst-summary-card', text: /Net GST/i) do
       expect(page).to have_text(/credit|0\.00|—/i)
     end
 
@@ -113,7 +113,7 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
     visit accounting_gstr1_path(month: month, year: year)
 
     # B2B: only b2b_cust (has GSTIN)
-    within('table', text: /B2B|Registered/) do
+    within('#gstr1-b2b-table') do
       expect(page).to have_text('Kolkata Hardware Pvt Ltd')
       expect(page).to have_text(b2b_cust.gstin)
       expect(page).to have_no_text('Local Contractor')   # B2C
@@ -121,18 +121,18 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
     end
 
     # B2C: wb_customer + bi_customer (neither has GSTIN)
-    within('table', text: /B2C|Unregistered/) do
+    within('#gstr1-b2c-table') do
       expect(page).to have_text('Local Contractor')
       expect(page).to have_text('Bihar Construction')
     end
 
     # Summary cards
-    within(:css, '*', text: /Total Tax Collected/) do
+    within('.gst-summary-card', text: /Total Tax Collected/i) do
       expect(page).to have_text('3,600')
     end
 
     # HSN Table 12 — paint HSN present
-    within('table', text: /HSN/) do
+    within('#gstr1-hsn-table') do
       expect(page).to have_text('32081090')
     end
   end
@@ -142,14 +142,14 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
     visit accounting_gstr3b_path(month: month, year: year)
 
     # Section 3.1 outward taxable value = 5000+10000+5000 = 20000
-    within('table', text: /Outward supplies|3\.1/) do
+    within('#gstr3b-outward-table') do
       expect(page).to have_text('20,000')
     end
 
     # Section 5.1 — all three heads have zero cash payable
-    within('table', text: /Payment|5\.1/) do
+    within('#gstr3b-payment-table') do
       # Total row = 0.00
-      within('tr:last-child') do
+      within('tbody tr:last-child') do
         expect(page).to have_text('0.00')
       end
     end
@@ -193,7 +193,7 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
     expect(page).to have_text('28%')
 
     # Total ITC ≈ 8500
-    within('tfoot, tr', text: /Total/) do
+    within('tfoot') do
       expect(page).to have_text('8,500')
     end
   end
@@ -203,14 +203,14 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
     visit accounting_gst_hsn_path(month: month, year: year)
 
     # Sales panel
-    within('div', text: /Sales|Outward/) do
+    within('#sales-hsn-panel') do
       expect(page).to have_text('32081090')  # paint
       # No cement HSN in sales
       expect(page).to have_no_text('25010010')
     end
 
     # Purchases panel
-    within('div', text: /Purchase|Inward/) do
+    within('#purchase-hsn-panel') do
       expect(page).to have_text('32081090')  # paint
       expect(page).to have_text('25010010')  # cement
     end
@@ -234,11 +234,11 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
       supply_type: 'intra_state',
       cgst_amount: 0, sgst_amount: 0, igst_amount: 0, metadata: {}
     )
-    inv.confirm!
+    inv.confirm!(admin)
 
     # Current month ITC ≈ 8500 (from before block)
     go_to_gst_dashboard(month: month, year: year)
-    within(:css, '*', text: /Input Tax Credit/) do
+    within('.gst-summary-card', text: /Input Tax Credit/i) do
       expect(page).to have_text(/8[,.]?500/)  # not 8500 + 18000
     end
   end
@@ -260,7 +260,7 @@ RSpec.describe 'Full GST Workflow — End to End', type: :feature, js: true do
       supply_type: 'intra_state',
       cgst_amount: 0, sgst_amount: 0, igst_amount: 0, metadata: {}
     )
-    inv.confirm!
+    inv.confirm!(admin)
   end
 
   def create_sale(customer, product, qty, total, cgst_pct, sgst_pct)

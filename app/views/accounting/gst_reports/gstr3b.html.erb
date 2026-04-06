@@ -26,7 +26,7 @@
       3.1 — Details of Outward Supplies and Inward Supplies liable to Reverse Charge
     </div>
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse">
+      <table id="gstr3b-outward-table" style="width:100%;border-collapse:collapse">
         <thead>
           <tr style="background:var(--bg)">
             <% ['Nature of Supply', 'Total Taxable Value (₹)', 'Integrated Tax (₹)', 'Central Tax (₹)', 'State/UT Tax (₹)', 'Cess (₹)'].each do |h| %>
@@ -65,7 +65,7 @@
   <div class="detail-section">
     <div class="detail-section-title">4 — Eligible ITC (Input Tax Credit)</div>
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse">
+      <table id="gstr3b-itc-table" style="width:100%;border-collapse:collapse">
         <thead>
           <tr style="background:var(--bg)">
             <% ['Details', 'Integrated Tax (₹)', 'Central Tax (₹)', 'State/UT Tax (₹)', 'Cess (₹)'].each do |h| %>
@@ -113,7 +113,7 @@
   <div class="detail-section">
     <div class="detail-section-title">5.1 — Payment of Tax</div>
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse">
+      <table id="gstr3b-payment-table" style="width:100%;border-collapse:collapse">
         <thead>
           <tr style="background:var(--bg)">
             <% ['Description', 'Tax Payable (₹)', 'ITC (IGST)', 'ITC (CGST)', 'ITC (SGST)', 'TDS/TCS', 'Net Cash Payable (₹)'].each do |h| %>

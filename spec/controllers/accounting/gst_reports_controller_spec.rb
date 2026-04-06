@@ -404,6 +404,8 @@ RSpec.describe Accounting::GstReportsController, type: :controller, gst: true do
         confirmed_purchase(org, wb_supplier, user,
           items: [{ product: p18, qty: 1, total: 1180.0 }],
           date: this_month)
+        # Boost stock so the large sale (qty: 10) can confirm
+        StockLevel.find_or_initialize_by(organisation: org, product: p18).tap { |sl| sl.quantity = 100; sl.avg_cost ||= 0; sl.save! }
 
         # Large sale: CGST 900, SGST 900
         inv = SalesInvoice.create!(
@@ -453,6 +455,7 @@ RSpec.describe Accounting::GstReportsController, type: :controller, gst: true do
 
     describe 'B2B sale (customer has GSTIN) appears in GSTR-1 B2B table' do
       before do
+        StockLevel.find_or_initialize_by(organisation: org, product: p18).tap { |sl| sl.quantity = 100; sl.avg_cost ||= 0; sl.save! }
         inv = SalesInvoice.create!(
           organisation: org, customer: b2b_customer, user: user,
           invoice_date: this_month, status: 'draft',
@@ -594,8 +597,8 @@ RSpec.describe Accounting::GstReportsController, type: :controller, gst: true do
       # Step 4: CGST vs remaining CGST output (0 remaining after step 2)
       expect(u[:cgst_vs_cgst]).to eq(0.0)
 
-      # Step 6: SGST vs remaining SGST output (13500 - 4500 = 9000 remaining)
-      expect(u[:sgst_vs_sgst]).to be_within(1.0).of(9000.0)
+      # Step 6: SGST vs remaining SGST output (13500 - 4500 = 9000 remaining), but SGST ITC is only 7200
+      expect(u[:sgst_vs_sgst]).to be_within(1.0).of(7200.0)
 
       # Cash SGST payable (13500 - 4500 - 7200 = 1800)
       expect(assigns(:sgst_payable)).to be_within(1.0).of(1800.0)
