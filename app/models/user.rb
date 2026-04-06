@@ -28,4 +28,21 @@ class User < ApplicationRecord
   def super_admin?
     role == 'super_admin'
   end
+
+
+  # ── Preferences (jsonb column — added by migration 20260322000002) ──────────
+  # Stores per-user settings: ai_provider, theme, future preferences
+  # Defaults to {} — always returns a hash, never nil
+  def preferences
+    read_attribute(:preferences) || {}
+  end
+
+  # Convenience helpers
+  def preferred_ai_provider
+    preferences['ai_provider'].presence
+  end
+
+  def effective_ai_provider
+    preferred_ai_provider || ENV['INVOICE_AI_PROVIDER'] || 'gemini'
+  end
 end

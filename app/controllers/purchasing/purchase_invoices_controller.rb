@@ -27,8 +27,8 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       delivery_date: Date.today,
       status: 'draft'
     )
-    # Start with 5 blank item rows
-    5.times { @invoice.purchase_invoice_items.build }
+    # Start with 3 blank item rows
+    3.times { @invoice.purchase_invoice_items.build }
     load_form_data
   end
 
@@ -51,8 +51,8 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def edit
     redirect_to purchasing_purchase_invoice_path(@invoice),
       alert: 'Confirmed invoices cannot be edited.' if @invoice.confirmed?
-    # Ensure at least 3 empty rows for adding more items
-    3.times { @invoice.purchase_invoice_items.build }
+    # Do NOT build blank rows on edit — existing items are already loaded.
+    # User clicks "+ Add Row" button to add more items.
     load_form_data
   end
 
@@ -108,31 +108,58 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     q = params[:q].to_s.strip
     return render json: [] if q.length < 2
 
-    products = Product.for_org(@organisation)
-      .active
+    q_like = "%#{q.downcase}%"
+
+    # Active products enrolled in this org
+    active_products = Product.for_org(@organisation)
+      .where(active: true)
       .includes(:brand, :base_uom)
       .where(
         'LOWER(products.description) LIKE :q
          OR LOWER(products.material_code) LIKE :q
          OR LOWER(products.product_code)  LIKE :q
          OR LOWER(products.pack_code)     LIKE :q',
-        q: "%#{q.downcase}%"
+        q: q_like
       )
       .limit(10)
 
-    render json: products.map { |p|
-      half_gst = (p.gst_rate.to_f / 2).round(2)
-      {
-        id:            p.id,
-        label:         [p.brand&.name, p.pack_code, p.description].compact_blank.join(' — '),
-        description:   p.description,
-        material_code: p.material_code,
-        pack_code:     p.pack_code,
-        uom:           p.base_uom&.short_name,
-        gst_rate:      p.gst_rate.to_f,
-        cgst:          half_gst,
-        sgst:          half_gst
-      }
+    # AI-enriched pending products for this org (purchase only — never in sales)
+    pending_products = Product
+      .joins(:organisation_products)
+      .where(organisation_products: { organisation_id: @organisation.id })
+      .where(active: false)
+      .where("products.metadata->>'source' = 'ai_enrichment'")
+      .includes(:brand, :base_uom)
+      .where(
+        'LOWER(products.description) LIKE :q
+         OR LOWER(products.material_code) LIKE :q',
+        q: q_like
+      )
+      .limit(5)
+
+    results = active_products.map { |p| format_product(p, 'matched') } +
+              pending_products.map { |p| format_product(p, 'pending') }
+
+    render json: results
+  end
+
+  private
+
+  def format_product(p, status)
+    half_gst = (p.gst_rate.to_f / 2).round(2)
+    label    = [p.brand&.name, p.pack_code, p.description].compact_blank.join(' — ')
+    label    = "[PENDING] #{label}" if status == 'pending'
+    {
+      id:            p.id,
+      label:         label,
+      description:   p.description,
+      material_code: p.material_code,
+      pack_code:     p.pack_code,
+      uom:           p.base_uom&.short_name,
+      gst_rate:      p.gst_rate.to_f,
+      cgst:          half_gst,
+      sgst:          half_gst,
+      status:        status  # 'matched' | 'pending'
     }
   end
 
@@ -154,6 +181,8 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       metadata: {},
       purchase_invoice_items_attributes: [
         :id, :product_id, :quantity, :unit_rate, :total_amount,
+        :gst_rate, :taxable_amount, :tax_amount,
+        :discount_percent, :discount_amount,
         :unmatched, :_destroy,
         metadata: {}
       ]

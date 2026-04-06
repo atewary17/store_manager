@@ -1,0 +1,134 @@
+<%# app/views/purchasing/accounts_payable/index.html.erb %>
+<% content_for :title, "Accounts Payable" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Accounts Payable</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Accounts Payable</div>
+    <div class="page-subtitle">Suppliers you owe money to — <%= @organisation.name %></div>
+  </div>
+  <div class="actions">
+    <%= link_to purchasing_supplier_payments_path, class: 'btn btn-secondary' do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <rect x="2" y="5" width="20" height="14" rx="2"/>
+        <line x1="2" y1="10" x2="22" y2="10"/>
+      </svg>
+      Supplier Payments
+    <% end %>
+  </div>
+</div>
+
+<%# ── Stats ── %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+  <div class="stat-card">
+    <div class="stat-label">Suppliers with Balance</div>
+    <div class="stat-value" style="color:var(--warning)"><%= @supplier_count %></div>
+  </div>
+  <div class="stat-card" style="<%= @overdue_count > 0 ? 'border-color:rgba(247,97,79,0.4)' : '' %>">
+    <div class="stat-label">Overdue</div>
+    <div class="stat-value" style="color:<%= @overdue_count > 0 ? 'var(--danger)' : 'var(--text-dim)' %>">
+      <%= @overdue_count %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Outstanding (₹)</div>
+    <div class="stat-value" style="color:var(--danger);font-size:18px">
+      <%= number_with_delimiter(@total_outstanding.round(0)) %>
+    </div>
+  </div>
+</div>
+
+<% if @ap_records.any? %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Supplier</th>
+          <th style="text-align:right">Invoices</th>
+          <th style="text-align:right">Total Invoiced (₹)</th>
+          <th style="text-align:right">Paid (₹)</th>
+          <th style="text-align:right">Outstanding (₹)</th>
+          <th>Next Due Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @ap_records.each do |r| %>
+          <% pct = r[:total_invoiced] > 0 ? (r[:total_paid] / r[:total_invoiced] * 100).round : 0 %>
+          <tr style="<%= r[:overdue] ? 'background:rgba(247,97,79,0.03)' : '' %>">
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div>
+                  <div style="font-weight:500"><%= r[:supplier].name %></div>
+                  <% if r[:supplier].gstin.present? %>
+                    <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+                      GSTIN: <%= r[:supplier].gstin %>
+                    </div>
+                  <% end %>
+                </div>
+                <% if r[:overdue] %>
+                  <span style="font-family:var(--mono);font-size:9px;font-weight:700;
+                               padding:2px 7px;border-radius:10px;
+                               background:rgba(247,97,79,0.15);color:var(--danger)">
+                    OVERDUE
+                  </span>
+                <% end %>
+              </div>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)"><%= r[:invoice_count] %></td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(r[:total_invoiced], precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              <%= number_with_precision(r[:total_paid], precision: 2, delimiter: ',') %>
+              <div style="margin-top:4px">
+                <div style="height:3px;background:var(--border);border-radius:2px;width:72px;
+                            display:inline-block;vertical-align:middle">
+                  <div style="height:3px;background:var(--success);border-radius:2px;width:<%= pct %>%"></div>
+                </div>
+              </div>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--danger)">
+              <%= number_with_precision(r[:outstanding], precision: 2, delimiter: ',') %>
+            </td>
+            <td>
+              <% if r[:next_due_date].present? %>
+                <div style="font-family:var(--mono);font-size:12px;
+                            color:<%= r[:overdue] ? 'var(--danger)' : 'var(--text-dim)' %>;
+                            font-weight:<%= r[:overdue] ? '600' : '400' %>">
+                  <%= r[:next_due_date].strftime('%d %b %Y') %>
+                </div>
+                <% if r[:overdue_count] > 0 %>
+                  <div style="font-size:10px;color:var(--danger);margin-top:2px">
+                    <%= r[:overdue_count] %> invoice<%= 's' if r[:overdue_count] > 1 %> overdue
+                  </div>
+                <% end %>
+              <% else %>
+                <span style="color:var(--text-dim);font-family:var(--mono);font-size:12px">—</span>
+              <% end %>
+            </td>
+            <td>
+              <%= link_to 'Ledger →',
+                    purchasing_accounts_payable_path(r[:supplier]),
+                    class: 'btn btn-secondary btn-sm' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <div class="table-wrap" style="padding:60px;text-align:center;color:var(--text-dim)">
+    <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2"
+         viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;opacity:0.3">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    <div style="font-size:14px;margin-bottom:6px">No outstanding payables</div>
+    <div style="font-size:12px">All supplier invoices are fully settled.</div>
+  </div>
+<% end %>

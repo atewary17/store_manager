@@ -31,7 +31,7 @@
                           border-radius:6px;padding:9px 12px;color:var(--text);
                           font-size:13.5px;outline:none">
             <div id="supplier-ac-dropdown"
-                 style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+                 style="display:none;position:absolute;top:100%;left:0;right:0;z-index:99999;
                         background:var(--surface);border:1px solid var(--border);
                         border-radius:6px;box-shadow:var(--shadow-lg);
                         max-height:240px;overflow-y:auto;margin-top:2px"></div>
@@ -76,12 +76,13 @@
         </div>
 
         <div class="form-group">
-          <label>Additional Info
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:500;color:var(--text-dim)">Additional Info</span>
             <button type="button" onclick="addMetaRow()"
-                    style="margin-left:8px;background:var(--accent-dim);color:var(--accent);
+                    style="background:var(--accent-dim);color:var(--accent);
                            border:1px solid var(--accent);border-radius:4px;padding:2px 10px;
                            font-size:11px;cursor:pointer;font-family:var(--mono)">+ Add Field</button>
-          </label>
+          </div>
           <div id="meta-rows" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
             <% (invoice.metadata || {}).except('irn','ack_number','delivery_number','reverse_charge').each do |key, val| %>
               <div class="meta-row" style="display:flex;gap:8px;align-items:center">
@@ -120,29 +121,35 @@
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
       <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">Name *</label>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px" for="sp-name">Name *</label>
         <input type="text" id="sp-name" placeholder="Supplier name"
                style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
       </div>
       <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">GSTIN</label>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px" for="sp-gstin">GSTIN</label>
         <input type="text" id="sp-gstin" placeholder="e.g. 19AAACA3622K1ZS"
                style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none">
       </div>
       <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">PAN</label>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px" for="sp-pan">PAN</label>
         <input type="text" id="sp-pan" placeholder="e.g. AAACA3622K"
                style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none">
       </div>
       <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">State</label>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px" for="sp-state">State</label>
         <input type="text" id="sp-state" placeholder="e.g. West Bengal"
                style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
       </div>
       <div>
-        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px">State Code</label>
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px" for="sp-state-code">State Code</label>
         <input type="text" id="sp-state-code" placeholder="e.g. 19"
                style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none">
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-bottom:5px" for="sp-address">Address</label>
+        <textarea id="sp-address" placeholder="Full address — building, street, city, PIN…"
+                  rows="2"
+                  style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:12.5px;outline:none;resize:vertical"></textarea>
       </div>
     </div>
     <div id="sp-matches" style="display:none;margin-bottom:14px">
@@ -178,25 +185,39 @@
       </button>
     </div>
 
-    <div style="overflow-x:auto;overflow-y:visible;position:relative">
+    <%# ── Unmatched items warning banner ── %>
+    <div id="unmatched-banner"
+         style="display:none;margin-bottom:12px;padding:10px 14px;
+                background:rgba(247,97,79,0.08);border:1px solid rgba(247,97,79,0.3);
+                border-radius:6px;font-size:12px;color:var(--danger);
+                flex-align:center;gap:8px">
+      <span style="background:var(--danger);color:white;width:20px;height:20px;
+                   border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+                   font-size:12px;font-weight:700;margin-right:8px">!</span>
+      <strong><span id="unmatched-count">0</span> unmatched product(s) found.</strong>
+      Click the red <strong>!</strong> on each item to enrich with AI and save a product record.
+      <strong>You must resolve all unmatched items before saving.</strong>
+    </div>
+
+    <div style="overflow-x:auto;min-height:350px">
       <table style="width:100%;border-collapse:collapse" id="items-table">
         <thead>
           <tr style="background:var(--bg)">
             <%
               ths = [
-                ["Product",       "min-width:240px", "left"],
-                ["UOM",           "width:55px",      "center"],
-                ["Qty",           "width:85px",      "right"],
-                ["Rate",          "width:95px",      "right"],
-                ["Disc %",        "width:75px",      "right"],
-                ["Total",         "width:100px",     "right"],
-                ["GST",           "width:90px",      "right"],
-                ["Payable (₹)",   "width:115px",     "right"],
-                ["",              "width:60px",      "center"],
+                ["Product",     "min-width:240px", "left"],
+                ["UOM",         "width:55px",       "center"],
+                ["Qty",         "width:85px",       "right"],
+                ["Unit Rate",   "width:95px",       "right"],
+                ["Disc %",      "width:75px",       "right"],
+                ["Pre-GST",     "width:100px",      "right"],
+                ["GST",         "width:90px",       "right"],
+                ["Payable (₹)", "width:115px",      "right"],
+                ["",            "width:36px",       "center"],
               ]
             %>
             <% ths.each do |label, w, align| %>
-              <th style="padding:11px 12px;text-align:<%= align %>;font-family:var(--mono);
+              <th style="padding:9px 10px;text-align:<%= align %>;font-family:var(--mono);
                          font-size:10px;letter-spacing:0.07em;text-transform:uppercase;
                          color:var(--text-dim);border-bottom:1px solid var(--border);<%= w %>">
                 <%= label %>
@@ -206,39 +227,25 @@
         </thead>
         <tbody id="items-tbody">
           <%= f.fields_for :purchase_invoice_items do |item_f| %>
-            <%= render 'item_row', f: item_f, item: item_f.object %>
+            <%# On edit, skip unsaved blank rows (new_record? with no description/product) %>
+            <%# On new, render all rows including blank starter rows %>
+            <% item = item_f.object %>
+            <% skip = !invoice.new_record? &&
+                      item.new_record? &&
+                      item.product_id.blank? &&
+                      item.total_amount.to_f == 0 %>
+            <%= render 'item_row', f: item_f, item: item unless skip %>
           <% end %>
         </tbody>
       </table>
     </div>
 
-    <%# ── Drag handle to push footer down ── %>
-    <div id="footer-spacer" style="height:0;min-height:0;max-height:200px;transition:height 0.05s"></div>
-    <div id="footer-drag-handle"
-         style="height:10px;cursor:ns-resize;border-top:1px solid var(--border);
-                display:flex;align-items:center;justify-content:center;
-                user-select:none;-webkit-user-select:none">
-      <div style="width:30px;height:3px;border-radius:2px;background:var(--border)"></div>
-    </div>
-
-    <div style="padding:14px 20px;border-top:1px solid var(--border);
+    <div style="padding:12px 20px;border-top:1px solid var(--border);
                 display:flex;justify-content:flex-end;gap:32px">
       <div style="text-align:right">
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
-                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Items</div>
+                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Total Items</div>
         <div style="font-family:var(--mono);font-size:16px;font-weight:600" id="total-items">0</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
-                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Taxable (₹)</div>
-        <div style="font-family:var(--mono);font-size:16px;font-weight:500;color:var(--text-dim)"
-             id="taxable-total">0.00</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
-                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Tax (₹)</div>
-        <div style="font-family:var(--mono);font-size:16px;font-weight:500;color:var(--text-dim)"
-             id="tax-total">0.00</div>
       </div>
       <div style="text-align:right">
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
@@ -250,7 +257,9 @@
   </div>
 
   <div style="display:flex;gap:12px;align-items:center">
-    <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Invoice', class: 'btn btn-primary' %>
+    <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Invoice',
+          id: 'invoice-submit-btn',
+          class: 'btn btn-primary' %>
     <%= link_to 'Cancel',
           invoice.new_record? ? purchasing_purchase_invoices_path : purchasing_purchase_invoice_path(invoice),
           class: 'btn btn-secondary' %>
@@ -266,7 +275,7 @@
 ══════════════════════════════════════════════════════ %>
 <template id="item-row-template">
   <tr data-row="INDEX" style="border-bottom:1px solid var(--border)">
-    <td style="padding:14px 16px;min-width:240px">
+    <td style="padding:8px 12px;min-width:240px">
       <div class="autocomplete-wrap" style="position:relative">
         <input type="hidden"
                name="purchase_invoice[purchase_invoice_items_attributes][INDEX][product_id]"
@@ -274,9 +283,9 @@
         <input type="text" class="product-search-input"
                placeholder="Search by name, code…" autocomplete="off"
                style="width:100%;background:var(--bg);border:1px solid var(--border);
-                      border-radius:5px;padding:9px 11px;color:var(--text);font-size:12.5px;outline:none">
+                      border-radius:5px;padding:6px 9px;color:var(--text);font-size:12.5px;outline:none">
         <div class="product-meta-line"
-             style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:2px;min-height:14px"></div>
+             style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;min-height:13px"></div>
         <div class="ac-dropdown"
              style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
                     background:var(--surface);border:1px solid var(--border);border-radius:6px;
@@ -284,63 +293,64 @@
       </div>
     </td>
     <td class="uom-cell"
-        style="padding:14px 12px;font-family:var(--mono);font-size:11px;color:var(--text-dim);
+        style="padding:8px 10px;font-family:var(--mono);font-size:11px;color:var(--text-dim);
                white-space:nowrap;text-align:center">—</td>
-    <td style="padding:14px 12px">
+    <td style="padding:6px 8px">
       <input type="number" class="qty-input"
              name="purchase_invoice[purchase_invoice_items_attributes][INDEX][quantity]"
              placeholder="0" min="0" step="0.001"
              style="width:80px;background:var(--bg);border:1px solid var(--border);
-                    border-radius:5px;padding:9px 10px;color:var(--text);
+                    border-radius:5px;padding:6px 8px;color:var(--text);
                     font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
     </td>
-    <td style="padding:14px 12px;text-align:right;font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
+    <%# Hidden fields for proper columns — synced by recalcRow, finalised by confirm! %>
+    <input type="hidden" class="gst-rate-input" value="0">
+    <input type="hidden" class="gst-rate-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][gst_rate]" value="">
+    <input type="hidden" class="taxable-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][taxable_amount]" value="">
+    <input type="hidden" class="tax-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][tax_amount]" value="">
+    <input type="hidden" class="disc-pct-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][discount_percent]" value="">
+    <input type="hidden" class="disc-amt-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][discount_amount]" value="">
+    <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
       <input type="hidden" class="rate-input"
              name="purchase_invoice[purchase_invoice_items_attributes][INDEX][unit_rate]"
              value="">
       <span class="rate-display">—</span>
     </td>
-    <td style="padding:14px 12px">
+    <td style="padding:6px 8px">
       <input type="number" class="discount-input"
              name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][discount_percent]"
-             placeholder="0" min="0" max="100" step="any"
+             placeholder="0" min="0" max="100" step="0.01"
              style="width:70px;background:var(--bg);border:1px solid var(--border);
-                    border-radius:5px;padding:9px 10px;color:var(--text);
+                    border-radius:5px;padding:6px 8px;color:var(--text);
                     font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
-      <div class="disc-amt-label"
-           style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px;text-align:right"></div>
     </td>
-    <td style="padding:14px 12px;text-align:right;font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
+    <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
       <span class="total-pre-display">—</span>
     </td>
-    <td style="padding:14px 12px;text-align:right">
-      <input type="hidden" class="cgst-input"
-             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][cgst_percent]"
-             value="">
-      <input type="hidden" class="sgst-input"
-             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][sgst_percent]"
-             value="">
-      <div class="gst-display" style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">—</div>
-      <div class="gst-breakdown" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.4;text-align:right"></div>
+    <td style="padding:6px 8px;text-align:right">
+      <div class="gst-display" style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+        —<span class="gst-breakdown" style="font-size:10px;color:var(--text-dim);margin-left:3px"></span>
+      </div>
     </td>
-    <td style="padding:14px 12px">
-      <input type="hidden" class="payable-hidden"
+    <td style="padding:6px 8px">
+      <input type="hidden" class="total-input"
              name="purchase_invoice[purchase_invoice_items_attributes][INDEX][total_amount]"
              value="">
-      <input type="number" class="payable-input"
+      <input type="number" class="total-editable"
              placeholder="0.00" min="0" step="0.01"
              style="width:110px;background:var(--bg);border:1px solid var(--border);
-                    border-radius:5px;padding:9px 10px;color:var(--text);
-                    font-family:var(--mono);font-size:12.5px;outline:none;text-align:right;
-                    font-weight:600">
+                    border-radius:5px;padding:6px 8px;color:var(--text);
+                    font-family:var(--mono);font-size:12.5px;outline:none;
+                    text-align:right;font-weight:600">
     </td>
-    <td style="padding:14px 8px;text-align:center;white-space:nowrap">
-      <button type="button" onclick="addItemRow()"
-              style="background:none;border:none;color:var(--success, #22c55e);cursor:pointer;font-size:18px;line-height:1;padding:4px 2px"
-              title="Add row">+</button>
+    <td style="padding:6px 8px;text-align:center">
       <button type="button" onclick="deleteRow(this)"
-              style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;line-height:1;padding:4px 2px"
-              title="Delete row">×</button>
+              style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px">×</button>
     </td>
   </tr>
 </template>
@@ -358,10 +368,6 @@
   // ══════════════════════════════════════════════════════════════
   function escHtml(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  function fmtINR(n) {
-    return n.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   }
 
   function selectedProductIds() {
@@ -384,115 +390,125 @@
 
   // ══════════════════════════════════════════════════════════════
   //  ROW CALCULATIONS
-  //  User fills: qty, discount%, payable
-  //  Back-calculate: total_pre_gst, gst_amount, unit_rate
-  //
-  //  payable = total_pre_gst + gst_amount
-  //  total_pre_gst = payable / (1 + gst_pct/100)
-  //  gst_amount = payable - total_pre_gst
-  //  subtotal (qty*rate) = total_pre_gst / (1 - disc_pct/100)
-  //  rate = subtotal / qty
+  //  User fills: qty, discount%, total_amount
+  //  Calculated: unit_rate = total_amount / qty
   // ══════════════════════════════════════════════════════════════
   function recalcRow(row) {
-    var qty      = parseFloat(row.querySelector('.qty-input').value)      || 0;
-    var payable  = parseFloat(row.querySelector('.payable-input').value)  || 0;
-    var discPct  = parseFloat(row.querySelector('.discount-input').value) || 0;
-    var cgstPct  = parseFloat(row.querySelector('.cgst-input').value)     || 0;
-    var sgstPct  = parseFloat(row.querySelector('.sgst-input').value)     || 0;
-    var gstPct   = cgstPct + sgstPct;
+    var qtyEl    = row.querySelector('.qty-input');
+    var totalEl  = row.querySelector('.total-editable');
+    if (!qtyEl || !totalEl) return;
 
-    // Back-calculate
-    var totalPre = gstPct > 0 ? payable / (1 + gstPct / 100) : payable;
-    var gstAmt   = payable - totalPre;
-    var subtotal = discPct > 0 && discPct < 100 ? totalPre / (1 - discPct / 100) : totalPre;
-    var unitRate = qty > 0 ? subtotal / qty : 0;
+    var qty      = parseFloat(qtyEl.value)   || 0;
+    var payable  = parseFloat(totalEl.value) || 0;
 
-    // Sync hidden inputs
-    row.querySelector('.payable-hidden').value = payable > 0 ? payable.toFixed(2) : '';
-    row.querySelector('.rate-input').value     = unitRate > 0 ? unitRate.toFixed(4) : '';
+    // Sync hidden total
+    var totalInput = row.querySelector('.total-input');
+    if (totalInput) totalInput.value = payable > 0 ? payable.toFixed(2) : '';
 
-    // Update displays
+    // ── Derive breakdown from payable ──────────────────────
+    var gstRateEl = row.querySelector('.gst-rate-input');
+    var discEl    = row.querySelector('.discount-input');
+    var gstPct    = gstRateEl ? (parseFloat(gstRateEl.value) || 0) : 0;
+    var discPct   = discEl    ? (parseFloat(discEl.value)    || 0) : 0;
+
+    var totalPre = gstPct > 0 ? (payable / (1 + gstPct / 100)).round2() : payable;
+    var gstAmt   = (payable - totalPre).round2();
+    var subtotal = discPct > 0 ? (totalPre / (1 - discPct / 100)).round2() : totalPre;
+    var unitRate = (qty > 0 && subtotal > 0) ? (subtotal / qty).round4() : 0;
+    var discAmt  = discPct > 0 ? (subtotal - totalPre).round2() : 0;
+
+    // Sync rate hidden + display
+    var rateInput = row.querySelector('.rate-input');
+    if (rateInput) rateInput.value = unitRate > 0 ? unitRate.toFixed(4) : '';
     var rateDisplay = row.querySelector('.rate-display');
     if (rateDisplay) {
-      rateDisplay.textContent = unitRate > 0 ? fmtINR(unitRate) : '—';
+      rateDisplay.textContent = unitRate > 0
+        ? unitRate.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+        : '—';
       rateDisplay.style.color = unitRate > 0 ? 'var(--text)' : 'var(--text-dim)';
     }
 
-    var totalPreDisplay = row.querySelector('.total-pre-display');
-    if (totalPreDisplay) {
-      totalPreDisplay.textContent = totalPre > 0 ? fmtINR(totalPre) : '—';
-      totalPreDisplay.style.color = totalPre > 0 ? 'var(--text)' : 'var(--text-dim)';
-    }
+    // Update total-pre display (taxable amount before GST)
+    var preDsp = row.querySelector('.total-pre-display');
+    if (preDsp) preDsp.textContent = totalPre > 0
+      ? totalPre.toLocaleString('en-IN', {minimumFractionDigits: 2}) : '—';
 
-    var gstDisplay = row.querySelector('.gst-display');
-    if (gstDisplay) {
-      gstDisplay.textContent = gstAmt > 0 ? fmtINR(gstAmt) : '—';
-      gstDisplay.style.color = gstAmt > 0 ? 'var(--text)' : 'var(--text-dim)';
-    }
+    // Update GST display
+    var gstDsp = row.querySelector('.gst-display');
+    if (gstDsp) gstDsp.textContent = gstAmt > 0
+      ? gstAmt.toLocaleString('en-IN', {minimumFractionDigits: 2}) : '—';
 
-    var gstBreakdown = row.querySelector('.gst-breakdown');
-    if (gstBreakdown) {
-      if (gstAmt > 0) {
-        var halfGst = gstAmt / 2;
-        gstBreakdown.textContent = 'C: ' + fmtINR(halfGst) + ' · S: ' + fmtINR(halfGst);
-      } else {
-        gstBreakdown.textContent = '';
-      }
+    // Update GST breakdown (CGST/SGST split)
+    var gstBrk = row.querySelector('.gst-breakdown');
+    if (gstBrk) {
+      gstBrk.textContent = gstPct > 0 ? '(' + gstPct.toFixed(0) + '%)' : '';
     }
 
     // Update discount amount label
-    var discAmtLabel = row.querySelector('.disc-amt-label');
-    if (discAmtLabel) {
-      var discAmt = subtotal - totalPre;
-      discAmtLabel.textContent = discAmt > 0 ? '₹' + fmtINR(discAmt) : '';
-    }
+    var discLbl = row.querySelector('.disc-amt-label');
+    if (discLbl) discLbl.textContent = discAmt > 0 ? '₹' + discAmt.toFixed(2) : '';
+
+    // ── Sync new proper-column hidden fields ──────────────────────────────
+    // These are written to the DB on save; confirm! will recalculate them
+    // precisely from the stored gst_rate, but having them pre-filled means
+    // the show page and draft totals display correctly before confirmation.
+    var gstRateField = row.querySelector('.gst-rate-field');
+    var taxableField = row.querySelector('.taxable-field');
+    var taxField     = row.querySelector('.tax-field');
+    var discPctField = row.querySelector('.disc-pct-field');
+    var discAmtField = row.querySelector('.disc-amt-field');
+    if (gstRateField) gstRateField.value = gstPct > 0 ? gstPct.toFixed(2) : '';
+    if (taxableField) taxableField.value = totalPre > 0 ? totalPre.toFixed(2) : '';
+    if (taxField)     taxField.value     = gstAmt  > 0 ? gstAmt.toFixed(2)  : '';
+    if (discPctField) discPctField.value = discPct > 0 ? discPct.toFixed(2) : '';
+    if (discAmtField) discAmtField.value = discAmt > 0 ? discAmt.toFixed(2) : '';
 
     updateGrandTotal();
   }
 
+  // Rounding helpers
+  Number.prototype.round2 = function() { return Math.round(this * 100) / 100; };
+  Number.prototype.round4 = function() { return Math.round(this * 10000) / 10000; };
+
   function updateGrandTotal() {
-    var grandTotal = 0, taxableTotal = 0, taxTotal = 0, count = 0;
+    var total = 0, count = 0;
     document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(row) {
       if (row.style.display === 'none') return;
-      var payable  = parseFloat(row.querySelector('.payable-hidden').value) || 0;
-      if (payable <= 0) return;
-
-      var cgstPct  = parseFloat(row.querySelector('.cgst-input').value) || 0;
-      var sgstPct  = parseFloat(row.querySelector('.sgst-input').value) || 0;
-      var gstPct   = cgstPct + sgstPct;
-      var totalPre = gstPct > 0 ? payable / (1 + gstPct / 100) : payable;
-      var gstAmt   = payable - totalPre;
-
-      grandTotal   += payable;
-      taxableTotal += totalPre;
-      taxTotal     += gstAmt;
-      count++;
+      var t = parseFloat(row.querySelector('.total-input').value) || 0;
+      if (t > 0) { total += t; count++; }
     });
-    document.getElementById('grand-total').textContent   = fmtINR(grandTotal);
-    document.getElementById('taxable-total').textContent  = fmtINR(taxableTotal);
-    document.getElementById('tax-total').textContent      = fmtINR(taxTotal);
-    document.getElementById('total-items').textContent    = count;
+    document.getElementById('grand-total').textContent =
+      total.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    document.getElementById('total-items').textContent = count;
   }
 
   function wireRowEvents(row) {
-    // qty, discount, or payable changes → recalc
-    row.querySelector('.qty-input').addEventListener('input', function() { recalcRow(row); });
-    row.querySelector('.discount-input').addEventListener('input', function() {
-      // Push discount from row 1 to all subsequent rows
+    // Guard — skip if essential inputs missing (e.g. blank/destroyed rows)
+    var qtyEl   = row.querySelector('.qty-input');
+    var totalEl = row.querySelector('.total-editable');
+    if (!qtyEl || !totalEl) return;
+
+    // qty or total changes → recalc unit rate
+    qtyEl.addEventListener('input', function() { recalcRow(row); });
+    totalEl.addEventListener('input', function() {
+      var t = parseFloat(this.value) || 0;
+      var hi = row.querySelector('.total-input');
+      if (hi) hi.value = t > 0 ? t.toFixed(2) : '';
+      recalcRow(row);
+    });
+
+    // discount change on row 1 → push to all subsequent rows
+    var discEl = row.querySelector('.discount-input');
+    if (discEl) discEl.addEventListener('input', function() {
       var rows = document.querySelectorAll('#items-tbody tr[data-row]');
       if (row === rows[0]) {
         var val = this.value;
         for (var i = 1; i < rows.length; i++) {
           if (rows[i].style.display === 'none') continue;
           var d = rows[i].querySelector('.discount-input');
-          if (d) { d.value = val; recalcRow(rows[i]); }
+          if (d) d.value = val;
         }
       }
-      recalcRow(row);
-    });
-    row.querySelector('.payable-input').addEventListener('input', function() {
-      row.querySelector('.payable-hidden').value = this.value;
-      recalcRow(row);
     });
   }
 
@@ -558,7 +574,7 @@
       el.innerHTML =
         '<div style="font-size:13px;font-weight:500;color:var(--text)">' + escHtml(p.label) + '</div>' +
         (metaParts.length > 0
-          ? '<div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:2px">' +
+          ? '<div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px">' +
               escHtml(metaParts.join('  ·  ')) + '</div>'
           : '');
 
@@ -571,17 +587,16 @@
         if (uomCell)  uomCell.textContent  = p.uom || '—';
         if (metaLine) metaLine.textContent = metaParts.join('  ·  ');
 
-        // Auto-fill CGST/SGST from product GST rate
-        if (p.cgst != null) {
-          var cgst = row.querySelector('.cgst-input');
-          var sgst = row.querySelector('.sgst-input');
-          if (cgst) cgst.value = p.cgst;
-          if (sgst) sgst.value = p.sgst;
-
-          // GST breakdown will be populated by recalcRow
+        // Set gst-rate on both the JS-read input and the proper-column hidden field
+        var gstRateInp   = row.querySelector('.gst-rate-input');
+        var gstRateField = row.querySelector('.gst-rate-field');
+        if (p.gst_rate != null) {
+          if (gstRateInp)   gstRateInp.value   = p.gst_rate;
+          if (gstRateField) gstRateField.value = p.gst_rate;
         }
-        dropdown.style.display = 'none';
+        // Trigger recalc so taxable/tax fields get populated immediately
         recalcRow(row);
+        dropdown.style.display = 'none';
       });
       dropdown.appendChild(el);
     });
@@ -598,6 +613,7 @@
     row.innerHTML = row.innerHTML.replace(/INDEX/g, idx);
     row.setAttribute('data-row', idx);
     document.getElementById('items-tbody').appendChild(row);
+    if (typeof wireEnrichTrigger === 'function') wireEnrichTrigger(row);
 
     // Copy discount from row 1
     var disc = getRow1Discount();
@@ -667,9 +683,10 @@
     document.getElementById('supplier-search-input').value = s.name;
     document.getElementById('supplier_id_field').value = s.id;
     var parts = [];
-    if (s.gstin) parts.push('GSTIN: ' + s.gstin);
-    if (s.state) parts.push(s.state);
-    if (s.pan)   parts.push('PAN: ' + s.pan);
+    if (s.gstin)   parts.push('GSTIN: ' + s.gstin);
+    if (s.state)   parts.push(s.state);
+    if (s.pan)     parts.push('PAN: ' + s.pan);
+    if (s.address) parts.push(s.address);
     document.getElementById('supplier-info-strip').textContent = parts.join('  ·  ');
   }
 
@@ -733,7 +750,8 @@
         pan:        document.getElementById('sp-pan').value.trim(),
         state:      document.getElementById('sp-state').value.trim(),
         state_code: document.getElementById('sp-state-code').value.trim(),
-        active: true
+        active:     true,
+        metadata:   { address: document.getElementById('sp-address').value.trim() }
       }})
     })
       .then(function(r) { return r.json(); })
@@ -778,34 +796,320 @@
       wireRowEvents(row);
     });
     updateGrandTotal();
+    updateUnmatchedBanner();
+  });
 
-    // ── Footer drag-to-resize ──
-    var handle  = document.getElementById('footer-drag-handle');
-    var spacer  = document.getElementById('footer-spacer');
-    if (handle && spacer) {
-      var dragging = false, startY = 0, startH = 0;
-      handle.addEventListener('mousedown', function(e) {
-        e.preventDefault();
-        dragging = true;
-        startY   = e.clientY;
-        startH   = spacer.offsetHeight;
-        document.body.style.cursor = 'ns-resize';
-        document.body.style.userSelect = 'none';
-      });
-      document.addEventListener('mousemove', function(e) {
-        if (!dragging) return;
-        var delta = e.clientY - startY;
-        var newH  = Math.max(0, Math.min(200, startH + delta));
-        spacer.style.height = newH + 'px';
-      });
-      document.addEventListener('mouseup', function() {
-        if (!dragging) return;
-        dragging = false;
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
+})();
+</script>
+
+<%# ══ PRODUCT ENRICHMENT JS ══════════════════════════════════════ %>
+<script>
+(function() {
+  // ── CSS spin animation ──
+  if (!document.getElementById('enrich-spin-style')) {
+    var style = document.createElement('style');
+    style.id = 'enrich-spin-style';
+    style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+  }
+
+  // ── Update the unmatched warning banner + disable submit if needed ──
+  window.updateUnmatchedBanner = function() {
+    var rows     = document.querySelectorAll('#items-tbody tr[data-row]');
+    var count    = 0;
+    rows.forEach(function(r) {
+      if (r.getAttribute('data-unmatched') === 'true' &&
+          r.style.display !== 'none') count++;
+    });
+
+    var banner    = document.getElementById('unmatched-banner');
+    var countEl   = document.getElementById('unmatched-count');
+    var submitBtn = document.getElementById('invoice-submit-btn');
+
+    if (!banner) return;
+
+    if (count > 0) {
+      // Show banner
+      banner.style.display = 'block';
+      if (countEl) countEl.textContent = count;
+
+      // Disable submit button — must resolve unmatched items first
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.45';
+        submitBtn.style.cursor = 'not-allowed';
+        submitBtn.title = 'Resolve all unmatched items before saving';
+      }
+    } else {
+      // Hide banner, re-enable submit
+      banner.style.display = 'none';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+        submitBtn.title = '';
+      }
+    }
+  };
+
+  // ── Panel open/close ─────────────────────────────────────────
+  window.closeEnrichPanel = function(rowIdx) {
+    var panel = document.querySelector('.enrich-panel[data-row="' + rowIdx + '"]');
+    if (panel) panel.style.display = 'none';
+  };
+
+  // Close panels when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.enrich-panel') && !e.target.closest('.enrich-trigger')) {
+      document.querySelectorAll('.enrich-panel').forEach(function(p) {
+        p.style.display = 'none';
       });
     }
   });
+
+  // ── Wire enrich triggers (called for each row) ───────────────
+  window.wireEnrichTrigger = function(row) {
+    var trigger = row.querySelector('.enrich-trigger');
+    if (!trigger) return;
+    trigger.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var rowIdx = trigger.getAttribute('data-row');
+      var name   = trigger.getAttribute('data-name') || '';
+      var code   = trigger.getAttribute('data-code') || '';
+
+      // Close any other open panels first
+      document.querySelectorAll('.enrich-panel').forEach(function(p) {
+        if (p.getAttribute('data-row') !== rowIdx) p.style.display = 'none';
+      });
+
+      var panel = row.querySelector('.enrich-panel[data-row="' + rowIdx + '"]');
+      if (!panel) return;
+
+      // Toggle — if already open, close
+      if (panel.style.display !== 'none') {
+        panel.style.display = 'none';
+        return;
+      }
+
+      // Show loading state
+      panel.style.display = 'block';
+      panel.querySelector('.enrich-loading').style.display = 'block';
+      panel.querySelector('.enrich-result').style.display  = 'none';
+      panel.querySelector('.enrich-error').style.display   = 'none';
+      panel.querySelector('.enrich-saved-msg').style.display = 'none';
+
+      // Call enrichment API
+      fetchEnrichment(panel, rowIdx, name, code);
+    });
+  };
+
+  // ── Fetch enrichment from server ─────────────────────────────
+  function fetchEnrichment(panel, rowIdx, name, code) {
+    var csrfToken = document.querySelector('meta[name="csrf-token"]');
+    var token = csrfToken ? csrfToken.getAttribute('content') : '';
+
+    fetch('<%= purchasing_enrich_product_path %>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': token
+      },
+      body: JSON.stringify({
+        name:              name,
+        material_code_hint: code
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      panel.querySelector('.enrich-loading').style.display = 'none';
+
+      if (resp.success) {
+        showEnrichResult(panel, rowIdx, name, code, resp);
+      } else {
+        showEnrichError(panel, resp.error || 'Could not fetch details', resp.images_url);
+      }
+    })
+    .catch(function(err) {
+      panel.querySelector('.enrich-loading').style.display = 'none';
+      showEnrichError(panel, 'Network error — ' + err.message, null);
+    });
+  }
+
+  // ── Render enrichment result ──────────────────────────────────
+  function showEnrichResult(panel, rowIdx, originalName, originalCode, resp) {
+    var d = resp.data;
+    var resultEl = panel.querySelector('.enrich-result');
+    resultEl.style.display = 'block';
+
+    // Store data on panel for confirm/reject
+    panel._enrichData  = d;
+    panel._originalName = originalName;
+    panel._originalCode = originalCode;
+    panel._imagesUrl    = resp.images_url;
+
+    // Confidence badge
+    var badge = panel.querySelector('.enrich-confidence-badge');
+    var conf  = (d.confidence || 0) * 100;
+    var confColor = conf >= 80 ? '#34d98b' : conf >= 50 ? '#f7c34f' : '#f7614f';
+    badge.style.background = confColor + '22';
+    badge.style.color = confColor;
+    badge.style.border = '1px solid ' + confColor + '44';
+    badge.textContent = resp.confidence_label + ' (' + Math.round(conf) + '%)';
+
+    // Fields
+    var fields = panel.querySelector('.enrich-fields');
+    var rows = [
+      ['Description',  d.description    || '—'],
+      ['Material Code',d.material_code  || '—'],
+      ['HSN Code',     d.hsn_code       || '—'],
+      ['GST Rate',     d.gst_rate != null ? d.gst_rate + '%' : '—'],
+      ['Category',     d.category_guess || '—'],
+      ['Brand',        d.brand_guess    || '—'],
+      ['Pack Size',    d.pack_size_guess || '—'],
+    ];
+    fields.innerHTML = rows.map(function(r) {
+      return '<div style="display:flex;gap:8px;padding:2px 0">' +
+             '<span style="color:var(--text-dim);min-width:110px;flex-shrink:0">' + r[0] + '</span>' +
+             '<span style="color:var(--text);font-weight:500">' + escHtml(r[1]) + '</span>' +
+             '</div>';
+    }).join('');
+
+    // Images link
+    if (resp.images_url) {
+      panel.querySelector('.enrich-images-link').href = resp.images_url;
+    }
+
+    // Wire confirm/reject buttons
+    var confirmBtn = panel.querySelector('.enrich-confirm-btn');
+    var rejectBtn  = panel.querySelector('.enrich-reject-btn');
+
+    // Remove old listeners by cloning
+    var newConfirm = confirmBtn.cloneNode(true);
+    var newReject  = rejectBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+    rejectBtn.parentNode.replaceChild(newReject, rejectBtn);
+
+    newConfirm.addEventListener('click', function() {
+      saveEnrichedProduct(panel, rowIdx, 'confirm');
+    });
+    newReject.addEventListener('click', function() {
+      saveEnrichedProduct(panel, rowIdx, 'reject');
+    });
+  }
+
+  function showEnrichError(panel, errorMsg, imagesUrl) {
+    var errorEl = panel.querySelector('.enrich-error');
+    errorEl.style.display = 'block';
+    errorEl.querySelector('.enrich-error-msg').textContent = errorMsg;
+    if (imagesUrl) {
+      errorEl.querySelector('.enrich-images-link-error').href = imagesUrl;
+      errorEl.querySelector('.enrich-images-link-error').style.display = 'inline';
+    } else {
+      errorEl.querySelector('.enrich-images-link-error').style.display = 'none';
+    }
+  }
+
+  // ── Save enriched product (confirm or reject) ─────────────────
+  function saveEnrichedProduct(panel, rowIdx, action) {
+    var d    = panel._enrichData || {};
+    var csrfToken = document.querySelector('meta[name="csrf-token"]');
+    var token = csrfToken ? csrfToken.getAttribute('content') : '';
+
+    // Disable both buttons while saving
+    panel.querySelectorAll('.enrich-confirm-btn, .enrich-reject-btn').forEach(function(b) {
+      b.disabled = true;
+      b.style.opacity = '0.5';
+    });
+
+    fetch('<%= purchasing_save_enriched_product_path %>', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+      body: JSON.stringify({
+        action_taken:     action,
+        original_name:    panel._originalName,
+        description:      d.description,
+        material_code:    d.material_code,
+        hsn_code:         d.hsn_code,
+        gst_rate:         d.gst_rate,
+        category_guess:   d.category_guess,
+        brand_guess:      d.brand_guess,
+        pack_size_guess:  d.pack_size_guess,
+        confidence:       d.confidence,
+        ai_notes:         d.notes
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (resp.success) {
+        // Update the item row: set product_id, clear unmatched state
+        var row = document.querySelector('#items-tbody tr[data-row="' + rowIdx + '"]');
+        if (row && resp.product_id) {
+          var pidInput = row.querySelector('.product-id-input');
+          if (pidInput) pidInput.value = resp.product_id;
+          row.setAttribute('data-unmatched', 'false');
+
+          // Update the ! button to ⏳ pending badge
+          var trigger = row.querySelector('.enrich-trigger');
+          if (trigger) {
+            trigger.outerHTML = '<span title="AI-enriched — awaiting admin approval" ' +
+              'style="flex-shrink:0;width:26px;height:26px;border-radius:50%;' +
+              'background:var(--warning);display:flex;align-items:center;' +
+              'justify-content:center;font-size:11px;font-weight:700;color:#1a1a1a">⏳</span>';
+          }
+
+          // Update search input border
+          var searchInput = row.querySelector('.product-search-input');
+          if (searchInput) searchInput.style.borderColor = 'var(--warning)';
+
+          // Update meta line
+          var metaLine = row.querySelector('.product-meta-line');
+          if (metaLine) {
+            metaLine.innerHTML = '<span style="color:var(--warning)">Saved — [PENDING APPROVAL]</span>';
+          }
+        }
+
+        // Show saved message
+        var savedMsg = panel.querySelector('.enrich-saved-msg');
+        savedMsg.style.display = 'block';
+        savedMsg.textContent = resp.message;
+
+        // Hide action buttons
+        panel.querySelectorAll('.enrich-confirm-btn, .enrich-reject-btn').forEach(function(b) {
+          b.style.display = 'none';
+        });
+
+        // Update banner count
+        updateUnmatchedBanner();
+
+        // Auto-close panel after 2s
+        setTimeout(function() { panel.style.display = 'none'; }, 2000);
+      } else {
+        panel.querySelectorAll('.enrich-confirm-btn, .enrich-reject-btn').forEach(function(b) {
+          b.disabled = false;
+          b.style.opacity = '1';
+        });
+        alert('Could not save product: ' + (resp.error || 'Unknown error'));
+      }
+    })
+    .catch(function(err) {
+      alert('Network error: ' + err.message);
+    });
+  }
+
+  // ── Wire enrichment on existing rows ────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(row) {
+      wireEnrichTrigger(row);
+    });
+    updateUnmatchedBanner();
+  });
+
+  // ── Utility ─────────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
 })();
 </script>

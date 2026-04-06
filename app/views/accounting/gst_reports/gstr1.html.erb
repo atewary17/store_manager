@@ -1,0 +1,194 @@
+<%# app/views/accounting/gst_reports/gstr1.html.erb %>
+<% content_for :title, "GSTR-1 — #{@period_label}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'GST Reports', accounting_gst_reports_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">GSTR-1</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">GSTR-1 — Outward Supplies</div>
+    <div class="page-subtitle"><%= @period_label %> · Due <%= @gstr1_due.strftime('%d %b %Y') %></div>
+  </div>
+  <div class="actions">
+    <%= link_to '← GST Dashboard', accounting_gst_reports_path(month: @period_month, year: @period_year), class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<%# Summary row %>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+  <% [
+       ['Total Invoices', (@b2b.count + @b2c.count), 'var(--text)'],
+       ['Total Taxable Value', "₹#{number_with_delimiter(@totals[:taxable].round(0))}", 'var(--text)'],
+       ['Total Tax Collected', "₹#{number_with_delimiter(@totals[:tax].round(0))}", 'var(--danger)'],
+     ].each do |label, val, color| %>
+    <div class="gst-summary-card" style="background:var(--surface);border:1px solid var(--border);
+                border-radius:10px;padding:14px 18px">
+      <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;
+                  letter-spacing:.06em;font-weight:600;margin-bottom:6px"><%= label %></div>
+      <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:<%= color %>">
+        <%= val %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<%# B2B invoices — always rendered (even when empty) so specs can assert have_no_text %>
+<div class="table-wrap" style="margin-bottom:20px">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border);
+              display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:var(--mono);font-size:11px;text-transform:uppercase;
+                 letter-spacing:.08em;color:var(--text-dim)">
+      B2B — Registered Businesses (<%= @b2b.count %>)
+    </span>
+    <span style="font-size:11px;color:var(--text-dim)">
+      Table 4 — GSTR-1
+    </span>
+  </div>
+  <table id="gstr1-b2b-table">
+    <thead>
+      <tr>
+        <th>Invoice Date</th><th>Invoice #</th><th>Customer</th>
+        <th>GSTIN</th><th style="text-align:right">Taxable (₹)</th>
+        <th style="text-align:right">IGST (₹)</th>
+        <th style="text-align:right">CGST (₹)</th>
+        <th style="text-align:right">SGST (₹)</th>
+        <th style="text-align:right">Invoice Total (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @b2b.any? %>
+        <% @b2b.each do |inv| %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
+              <%= inv.invoice_date&.strftime('%d %b %Y') %>
+            </td>
+            <td>
+              <%= link_to inv.invoice_number.presence || "INV-#{inv.id}",
+                    sales_sales_invoice_path(inv),
+                    style: 'font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none' %>
+            </td>
+            <td><%= inv.customer&.name %></td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+              <%= inv.customer&.gstin %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(inv.total_taxable_amount, precision: 2, delimiter: ',') %>
+            </td>
+            <%# Read from proper columns (set by compute_amounts via state comparison) %>
+            <% igst = inv.sales_invoice_items.sum(&:igst_amount).round(2) %>
+            <% cgst = inv.sales_invoice_items.sum(&:cgst_amount).round(2) %>
+            <% sgst = inv.sales_invoice_items.sum(&:sgst_amount).round(2) %>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= igst > 0 ? number_with_precision(igst, precision: 2) : '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= cgst > 0 ? number_with_precision(cgst, precision: 2) : '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= sgst > 0 ? number_with_precision(sgst, precision: 2) : '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600">
+              <%= number_with_precision(inv.total_amount, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr><td colspan="9" style="padding:12px 18px;color:var(--text-dim);text-align:center">
+          No B2B invoices for this period
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<%# B2C invoices %>
+<% if @b2c.any? %>
+  <div class="table-wrap" style="margin-bottom:20px">
+    <div style="padding:12px 18px;border-bottom:1px solid var(--border);
+                display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:var(--mono);font-size:11px;text-transform:uppercase;
+                   letter-spacing:.08em;color:var(--text-dim)">
+        B2C — Unregistered Customers (<%= @b2c.count %>)
+      </span>
+      <span style="font-size:11px;color:var(--text-dim)">Table 5/7 — GSTR-1</span>
+    </div>
+    <table id="gstr1-b2c-table">
+      <thead>
+        <tr>
+          <th>Invoice Date</th><th>Invoice #</th><th>Customer</th>
+          <th style="text-align:right">Taxable (₹)</th>
+          <th style="text-align:right">Tax (₹)</th>
+          <th style="text-align:right">Invoice Total (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @b2c.each do |inv| %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
+              <%= inv.invoice_date&.strftime('%d %b %Y') %>
+            </td>
+            <td>
+              <%= link_to inv.invoice_number.presence || "INV-#{inv.id}",
+                    sales_sales_invoice_path(inv),
+                    style: 'font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none' %>
+            </td>
+            <td><%= inv.customer&.name || 'Walk-in Customer' %></td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(inv.total_taxable_amount, precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--danger)">
+              <%= number_with_precision(inv.total_tax_amount, precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600">
+              <%= number_with_precision(inv.total_amount, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
+
+<%# HSN Summary — Table 12 %>
+<% if @hsn_summary.any? %>
+  <div class="table-wrap">
+    <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:11px;text-transform:uppercase;
+                   letter-spacing:.08em;color:var(--text-dim)">
+        Table 12 — HSN-wise Summary of Outward Supplies
+      </span>
+    </div>
+    <table id="gstr1-hsn-table">
+      <thead>
+        <tr>
+          <th>HSN Code</th>
+          <th style="text-align:right">No. of Invoices</th>
+          <th style="text-align:right">Total Qty</th>
+          <th style="text-align:right">Taxable Value (₹)</th>
+          <th style="text-align:right">Tax Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @hsn_summary.each do |row| %>
+          <tr>
+            <td style="font-family:var(--mono);font-weight:600"><%= row['hsn_code'].presence || '—' %></td>
+            <td style="text-align:right;font-family:var(--mono)"><%= row['invoice_count'] %></td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(row['total_qty'].to_f, precision: 3) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(row['total_taxable'].to_f, precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--danger)">
+              <%= number_with_precision(row['total_tax'].to_f, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

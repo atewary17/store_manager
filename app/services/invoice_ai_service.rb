@@ -1,15 +1,21 @@
 # app/services/invoice_ai_service.rb
 #
 # Unified entry point for AI invoice extraction.
-# Chooses provider based on INVOICE_AI_PROVIDER env var:
-#   gemini  → GeminiInvoiceParser  (production default, 50 req/day free)
-#   groq    → GroqInvoiceParser    (dev/staging, ~14400 req/day free, images only)
-#   mock    → returns fake data    (local dev, no API calls)
 #
-# .env examples:
-#   INVOICE_AI_PROVIDER=groq   GROQ_API_KEY=gsk_xxx
-#   INVOICE_AI_PROVIDER=gemini GEMINI_API_KEY=AIza_xxx
-#   INVOICE_AI_PROVIDER=mock
+# SUPPORTED PROVIDERS:
+#   groq        → Groq Llama 4 Scout (PRIMARY — free, ~14,400 req/day, WORKING ✅)
+#   openrouter  → OpenRouter (FALLBACK — $1 free credit, many models)
+#   mock        → Returns fake data (local dev, no API calls)
+#
+# REMOVED: gemini — quota errors on free tier, unreliable
+#
+# SETUP (config/local_env.yml):
+#   INVOICE_AI_PROVIDER: "groq"
+#   GROQ_API_KEY: "gsk_your_key_here"
+#   OPENROUTER_API_KEY: "sk-or-your_key_here"   # optional fallback
+#
+# Get Groq key free:       https://console.groq.com
+# Get OpenRouter key free: https://openrouter.ai  ($1 free credit on signup)
 #
 require 'net/http'
 require 'uri'
@@ -19,14 +25,20 @@ require 'openssl'
 
 class InvoiceAiService
 
-  def self.call(base64_data:, mime_type:)
-    provider = (ENV['INVOICE_AI_PROVIDER'] || 'gemini').downcase
+  def self.call(base64_data:, mime_type:, user_pref: nil)
+    # Priority: user preference → env var → groq (default)
+    provider = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase
 
-    case provider
-    when 'groq'  then GroqInvoiceParser.new(base64_data:, mime_type:).call
-    when 'mock'  then mock_response
-    else              GeminiInvoiceParser.new(base64_data:, mime_type:).call
-    end
+    result = case provider
+             when 'groq'       then GroqInvoiceParser.new(base64_data:, mime_type:).call
+             when 'openrouter' then OpenRouterInvoiceParser.new(base64_data:, mime_type:).call
+             when 'mock'       then mock_response
+             else
+               Rails.logger.warn "[InvoiceAiService] Unknown provider '#{provider}', falling back to groq"
+               GroqInvoiceParser.new(base64_data:, mime_type:).call
+             end
+
+    result.merge(provider: provider)
   end
 
   def self.mock_response

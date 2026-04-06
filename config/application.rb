@@ -23,5 +23,18 @@ module StoreManager
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    # Load local environment variables
+    # config/local_env.yml is gitignored — safe for API keys
+    local_env_path = File.join(File.dirname(__FILE__), 'local_env.yml')
+    if File.exist?(local_env_path)
+      require 'yaml'
+      YAML.load_file(local_env_path).each do |key, value|
+        ENV[key.to_s] ||= value.to_s
+      end
+    end
+
+    # ─────────────────────────────────────────────────────────
+    # Then your existing module StoreManager / class Application continues
   end
 end

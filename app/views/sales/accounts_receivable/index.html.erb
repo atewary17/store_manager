@@ -1,32 +1,32 @@
-<%# app/views/sales/creditors/index.html.erb %>
-<% content_for :title, "Creditors" %>
+<%# app/views/sales/accounts_receivable/index.html.erb %>
+<% content_for :title, "Accounts Receivable" %>
 <% content_for :breadcrumb do %>
-  <span style="color:var(--text-dim)">Trade Relations</span>
+  <span style="color:var(--text-dim)">Accounting</span>
   <span class="breadcrumb-sep">/</span>
-  <span class="breadcrumb-current">Creditors</span>
+  <span class="breadcrumb-current">Accounts Receivable</span>
 <% end %>
 
 <div class="page-header">
   <div>
-    <div class="page-title">Creditors</div>
-    <div class="page-subtitle">Customers with outstanding balances — <%= @organisation.name %></div>
+    <div class="page-title">Accounts Receivable</div>
+    <div class="page-subtitle">Customers with unpaid balances — <%= @organisation.name %></div>
   </div>
 </div>
 
-<% if @creditors.any? %>
-  <% overdue_count     = @creditors.count { |c| c[:overdue] } %>
-  <% total_outstanding = @creditors.sum { |c| c[:outstanding] } %>
+<% if @ar_records.any? %>
+  <% overdue_count     = @ar_records.count { |c| c[:overdue] } %>
+  <% total_outstanding = @ar_records.sum { |c| c[:outstanding] } %>
 
   <%# Summary stat bar %>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
     <div class="stat-card">
       <div class="stat-label">Customers with Credit</div>
-      <div class="stat-value" style="color:var(--warning);font-size:22px"><%= @creditors.size %></div>
+      <div class="stat-value" style="color:var(--warning);font-size:22px"><%= @ar_records.size %></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Total Invoiced</div>
       <div class="stat-value" style="font-size:18px">
-        ₹ <%= number_with_delimiter(@creditors.sum { |c| c[:total_invoiced] }.round(2)) %>
+        ₹ <%= number_with_delimiter(@ar_records.sum { |c| c[:total_invoiced] }.round(2)) %>
       </div>
     </div>
     <div class="stat-card">
@@ -62,7 +62,7 @@
         </tr>
       </thead>
       <tbody>
-        <% @creditors.each do |c| %>
+        <% @ar_records.each do |c| %>
           <% pct = c[:total_invoiced] > 0 ? (c[:total_collected] / c[:total_invoiced] * 100).round : 0 %>
           <tr style="<%= c[:overdue] ? 'background:rgba(247,97,79,0.03)' : '' %>">
             <td>
@@ -116,7 +116,7 @@
               <% end %>
             </td>
             <td style="text-align:right">
-              <%= link_to 'Ledger →', sales_creditor_path(c[:customer]),
+              <%= link_to 'Ledger →', sales_accounts_receivable_path(c[:customer]),
                     class: 'btn btn-secondary btn-sm' %>
             </td>
           </tr>

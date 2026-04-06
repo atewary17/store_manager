@@ -1,0 +1,1007 @@
+<%# app/views/inventory/tinting_machine/show.html.erb %>
+<% content_for :title, "#{@brand.name} — Tinting Machine" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Inventory</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Tinting Machine', inventory_tinting_machine_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @brand.name %></span>
+<% end %>
+
+<%
+  bcolor       = helpers.brand_hex(@brand) rescue '#4f8ef7'
+  canister_map = @canisters.index_by(&:slot_number)
+  load_url     = inventory_tinting_machine_load_path(brand_id: @brand.id)
+  adjust_base  = "/inventory/tinting_machine/#{@brand.id}/adjust"
+  remove_base  = "/inventory/tinting_machine/#{@brand.id}/remove"
+  has_products = @tintable_products.any?
+%>
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div style="width:32px;height:32px;border-radius:50%;
+                background:<%= bcolor %>22;border:2px solid <%= bcolor %>;
+                display:flex;align-items:center;justify-content:center;
+                font-weight:700;font-size:11px;color:<%= bcolor %>">
+      <%= @brand.name.split.map(&:first).first(2).join.upcase %>
+    </div>
+    <div>
+      <div class="page-title"><%= @brand.name %> Tinting Machine</div>
+      <div class="page-subtitle">
+        <%= @slot_count %>-slot carousel ·
+        <%= @canisters.select(&:product_id).count %> loaded
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to '← All Machines', inventory_tinting_machine_path, class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<%# ══ MAIN LAYOUT: 3D left, slots right ══ %>
+<div style="display:grid;grid-template-columns:520px 1fr;gap:20px;align-items:start">
+
+  <%# ══ LEFT COLUMN ══ %>
+  <div style="position:sticky;top:20px">
+
+    <%# Larger 3D canvas %>
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:14px;overflow:hidden;margin-bottom:14px">
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);
+                  display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;font-weight:600;color:var(--text)">
+          Machine View — hover canisters for details
+        </span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="resetCam()"
+                  style="font-size:10px;padding:3px 8px;border-radius:4px;
+                         border:1px solid var(--border);background:var(--bg);
+                         color:var(--text-dim);cursor:pointer">Reset</button>
+          <span style="font-size:10px;color:var(--text-dim)">drag · scroll</span>
+        </div>
+      </div>
+      <%# Canvas + overlay tooltip %>
+      <div style="position:relative">
+        <canvas id="tm-canvas" style="width:100%;height:480px;display:block;cursor:grab"></canvas>
+        <%# Floating tooltip shown on hover %>
+        <div id="tm-tooltip"
+             style="display:none;position:absolute;pointer-events:none;
+                    background:rgba(13,17,25,0.94);border:1px solid var(--border);
+                    border-radius:10px;padding:10px 14px;font-size:12px;
+                    min-width:180px;max-width:220px;z-index:10;
+                    backdrop-filter:blur(6px);box-shadow:0 4px 20px rgba(0,0,0,.5)">
+          <%# Slot number + colour dot row %>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <div id="tt-dot"
+                 style="width:10px;height:10px;border-radius:50%;
+                        background:var(--border);flex-shrink:0"></div>
+            <div id="tt-slot"
+                 style="font-family:var(--mono);font-size:10px;
+                        color:var(--text-dim);flex:1"></div>
+          </div>
+          <%# Colour name (family_colour) %>
+          <div id="tt-colour"
+               style="font-weight:700;font-size:13px;color:var(--text);
+                      margin-bottom:3px"></div>
+          <%# Product description %>
+          <div id="tt-desc"
+               style="font-size:10px;color:var(--text-dim);margin-bottom:8px;
+                      line-height:1.4"></div>
+          <%# Level bar %>
+          <div style="height:5px;background:rgba(255,255,255,0.1);border-radius:3px;
+                      overflow:hidden;margin-bottom:5px">
+            <div id="tt-bar"
+                 style="height:100%;border-radius:3px;transition:width .3s"></div>
+          </div>
+          <%# Percentage %>
+          <div id="tt-pct"
+               style="font-family:var(--mono);font-size:12px;font-weight:600;
+                      text-align:right"></div>
+        </div>
+      </div>
+    </div>
+
+    <%# Load canister form — always visible, slot select always present %>
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:14px;padding:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">
+        Load Colorant Canister
+      </div>
+
+      <%# Slot + volume always rendered so quickLoad can set them %>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Slot #</label>
+          <select id="load-slot" class="form-control" style="font-size:12px">
+            <% @slot_count.times do |i| %>
+              <% sn = i + 1 %>
+              <% occupied = canister_map[sn]&.product_id.present? %>
+              <option value="<%= sn %>"
+                      style="<%= 'color:#f7c34f' if occupied %>">
+                Slot <%= sn %><%= ' (in use)' if occupied %>
+              </option>
+            <% end %>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Volume (ml)</label>
+          <input type="number" id="load-volume" class="form-control"
+                 value="1000" min="50" step="50"
+                 style="font-family:var(--mono);font-size:12px">
+        </div>
+      </div>
+
+      <% if has_products %>
+        <div class="form-group">
+          <label class="form-label">Select Product</label>
+          <select id="load-product-id" class="form-control" style="font-size:12px">
+            <option value="">— pick a colorant —</option>
+            <% @tintable_products.each do |p| %>
+              <option value="<%= p.id %>"
+                      data-volume="<%= TintingMachineCanister.volume_from_pack_code(p.pack_code) %>"
+                      data-colour="<%= h(p.metadata['family_colour'].to_s) %>">
+                <%= p.description.truncate(36) %>
+                <% if p.metadata['family_colour'].present? %> · <%= p.metadata['family_colour'] %><% end %>
+              </option>
+            <% end %>
+          </select>
+        </div>
+
+        <div id="load-colour-preview"
+             style="display:none;padding:8px 10px;border-radius:6px;margin-bottom:10px;
+                    background:var(--bg);font-size:12px;color:var(--text)"></div>
+
+        <button onclick="loadCanister()"
+                style="width:100%;padding:9px;background:rgba(52,217,139,0.1);
+                       border:1px solid var(--success);border-radius:8px;
+                       color:var(--success);font-size:13px;font-weight:600;cursor:pointer">
+          ✅ Load into Machine (−1 stock unit)
+        </button>
+
+      <% else %>
+        <div style="padding:14px;text-align:center;font-size:12px;color:var(--text-dim);
+                    background:var(--bg);border-radius:8px;border:1px dashed var(--border)">
+          No tintable products in stock.<br><br>
+          <small>Set <code style="font-family:var(--mono)">metadata.tint = true</code>
+          and <code style="font-family:var(--mono)">family_colour</code> on products
+          to make them available here.</small>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ══ RIGHT COLUMN: stats + slot grid ══ %>
+  <div>
+    <%# Stats %>
+    <%
+      loaded_c   = @canisters.count(&:product_id)
+      good_c     = @canisters.count { |c| c.level_status == :active }
+      low_c      = @canisters.count { |c| c.level_status == :low }
+      critical_c = @canisters.count { |c| c.level_status == :critical }
+    %>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <% [['Loaded', loaded_c, '#4f8ef7'],['Good', good_c, '#34d98b'],
+          ['Low', low_c, '#f7c34f'],['Critical', critical_c, '#f7614f']].each do |lbl,val,col| %>
+        <div style="background:var(--surface);border:1px solid var(--border);
+                    border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:<%= col %>;
+                      font-family:var(--mono)"><%= val %></div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:2px"><%= lbl %></div>
+        </div>
+      <% end %>
+    </div>
+
+    <%# Slot grid %>
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:14px;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);
+                  display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Canister Slots</span>
+        <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+          ± <%= Inventory::TintingMachineController::DISPENSE_STEP_PCT %>% per tap
+        </span>
+      </div>
+
+      <div style="padding:12px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+        <% @slot_count.times do |i| %>
+          <% sn     = i + 1 %>
+          <% c      = canister_map[sn] %>
+          <% loaded = c&.product_id.present? %>
+
+          <%
+            family_colour = loaded ? c.product.metadata['family_colour'].to_s.presence : nil
+            # Map family colour name → a hex for the card bg tint
+            fc_lower = family_colour.to_s.downcase
+            fc_hex = if fc_lower.include?('black')  then '#333333'
+                     elsif fc_lower.include?('white')  then '#e8e8e8'
+                     elsif fc_lower.include?('red')    then '#e74c3c'
+                     elsif fc_lower.include?('blue')   then '#3498db'
+                     elsif fc_lower.include?('green')  then '#2ecc71'
+                     elsif fc_lower.include?('yellow') then '#f1c40f'
+                     elsif fc_lower.include?('gold')   then '#d4a017'
+                     elsif fc_lower.include?('amber')  then '#c17f24'
+                     elsif fc_lower.include?('brown')  then '#795548'
+                     elsif fc_lower.include?('orange') then '#e67e22'
+                     elsif fc_lower.include?('grey') || fc_lower.include?('gray') then '#9e9e9e'
+                     elsif fc_lower.include?('teal')   then '#009688'
+                     elsif fc_lower.include?('purple') then '#9c27b0'
+                     elsif fc_lower.include?('pink')   then '#e91e63'
+                     elsif family_colour.present?      then '#4f8ef7'
+                     end
+            card_bg = loaded && fc_hex ? "background:#{fc_hex}18" : "background:var(--bg)"
+            card_border = loaded ? "border:1px solid #{c.level_color}55" : "border:1px solid var(--border)"
+          %>
+          <div id="slot-<%= sn %>"
+               style="padding:12px;border-radius:10px;<%= card_bg %>;<%= card_border %>;
+                      position:relative;overflow:hidden">
+
+            <%# Colour strip on left edge %>
+            <% if loaded && fc_hex %>
+              <div style="position:absolute;left:0;top:0;bottom:0;width:4px;
+                          background:<%= fc_hex %>;border-radius:10px 0 0 10px"></div>
+            <% end %>
+
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;
+                        padding-left:<%= loaded && fc_hex ? '6px' : '0' %>">
+              <span style="font-family:var(--mono);font-size:10px;font-weight:700;
+                           color:var(--text-dim);min-width:26px">
+                #<%= sn.to_s.rjust(2,'0') %>
+              </span>
+              <% if loaded %>
+                <%# Colour dot + family colour name %>
+                <% if family_colour.present? %>
+                  <span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;
+                               background:<%= fc_hex || '#4f8ef7' %>;
+                               border:1px solid rgba(255,255,255,0.3)"></span>
+                <% end %>
+                <span style="flex:1;font-size:11px;font-weight:600;color:var(--text);
+                             white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                      title="<%= c.product.description %>">
+                  <%= family_colour.presence || c.product.description.truncate(18) %>
+                </span>
+                <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;
+                             text-transform:uppercase;font-family:var(--mono);
+                             background:<%= c.level_color %>22;color:<%= c.level_color %>">
+                  <%= c.level_status %>
+                </span>
+              <% else %>
+                <span style="flex:1;font-size:11px;color:var(--text-dim);font-style:italic">Empty</span>
+              <% end %>
+            </div>
+
+            <%# Product description (truncated) %>
+            <% if loaded %>
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:7px;
+                          padding-left:<%= fc_hex ? '6px' : '0' %>;
+                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                   title="<%= c.product.description %>">
+                <%= c.product.description.truncate(32) %>
+              </div>
+            <% end %>
+
+            <% if loaded %>
+              <div style="height:5px;background:var(--border);border-radius:3px;
+                          overflow:hidden;margin-bottom:5px">
+                <div id="bar-<%= sn %>"
+                     style="height:100%;width:<%= c.level_percent %>%;
+                            background:<%= c.level_color %>;border-radius:3px;
+                            transition:width .4s ease"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;
+                          font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+                <span id="rem-<%= sn %>"><%= c.remaining_ml.round %>ml</span>
+                <span id="pct-<%= sn %>" style="font-weight:700;color:<%= c.level_color %>">
+                  <%= c.level_percent.round %>%
+                </span>
+              </div>
+              <%# Fix #2: warn on last step, Fix #3: no × remove button %>
+              <div style="display:flex;gap:5px">
+                <button onclick="adjustSlot(<%= c.id %>,<%= sn %>,'subtract',<%= c.remaining_ml.round %>,<%= c.initial_volume_ml %>)"
+                        title="−<%= Inventory::TintingMachineController::DISPENSE_STEP_PCT %>% dispensed"
+                        style="flex:1;padding:5px;background:rgba(247,97,79,0.08);
+                               border:1px solid var(--danger);border-radius:6px;
+                               color:var(--danger);font-size:15px;font-weight:700;cursor:pointer">−</button>
+                <button onclick="adjustSlot(<%= c.id %>,<%= sn %>,'add',<%= c.remaining_ml.round %>,<%= c.initial_volume_ml %>)"
+                        title="+<%= Inventory::TintingMachineController::DISPENSE_STEP_PCT %>% correction"
+                        style="flex:1;padding:5px;background:rgba(52,217,139,0.08);
+                               border:1px solid var(--success);border-radius:6px;
+                               color:var(--success);font-size:15px;font-weight:700;cursor:pointer">+</button>
+              </div>
+            <% else %>
+              <%
+                last_fc   = c&.metadata&.dig('last_family_colour').presence
+                last_name = c&.metadata&.dig('last_product_name').presence
+                reload_url = "/inventory/tinting_machine/#{@brand.id}/reload_last/#{sn}"
+              %>
+              <div style="height:5px;background:var(--border);border-radius:3px;margin-bottom:5px;opacity:.3"></div>
+              <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                          text-align:center;margin-bottom:4px">no canister</div>
+              <% if last_fc %>
+                <div style="font-size:10px;color:var(--text-dim);text-align:center;
+                            margin-bottom:8px;font-style:italic">
+                  Last: <span style="font-weight:600;color:var(--text-dim)"><%= last_fc %></span>
+                </div>
+                <%# Reload last button %>
+                <button onclick="reloadLast('<%= reload_url %>','<%= h(last_name) %>',<%= sn %>)"
+                        style="width:100%;padding:5px;background:rgba(79,142,247,0.08);
+                               border:1px solid var(--accent);border-radius:6px;
+                               color:var(--accent);font-size:11px;cursor:pointer;
+                               margin-bottom:5px">
+                  ↺ Reload <strong><%= last_fc %></strong>
+                </button>
+              <% end %>
+              <button onclick="quickLoad(<%= sn %>)"
+                      style="width:100%;padding:5px;background:none;
+                             border:1px dashed var(--border);border-radius:6px;
+                             color:var(--text-dim);font-size:11px;cursor:pointer">+ Load different</button>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# All server data as JSON — completely avoids ERB inside JS blocks %>
+<script id="tm-config" type="application/json"><%= raw({
+  bcolor_int:    ('0x' + bcolor.sub('#','')).to_i(16),
+  bcolor_hex:    bcolor,
+  brand_name:    @brand.name,
+  slot_count:    @slot_count,
+  dispense_step_pct: Inventory::TintingMachineController::DISPENSE_STEP_PCT,
+  load_url:      load_url,
+  adjust_base:   adjust_base,
+  remove_base:   remove_base
+}.to_json) %></script>
+
+<script id="tm-slot-data" type="application/json"><%= raw(@slot_count.times.each_with_object({}) { |i, h|
+  sn   = i + 1; c = canister_map[sn]
+  meta = c&.metadata || {}
+
+  resolve_fc_hex = ->(fc_name) {
+    fc = fc_name.to_s.downcase
+    fc.include?('black')  ? '#333333' :
+    fc.include?('white')  ? '#e8e8e8' :
+    fc.include?('red')    ? '#e74c3c' :
+    fc.include?('blue')   ? '#3498db' :
+    fc.include?('green')  ? '#2ecc71' :
+    fc.include?('yellow') ? '#f1c40f' :
+    fc.include?('gold')   ? '#d4a017' :
+    fc.include?('amber')  ? '#c17f24' :
+    fc.include?('brown')  ? '#795548' :
+    fc.include?('orange') ? '#e67e22' :
+    (fc.include?('grey') || fc.include?('gray')) ? '#9e9e9e' :
+    fc.include?('teal')   ? '#009688' :
+    fc.include?('purple') ? '#9c27b0' :
+    fc.include?('pink')   ? '#e91e63' :
+    fc_name.present?      ? '#4f8ef7' : '#252a38'
+  }
+
+  if c&.product_id
+    fc_name = c.product.metadata['family_colour'].to_s
+    h[sn] = {
+      level:       (c.level_percent / 100.0).round(4),
+      pct:         c.level_percent.round,
+      color:       c.level_color,
+      color_fc:    resolve_fc_hex.call(fc_name),
+      loaded:      true,
+      name:        (fc_name.presence || c.product.description).truncate(24),
+      product:     c.product.description.truncate(35),
+      last_colour: nil
+    }
+  else
+    last_fc = meta['last_family_colour'].to_s
+    h[sn] = {
+      level:       0, pct: 0, color: '#252a38', color_fc: '#252a38',
+      loaded:      false, name: 'Empty', product: '',
+      last_colour: last_fc.presence
+    }
+  end
+}.to_json) %></script>
+
+<%# ══ Three.js ══ %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function() {
+  var canvas  = document.getElementById('tm-canvas');
+  var _cfg    = JSON.parse(document.getElementById('tm-config').textContent);
+  var BCOLOR  = _cfg.bcolor_int;
+  var N       = _cfg.slot_count;
+  var tooltip  = document.getElementById('tm-tooltip');
+  var ttSlot   = document.getElementById('tt-slot');
+  var ttBar    = document.getElementById('tt-bar');
+  var ttPct    = document.getElementById('tt-pct');
+  // ttColour, ttDesc, ttDot fetched inline (added after tooltip HTML update)
+
+  // Slot data injected via data tag above
+  var SLOT_DATA = {};
+  try {
+    SLOT_DATA = JSON.parse(document.getElementById('tm-slot-data').textContent);
+  } catch(e) {
+    console.error('SLOT_DATA parse error:', e);
+  }
+
+  // ── Scene ────────────────────────────────────────────────
+  var scene  = new THREE.Scene();
+  scene.background = new THREE.Color(0x1e2235);  // lighter — soft dark blue-grey
+
+  var camera = new THREE.PerspectiveCamera(42, canvas.clientWidth / canvas.clientHeight, 0.1, 60);
+  var camT = 0.35, camP = 1.0, camR = 7.5;
+
+  function setCamPos() {
+    camera.position.set(
+      camR * Math.sin(camT) * Math.sin(camP),
+      camR * Math.cos(camP),
+      camR * Math.cos(camT) * Math.sin(camP)
+    );
+    camera.lookAt(0, 0.3, 0);
+  }
+  setCamPos();
+
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  // Lights — brighter overall, warmer fill
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));   // was 0.4 — much brighter ambient
+  var sun = new THREE.DirectionalLight(0xffffff, 1.2);  // was 1.0
+  sun.position.set(5, 9, 5);
+  sun.castShadow = true;
+  scene.add(sun);
+  var fill = new THREE.DirectionalLight(0xeeeeff, 0.5);  // was 0.25, now warmer
+  fill.position.set(-4, 3, -2);
+  scene.add(fill);
+  var backFill = new THREE.DirectionalLight(0xffffff, 0.3);  // new back light
+  backFill.position.set(0, -2, -6);
+  scene.add(backFill);
+
+  // Floor — lighter grey to match brighter scene
+  var floor = new THREE.Mesh(
+    new THREE.CircleGeometry(10, 48),
+    new THREE.MeshStandardMaterial({ color: 0x2a3050, roughness: 0.9 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -2.3;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // ── Materials — lighter, more visible ─────────────────────
+  var mBase   = new THREE.MeshStandardMaterial({ color: 0x3a4060, roughness: 0.3, metalness: 0.65 });
+  var mTray   = new THREE.MeshStandardMaterial({ color: 0x4a5575, roughness: 0.2, metalness: 0.75 });
+  var mCol    = new THREE.MeshStandardMaterial({ color: 0x3a4060, roughness: 0.25, metalness: 0.75 });
+  var mCap    = new THREE.MeshStandardMaterial({ color: 0x4a5575, roughness: 0.2, metalness: 0.8 });
+  var mCan    = new THREE.MeshStandardMaterial({ color: 0x5a6580, roughness: 0.18, metalness: 0.72 });
+  var mGlass  = new THREE.MeshStandardMaterial({ color: 0xccddff, transparent: true, opacity: 0.28, roughness: 0.0 });
+  var mScr    = new THREE.MeshStandardMaterial({ color: 0x2244aa, roughness: 0.1, emissive: 0x3366cc, emissiveIntensity: 0.9 });
+  var mBrand  = new THREE.MeshStandardMaterial({ color: BCOLOR, roughness: 0.25, metalness: 0.3, emissive: BCOLOR, emissiveIntensity: 0.4 });
+  var mBrandG = new THREE.MeshStandardMaterial({ color: BCOLOR, emissive: BCOLOR, emissiveIntensity: 0.7 });
+
+  var machine   = new THREE.Group();
+  var turntable = new THREE.Group();
+
+  // Base
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.15, 0.5, 56), mBase);
+  base.position.y = -1.7;
+  base.castShadow = true;
+  machine.add(base);
+
+  // Brand rim on base
+  var baseRim = new THREE.Mesh(new THREE.TorusGeometry(2.18, 0.05, 12, 70), mBrand);
+  baseRim.position.y = -1.44;
+  machine.add(baseRim);
+
+  // Tray
+  var tray = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.05, 0.11, 56), mTray);
+  tray.position.y = -1.34;
+  turntable.add(tray);
+
+  var trayRing = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.038, 10, 70), mBrandG);
+  trayRing.position.y = -1.27;
+  trayRing.rotation.x = Math.PI / 2;
+  turntable.add(trayRing);
+
+  // Central column
+  var col = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.23, 3.6, 22), mCol);
+  col.position.y = 0.35;
+  machine.add(col);
+
+  var colStripe = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.215, 0.25, 22), mBrand);
+  colStripe.position.y = 1.6;
+  machine.add(colStripe);
+
+  var colCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 22, 11, 0, Math.PI * 2, 0, Math.PI / 2), mCap
+  );
+  colCap.position.y = 2.02;
+  machine.add(colCap);
+
+  // Arm
+  var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.45, 12), mCap);
+  arm.rotation.z = Math.PI / 2;
+  arm.position.set(0.72, 1.65, 0);
+  machine.add(arm);
+
+  var nozHouse = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.28, 14),
+    new THREE.MeshStandardMaterial({ color: 0x1a1f2c, roughness: 0.3, metalness: 0.8 }));
+  nozHouse.position.set(1.45, 1.54, 0);
+  machine.add(nozHouse);
+
+  var nozTip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.042, 0.15, 10),
+    new THREE.MeshStandardMaterial({ color: 0xaabbcc, roughness: 0.1, metalness: 0.95 }));
+  nozTip.position.set(1.45, 1.36, 0);
+  machine.add(nozTip);
+
+  // Screen
+  var scr = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, 0.04), mScr);
+  scr.position.set(0.28, 1.08, 0);
+  scr.rotation.y = -0.2;
+  machine.add(scr);
+
+  var sBar = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.07, 0.045), mBrand);
+  sBar.position.set(0.28, 1.31, 0);
+  sBar.rotation.y = -0.2;
+  machine.add(sBar);
+
+  // ── Brand name label (canvas texture) ───────────────────
+  var brandName = _cfg.brand_name || 'Brand';
+  var labelCanvas  = document.createElement('canvas');
+  labelCanvas.width  = 512;
+  labelCanvas.height = 128;
+  var lctx = labelCanvas.getContext('2d');
+  // Background — brand colour at low opacity
+  lctx.clearRect(0, 0, 512, 128);
+  // Brand colour fill
+  lctx.fillStyle = _cfg.bcolor_hex;
+  lctx.globalAlpha = 0.15;
+  lctx.fillRect(0, 0, 512, 128);
+  lctx.globalAlpha = 1.0;
+  // Brand name text
+  lctx.fillStyle = '#ffffff';
+  lctx.font = 'bold 64px Arial, sans-serif';
+  lctx.textAlign = 'center';
+  lctx.textBaseline = 'middle';
+  lctx.shadowColor = _cfg.bcolor_hex;
+  lctx.shadowBlur  = 12;
+  lctx.fillText(brandName.toUpperCase(), 256, 64);
+  var labelTex = new THREE.CanvasTexture(labelCanvas);
+  var labelMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.6, 0.4),
+    new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, depthWrite: false })
+  );
+  labelMesh.position.set(0, -1.0, 2.21);  // front face of base, just below tray
+  machine.add(labelMesh);
+
+  // Second label on the column (smaller)
+  var colCanvas  = document.createElement('canvas');
+  colCanvas.width  = 256;
+  colCanvas.height = 64;
+  var cctx = colCanvas.getContext('2d');
+  cctx.fillStyle = _cfg.bcolor_hex;
+  cctx.globalAlpha = 0.9;
+  cctx.fillRect(0, 0, 256, 64);
+  cctx.globalAlpha = 1.0;
+  cctx.fillStyle = '#ffffff';
+  cctx.font = 'bold 28px Arial, sans-serif';
+  cctx.textAlign = 'center';
+  cctx.textBaseline = 'middle';
+  cctx.fillText(brandName.toUpperCase(), 128, 32);
+  var colTex  = new THREE.CanvasTexture(colCanvas);
+  var colLabel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.55, 0.14),
+    new THREE.MeshBasicMaterial({ map: colTex, transparent: true, depthWrite: false })
+  );
+  colLabel.position.set(0, 1.6, 0.22);  // on the column stripe
+  machine.add(colLabel);
+
+  // Connector rings
+  var ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.48, 0.044, 10, N * 3), mCap);
+  ring1.position.y = 0.68;
+  ring1.rotation.x = Math.PI / 2;
+  turntable.add(ring1);
+
+  var ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.48, 0.044, 10, N * 3), mCap);
+  ring2.position.y = -1.24;
+  ring2.rotation.x = Math.PI / 2;
+  turntable.add(ring2);
+
+  // ── Canisters with hover detection ───────────────────────
+  var canR = 0.175, canH = 1.65, ringR = 1.48;
+  var canisterGroups = [];   // for raycasting
+  var hitboxes       = [];   // invisible wider hit areas
+
+  for (var i = 0; i < N; i++) {
+    var angle   = (i / N) * Math.PI * 2 - Math.PI / 2;
+    var cx      = Math.cos(angle) * ringR;
+    var cz      = Math.sin(angle) * ringR;
+    var sd      = SLOT_DATA[i + 1];
+    var lev     = sd.level;
+    var outward = Math.atan2(cz, cx) + Math.PI;
+
+    var g = new THREE.Group();
+    g.position.set(cx, -0.42, cz);
+    g.userData = { slotIndex: i + 1 };
+
+    // ── Canister body colour = family colour if loaded, else default metal ──
+    var bodyColor;
+    if (sd.loaded && sd.color_fc && sd.color_fc !== '#252a38') {
+      // Use family colour for the body — slightly desaturated for metallic look
+      bodyColor = parseInt(sd.color_fc.replace('#', ''), 16);
+    } else {
+      bodyColor = 0x5a6580;  // default unloaded — light metal
+    }
+    var mCanBody = new THREE.MeshStandardMaterial({
+      color:     bodyColor,
+      roughness: sd.loaded ? 0.45 : 0.18,   // loaded canisters less reflective (paint)
+      metalness: sd.loaded ? 0.25 : 0.72    // empty = shiny metal, loaded = painted
+    });
+
+    // Body
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(canR, canR, canH, 18), mCanBody);
+    body.castShadow = true;
+    g.add(body);
+
+    // Liquid fill — visible through glass window, colour = family colour
+    if (lev > 0.01) {
+      var fh  = canH * 0.75 * lev;
+      var fy  = -canH / 2 + fh / 2 + 0.04;
+      // Use family colour for liquid (more vibrant than level colour)
+      var lc  = sd.loaded && sd.color_fc ?
+                parseInt(sd.color_fc.replace('#', ''), 16) :
+                parseInt(sd.color.replace('#', ''), 16);
+      var liq = new THREE.Mesh(
+        new THREE.CylinderGeometry(canR * 0.77, canR * 0.77, fh, 18),
+        new THREE.MeshStandardMaterial({
+          color: lc, roughness: 0.05, emissive: lc, emissiveIntensity: 0.3,
+          transparent: true, opacity: 0.95
+        })
+      );
+      liq.position.y = fy;
+      g.add(liq);
+    }
+
+    // Glass window — slightly more opaque so colour shows through
+    var gw = new THREE.Mesh(
+      new THREE.CylinderGeometry(canR + 0.005, canR + 0.005, canH * 0.74, 18, 1, true, -Math.PI * 0.2, Math.PI * 0.4),
+      new THREE.MeshStandardMaterial({ color: 0xddeeff, transparent: true, opacity: 0.22, roughness: 0.0 })
+    );
+    gw.rotation.y = outward;
+    g.add(gw);
+
+    // Cap — same family colour tint as body for loaded canisters
+    var capColor = sd.loaded && sd.color_fc && sd.color_fc !== '#252a38' ?
+                  parseInt(sd.color_fc.replace('#', ''), 16) : 0x4a5575;
+    var cap = new THREE.Mesh(
+      new THREE.SphereGeometry(canR, 16, 9, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: capColor, roughness: 0.3, metalness: 0.5 })
+    );
+    cap.position.y = canH / 2;
+    g.add(cap);
+
+    // Brand ring — always brand colour
+    var br = new THREE.Mesh(new THREE.TorusGeometry(canR + 0.009, 0.015, 8, 26), mBrandG);
+    br.position.y = canH / 2 - 0.14;
+    br.rotation.x = Math.PI / 2;
+    g.add(br);
+
+    // Nozzle
+    var noz = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.16, 8),
+      new THREE.MeshStandardMaterial({ color: 0x8899aa, roughness: 0.1, metalness: 0.95 }));
+    noz.position.y = -canH / 2 - 0.08;
+    g.add(noz);
+
+    // Invisible larger hitbox for raycasting
+    var hitbox = new THREE.Mesh(
+      new THREE.CylinderGeometry(canR * 1.6, canR * 1.6, canH + 0.3, 12),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitbox.userData = { slotIndex: i + 1 };
+    g.add(hitbox);
+    hitboxes.push(hitbox);
+
+    turntable.add(g);
+    canisterGroups.push(g);
+  }
+
+  // Paint can
+  var pCan = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.6, 22),
+    new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.45, metalness: 0.3 }));
+  pCan.position.set(1.45, -1.55, 0);
+  machine.add(pCan);
+
+  var pLbl = new THREE.Mesh(new THREE.CylinderGeometry(0.304, 0.304, 0.28, 22, 1, true), mBrand);
+  pLbl.position.set(1.45, -1.57, 0);
+  machine.add(pLbl);
+
+  // Legs
+  var legM = new THREE.MeshStandardMaterial({ color: 0x111520, roughness: 0.4, metalness: 0.8 });
+  [[-1.65, -1.45], [1.65, -1.45], [-1.65, 0.45], [1.65, 0.45]].forEach(function(p) {
+    var leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.24, 0.12), legM);
+    leg.position.set(p[0], -1.82, p[1]);
+    machine.add(leg);
+  });
+
+  machine.add(turntable);
+  scene.add(machine);
+
+  // ── Raycaster for hover tooltip ───────────────────────────
+  var raycaster   = new THREE.Raycaster();
+  var mouse       = new THREE.Vector2();
+  var hoveredSlot = -1;
+
+  canvas.addEventListener('mousemove', function(e) {
+    if (drag) return;
+    var rect = canvas.getBoundingClientRect();
+    mouse.x  = ((e.clientX - rect.left) / canvas.clientWidth)  * 2 - 1;
+    mouse.y  = -((e.clientY - rect.top)  / canvas.clientHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    var hits = raycaster.intersectObjects(hitboxes, false);
+
+    if (hits.length > 0) {
+      var si   = hits[0].object.userData.slotIndex;
+      var data = SLOT_DATA[si];
+      if (si !== hoveredSlot) {
+        hoveredSlot = si;
+        var ttDot     = document.getElementById('tt-dot');
+        var ttColour  = document.getElementById('tt-colour');
+        var ttDesc    = document.getElementById('tt-desc');
+
+        // Slot label: "#01"
+        ttSlot.textContent = '#' + String(si).padStart(2, '0');
+
+        if (data.loaded) {
+          // Colour dot — use family colour hex, fall back to level colour
+          ttDot.style.background = data.color_fc || data.color;
+          // Colour name (family_colour) — use name field which already holds family_colour
+          ttColour.textContent   = data.name || '—';
+          ttColour.style.color   = 'var(--text)';
+          // Product description
+          ttDesc.textContent     = data.product || '';
+          ttDesc.style.display   = data.product ? 'block' : 'none';
+          // Level bar + percentage
+          ttBar.style.width      = (data.pct || 0) + '%';
+          ttBar.style.background = data.color;
+          ttPct.textContent      = data.pct + '%';
+          ttPct.style.color      = data.color;
+        } else {
+          ttDot.style.background = 'var(--border)';
+          ttColour.textContent   = 'Empty';
+          ttColour.style.color   = 'var(--text-dim)';
+          ttDesc.style.display   = 'none';
+          ttBar.style.width      = '0%';
+          ttPct.textContent      = '—';
+          ttPct.style.color      = 'var(--text-dim)';
+        }
+      }
+      tooltip.style.display = 'block';
+      tooltip.style.left    = (e.clientX - canvas.getBoundingClientRect().left + 14) + 'px';
+      tooltip.style.top     = (e.clientY - canvas.getBoundingClientRect().top  - 10) + 'px';
+    } else {
+      tooltip.style.display = 'none';
+      hoveredSlot = -1;
+    }
+  });
+
+  canvas.addEventListener('mouseleave', function() {
+    tooltip.style.display = 'none';
+    hoveredSlot = -1;
+  });
+
+  // ── Mouse drag ────────────────────────────────────────────
+  var drag = false, px = 0, py = 0;
+  canvas.addEventListener('mousedown', function(e) {
+    drag = true; px = e.clientX; py = e.clientY;
+    canvas.style.cursor = 'grabbing';
+  });
+  canvas.addEventListener('mouseup',    function() { drag = false; canvas.style.cursor = 'grab'; });
+  canvas.addEventListener('mouseleave', function() { drag = false; });
+  canvas.addEventListener('mousemove',  function(e) {
+    if (!drag) return;
+    camT += (e.clientX - px) * 0.01;
+    camP += (e.clientY - py) * 0.006;
+    camP = Math.max(0.28, Math.min(1.42, camP));
+    px = e.clientX; py = e.clientY;
+    setCamPos();
+  });
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    camR = Math.max(4, Math.min(14, camR + e.deltaY * 0.009));
+    setCamPos();
+  }, { passive: false });
+  window.addEventListener('resize', function() {
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    camera.aspect = canvas.clientWidth / canvas.clientHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  window.resetCam = function() { camT = 0.35; camP = 1.0; camR = 7.5; setCamPos(); };
+
+  // ── Animate ────────────────────────────────────────────────
+  var tAngle = 0;
+  (function animate() {
+    requestAnimationFrame(animate);
+    tAngle += 0.0022;
+    turntable.rotation.y = tAngle;
+    renderer.render(scene, camera);
+  })();
+})();
+
+// ══ Canister management ════════════════════════════════════
+var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+var TM;
+try {
+  TM = JSON.parse(document.getElementById('tm-config').textContent);
+} catch(e) {
+  console.error('TM config parse error:', e, document.getElementById('tm-config').textContent);
+  TM = { load_url: '', adjust_base: '', remove_base: '' };
+}
+
+window.loadCanister = function() {
+  var pid  = document.getElementById('load-product-id');
+  var slot = document.getElementById('load-slot').value;
+  var vol  = document.getElementById('load-volume').value;
+
+  if (!pid || !pid.value) {
+    showToast('Please select a product first', 'error'); return;
+  }
+
+  fetch(TM.load_url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+    body:    JSON.stringify({ product_id: pid.value, slot_number: slot, volume_ml: vol })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      showToast(d.message, 'success');
+      setTimeout(function() { location.reload(); }, 900);
+    } else {
+      showToast(d.error, 'error');
+    }
+  });
+};
+
+// Each tap = 25% of initial volume. Warn when next subtract will empty canister.
+window.adjustSlot = function(canisterId, slotNum, direction, remainingMl, initialMl) {
+  var pct  = TM.dispense_step_pct || 25;
+  var step = Math.round((initialMl || remainingMl) * pct / 100);
+
+  // Warn if this subtract will empty (remaining <= one step)
+  if (direction === 'subtract' && remainingMl <= step) {
+    var confirmed = window.confirm(
+      '⚠️ Warning: Emptying Canister\n\n' +
+      'Slot #' + String(slotNum).padStart(2,'0') + ' has only ' + remainingMl + 'ml remaining (' +
+      Math.round(remainingMl / (initialMl || remainingMl) * 100) + '%).\n\n' +
+      'Tapping − will completely empty this slot and clear the colorant.\n' +
+      'You will need to reload a tint colour before using this slot again.\n\n' +
+      'This action cannot be undone.\n\nProceed?'
+    );
+    if (!confirmed) return;
+  }
+
+  fetch(TM.adjust_base + '/' + canisterId, {
+    method:  'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+    body:    JSON.stringify({ direction: direction })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.success) { showToast(d.error, 'error'); return; }
+
+    if (d.now_empty) {
+      // Slot is now empty — reload page to show empty state + last colour
+      showToast('Slot #' + String(slotNum).padStart(2,'0') + ' is now empty.', 'success');
+      setTimeout(function() { location.reload(); }, 1000);
+      return;
+    }
+
+    // Update card inline
+    var bar = document.getElementById('bar-' + slotNum);
+    var rem = document.getElementById('rem-' + slotNum);
+    var pct = document.getElementById('pct-' + slotNum);
+    if (bar) { bar.style.width = d.level_percent + '%'; bar.style.background = d.level_color; }
+    if (rem) { rem.textContent = Math.round(d.remaining_ml) + 'ml'; }
+    if (pct) { pct.textContent = Math.round(d.level_percent) + '%'; pct.style.color = d.level_color; }
+    showToast('Slot #' + String(slotNum).padStart(2,'0') + ': ' + Math.round(d.remaining_ml) + 'ml remaining', 'success');
+  });
+};
+
+// Reload the last colourant into an empty slot
+window.reloadLast = function(url, productName, slotNum) {
+  if (!window.confirm(
+    'Reload "' + productName + '" into Slot #' + String(slotNum).padStart(2,'0') + '?\n\n' +
+    'This will deduct 1 unit from stock.'
+  )) return;
+
+  fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      showToast(d.message, 'success');
+      setTimeout(function() { location.reload(); }, 900);
+    } else if (d.no_stock) {
+      window.alert('⚠️ Out of Stock\n\n' + d.error);
+    } else {
+      showToast(d.error, 'error');
+    }
+  });
+};
+
+window.removeSlot = function(canisterId, slotNum) {
+  if (!confirm('Remove canister from Slot ' + slotNum + '?')) return;
+  fetch(TM.remove_base + '/' + canisterId, {
+    method:  'DELETE',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      showToast(d.message, 'success');
+      setTimeout(function() { location.reload(); }, 900);
+    } else {
+      showToast(d.error, 'error');
+    }
+  });
+};
+
+// quickLoad — always safe because load-slot is now always rendered
+window.quickLoad = function(slotNum) {
+  var slotEl = document.getElementById('load-slot');
+  if (slotEl) slotEl.value = String(slotNum);
+  var prodEl = document.getElementById('load-product-id');
+  if (prodEl) {
+    prodEl.focus();
+  } else {
+    showToast('Add tintable products to stock first', 'error');
+  }
+  // Scroll load panel into view
+  var panel = document.getElementById('load-slot');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+// Product dropdown → auto-fill volume + colour dot
+var prodSel = document.getElementById('load-product-id');
+if (prodSel) {
+  prodSel.addEventListener('change', function() {
+    var opt = this.options[this.selectedIndex];
+    var vol = opt.dataset.volume;
+    var col = opt.dataset.colour;
+    var volEl = document.getElementById('load-volume');
+    if (vol && volEl) volEl.value = vol;
+    var prev = document.getElementById('load-colour-preview');
+    if (prev) {
+      if (col && col.length > 0) {
+        prev.style.display = 'block';
+        prev.innerHTML =
+          '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;' +
+          'background:' + col + ';margin-right:6px;vertical-align:middle"></span>' +
+          '<strong>' + col + '</strong> family colour';
+      } else {
+        prev.style.display = 'none';
+      }
+    }
+  });
+}
+
+function showToast(msg, type) {
+  var t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText =
+    'position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 18px;' +
+    'border-radius:8px;font-size:13px;font-weight:500;color:white;' +
+    'box-shadow:0 4px 20px rgba(0,0,0,.3);animation:slideUp .3s ease;' +
+    'background:' + (type === 'success' ? 'var(--success)' : 'var(--danger)') + ';';
+  document.body.appendChild(t);
+  setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 3200);
+}
+</script>
+<style>
+  @keyframes slideUp {
+    from { opacity:0; transform:translateY(16px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+</style>

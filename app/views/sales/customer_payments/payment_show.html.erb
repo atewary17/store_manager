@@ -1,0 +1,231 @@
+<%# app/views/sales/customer_receipts/payment_show.html.erb %>
+<% content_for :title, @payment.receipt_label %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Customer Receipts', sales_customer_receipts_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @payment.receipt_label %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <span style="font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:4px;
+                   text-transform:uppercase;letter-spacing:.07em;
+                   background:var(--bg);border:1px solid var(--border);color:var(--text-dim)">
+        <%= @payment.payment_mode %>
+      </span>
+    </div>
+    <div class="page-title"><%= @payment.receipt_label %></div>
+    <div class="page-subtitle" style="font-family:var(--mono)">
+      <%= @payment.payment_date.strftime('%d %B %Y') %>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to '← Back', sales_customer_receipts_path, class: 'btn btn-secondary' %>
+    <%= link_to '↓ Download Receipt',
+          sales_sales_invoice_sale_payment_path(@invoice, @payment, format: :pdf),
+          class: 'btn btn-primary', target: '_blank' %>
+  </div>
+</div>
+
+<%# ── Payment summary card ── %>
+<div class="detail-card" style="margin-bottom:20px">
+  <div class="detail-section">
+    <div class="detail-section-title">Payment Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Receipt Number</label>
+        <div class="value mono"><%= @payment.receipt_label %></div>
+      </div>
+      <div class="detail-field">
+        <label>Payment Date</label>
+        <div class="value mono"><%= @payment.payment_date.strftime('%d %b %Y') %></div>
+      </div>
+      <div class="detail-field">
+        <label>Amount Received</label>
+        <div class="value" style="font-family:var(--mono);font-size:22px;font-weight:700;
+                                   color:var(--success)">
+          ₹ <%= number_with_precision(@payment.amount, precision: 2, delimiter: ',') %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Payment Mode</label>
+        <div class="value">
+          <span style="font-family:var(--mono);font-size:12px;padding:3px 10px;border-radius:5px;
+                       text-transform:uppercase;letter-spacing:.07em;
+                       background:var(--bg);border:1px solid var(--border);color:var(--text)">
+            <%= @payment.payment_mode %>
+          </span>
+        </div>
+      </div>
+      <% if @payment.reference_number.present? %>
+        <div class="detail-field">
+          <label>Reference Number</label>
+          <div class="value mono"><%= @payment.reference_number %></div>
+        </div>
+      <% end %>
+      <% if @payment.notes.present? %>
+        <div class="detail-field" style="grid-column:span 2">
+          <label>Notes</label>
+          <div class="value"><%= @payment.notes %></div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @customer %>
+    <div class="detail-section">
+      <div class="detail-section-title">Customer</div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Name</label>
+          <div class="value"><%= @customer.name %></div>
+        </div>
+        <% if @customer.phone.present? %>
+          <div class="detail-field">
+            <label>Phone</label>
+            <div class="value mono"><%= @customer.phone %></div>
+          </div>
+        <% end %>
+        <% if @customer.gstin.present? %>
+          <div class="detail-field">
+            <label>GSTIN</label>
+            <div class="value mono"><%= @customer.gstin %></div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Invoice this payment is against ── %>
+<% if @invoice %>
+  <div class="detail-card" style="margin-bottom:20px">
+    <div class="detail-section">
+      <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Invoice</span>
+        <%= link_to 'Open Invoice →', sales_sales_invoice_path(@invoice),
+              style: "font-size:12px;color:var(--accent);text-decoration:none;font-weight:400" %>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Invoice Number</label>
+          <div class="value mono">
+            <%= link_to @invoice.display_number, sales_sales_invoice_path(@invoice),
+                  style: "color:var(--accent);text-decoration:none" %>
+          </div>
+        </div>
+        <div class="detail-field">
+          <label>Invoice Date</label>
+          <div class="value mono"><%= @invoice.invoice_date&.strftime('%d %b %Y') %></div>
+        </div>
+        <div class="detail-field">
+          <label>Invoice Total</label>
+          <div class="value mono">₹ <%= number_with_precision(@invoice.computed_grand_total, precision: 2, delimiter: ',') %></div>
+        </div>
+        <div class="detail-field">
+          <label>Total Paid</label>
+          <div class="value mono" style="color:var(--success)">
+            ₹ <%= number_with_precision(@invoice.total_paid, precision: 2, delimiter: ',') %>
+          </div>
+        </div>
+        <div class="detail-field">
+          <label>Outstanding After This Payment</label>
+          <% outstanding = @invoice.outstanding_amount %>
+          <div class="value mono" style="color:<%= outstanding > 0 ? 'var(--danger)' : 'var(--success)' %>;font-weight:600">
+            ₹ <%= number_with_precision(outstanding, precision: 2, delimiter: ',') %>
+            <% if outstanding <= 0 %>
+              <span style="font-size:11px;font-weight:400;color:var(--success);margin-left:6px">✓ Fully paid</span>
+            <% end %>
+          </div>
+        </div>
+        <div class="detail-field">
+          <label>Status</label>
+          <% ps = @invoice.payment_status %>
+          <div class="value">
+            <span style="font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:4px;
+                         text-transform:uppercase;letter-spacing:.05em;
+                         background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                         color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
+              <%= ps %>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%# Progress bar — how much of the invoice has been paid %>
+    <% total = @invoice.computed_grand_total %>
+    <% paid  = @invoice.total_paid %>
+    <% pct   = total > 0 ? [(paid / total * 100).round, 100].min : 0 %>
+    <div style="padding:0 20px 16px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;
+                  color:var(--text-dim);margin-bottom:5px">
+        <span>Payment progress</span>
+        <span style="font-family:var(--mono);font-weight:600;color:var(--text)"><%= pct %>%</span>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px">
+        <div style="height:6px;width:<%= pct %>%;border-radius:3px;
+                    background:<%= pct >= 100 ? 'var(--success)' : 'var(--accent)' %>;
+                    transition:width .3s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;
+                  color:var(--text-dim);margin-top:4px;font-family:var(--mono)">
+        <span>Paid ₹<%= number_with_delimiter(paid.round(0)) %></span>
+        <span>Total ₹<%= number_with_delimiter(total.round(0)) %></span>
+      </div>
+    </div>
+  </div>
+
+  <%# ── All payments on this invoice ── %>
+  <% all_payments = @invoice.sale_payments.order(payment_date: :asc) %>
+  <% if all_payments.size > 1 %>
+    <div class="detail-card">
+      <div class="detail-section">
+        <div class="detail-section-title">All Payments on This Invoice</div>
+        <div style="padding:0">
+          <% all_payments.each do |p| %>
+            <div style="display:flex;align-items:center;gap:14px;padding:10px 0;
+                        border-bottom:1px solid var(--border);
+                        <%= p.id == @payment.id ? 'background:rgba(79,142,247,0.04);margin:0 -20px;padding:10px 20px;' : '' %>">
+              <% if p.id == @payment.id %>
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0"></span>
+              <% else %>
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--border);flex-shrink:0"></span>
+              <% end %>
+              <span style="font-family:var(--mono);font-size:12px;color:<%= p.id == @payment.id ? 'var(--accent)' : 'var(--text-dim)' %>;
+                           min-width:160px">
+                <%= p.receipt_label %>
+              </span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);min-width:100px">
+                <%= p.payment_date.strftime('%d %b %Y') %>
+              </span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);min-width:60px">
+                <%= p.payment_mode %>
+              </span>
+              <span style="font-family:var(--mono);font-weight:600;color:var(--success);margin-left:auto">
+                ₹ <%= number_with_precision(p.amount, precision: 2, delimiter: ',') %>
+              </span>
+              <% if p.id == @payment.id %>
+                <span style="font-size:10px;color:var(--accent);font-weight:600">← this receipt</span>
+              <% else %>
+                <%= link_to 'View', sales_customer_receipt_path(p),
+                      style: "font-size:11px;color:var(--accent);text-decoration:none" %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+<% end %>
+
+<div style="margin-top:20px;display:flex;gap:10px">
+  <%= link_to '← Back to Payments', sales_customer_receipts_path, class: 'btn btn-secondary' %>
+  <% if @customer %>
+    <%= link_to 'Customer Ledger →', sales_accounts_receivable_path(@customer),
+          class: 'btn btn-secondary' %>
+  <% end %>
+</div>

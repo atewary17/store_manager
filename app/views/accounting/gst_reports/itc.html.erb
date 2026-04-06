@@ -1,0 +1,140 @@
+<%# app/views/accounting/gst_reports/itc.html.erb %>
+<% content_for :title, "ITC Register — #{@period_label}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'GST Reports', accounting_gst_reports_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">ITC Register</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Input Tax Credit Register</div>
+    <div class="page-subtitle"><%= @period_label %> · <%= @items.count %> line items</div>
+  </div>
+  <div class="actions">
+    <%= link_to '← GST Dashboard', accounting_gst_reports_path(month: @period_month, year: @period_year), class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<%# Summary by rate %>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px">
+  <% @by_rate.each do |rate, data| %>
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:10px;padding:14px 16px">
+      <div style="font-family:var(--mono);font-size:20px;font-weight:700;
+                  color:var(--accent)"><%= rate.to_f.to_i %>%</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">GST Rate</div>
+      <div style="font-size:12px;color:var(--text)">
+        Taxable: ₹<%= number_with_delimiter(data[:taxable].round(0)) %>
+      </div>
+      <div style="font-size:12px;color:var(--success);font-weight:600">
+        ITC: ₹<%= number_with_delimiter(data[:tax].round(0)) %>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:4px">
+        <%= data[:count] %> item<%= data[:count] != 1 ? 's' : '' %>
+      </div>
+    </div>
+  <% end %>
+  <%# Total ITC card %>
+  <div style="background:rgba(52,217,139,0.06);border:1px solid rgba(52,217,139,0.3);
+              border-radius:10px;padding:14px 16px">
+    <div style="font-family:var(--mono);font-size:20px;font-weight:700;
+                color:var(--success)">Total ITC</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">All rates</div>
+    <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--success)">
+      ₹ <%= number_with_delimiter(@total_itc.round(0)) %>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:6px">
+      CGST: ₹<%= number_with_delimiter(@total_itc_cgst.round(0)) %> ·
+      SGST: ₹<%= number_with_delimiter(@total_itc_sgst.round(0)) %>
+    </div>
+  </div>
+</div>
+
+<% if @items.any? %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice Date</th>
+          <th>Invoice #</th>
+          <th>Supplier</th>
+          <th>Product / HSN</th>
+          <th style="text-align:right">GST %</th>
+          <th style="text-align:right">Taxable (₹)</th>
+          <th style="text-align:right">CGST (₹)</th>
+          <th style="text-align:right">SGST (₹)</th>
+          <th style="text-align:right">IGST (₹)</th>
+          <th style="text-align:right">Total ITC (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @items.each do |item| %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
+              <%= item.purchase_invoice.invoice_date&.strftime('%d %b %Y') %>
+            </td>
+            <td>
+              <%= link_to item.purchase_invoice.display_number,
+                    purchasing_purchase_invoice_path(item.purchase_invoice),
+                    style: 'font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none' %>
+            </td>
+            <td style="font-size:13px">
+              <%= item.purchase_invoice.supplier&.name || '—' %>
+            </td>
+            <td>
+              <div style="font-size:12px;font-weight:500"><%= item.product&.description&.truncate(30) || '—' %></div>
+              <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">
+                HSN: <%= item.hsn_code %>
+              </div>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600">
+              <%= item.gst_rate.to_f.to_i %>%
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_precision(item.taxable_amount, precision: 2, delimiter: ',') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              <%= item.cgst_amount > 0 ? number_with_precision(item.cgst_amount, precision: 2, delimiter: ',') : '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              <%= item.sgst_amount > 0 ? number_with_precision(item.sgst_amount, precision: 2, delimiter: ',') : '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--accent)">
+              <%= item.igst_amount > 0 ? number_with_precision(item.igst_amount, precision: 2, delimiter: ',') : '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--success)">
+              <%= number_with_precision(item.tax_amount, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr style="background:var(--bg);font-weight:700">
+          <td colspan="5" style="padding:12px 14px">Total</td>
+          <td style="padding:12px 14px;text-align:right;font-family:var(--mono)">
+            ₹ <%= number_with_precision(@items.sum(&:taxable_amount), precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:12px 14px;text-align:right;font-family:var(--mono);color:var(--success)">
+            ₹ <%= number_with_precision(@total_itc_cgst, precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:12px 14px;text-align:right;font-family:var(--mono);color:var(--success)">
+            ₹ <%= number_with_precision(@total_itc_sgst, precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:12px 14px;text-align:right;font-family:var(--mono);color:var(--accent)">
+            ₹ <%= number_with_precision(@total_itc_igst, precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:12px 14px;text-align:right;font-family:var(--mono);font-size:15px;color:var(--success)">
+            ₹ <%= number_with_precision(@total_itc, precision: 2, delimiter: ',') %>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+<% else %>
+  <div class="table-wrap" style="padding:48px;text-align:center;color:var(--text-dim)">
+    No purchase invoices with GST found for <%= @period_label %>.
+  </div>
+<% end %>

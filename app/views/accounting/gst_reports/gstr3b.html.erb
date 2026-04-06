@@ -1,0 +1,245 @@
+<%# app/views/accounting/gst_reports/gstr3b.html.erb %>
+<% content_for :title, "GSTR-3B — #{@period_label}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Accounting</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'GST Reports', accounting_gst_reports_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">GSTR-3B</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">GSTR-3B — Summary Return</div>
+    <div class="page-subtitle"><%= @period_label %> · Due <%= @gstr3b_due.strftime('%d %b %Y') %></div>
+  </div>
+  <div class="actions">
+    <%= link_to '← GST Dashboard', accounting_gst_reports_path(month: @period_month, year: @period_year),
+          class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<%# 3.1 — Outward supplies %>
+<div class="detail-card" style="margin-bottom:20px">
+  <div class="detail-section">
+    <div class="detail-section-title">
+      3.1 — Details of Outward Supplies and Inward Supplies liable to Reverse Charge
+    </div>
+    <div style="overflow-x:auto">
+      <table id="gstr3b-outward-table" style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg)">
+            <% ['Nature of Supply', 'Total Taxable Value (₹)', 'Integrated Tax (₹)', 'Central Tax (₹)', 'State/UT Tax (₹)', 'Cess (₹)'].each do |h| %>
+              <th style="padding:10px 14px;font-family:var(--mono);font-size:10px;
+                         text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim);
+                         border-bottom:1px solid var(--border);
+                         text-align:<%= h == 'Nature of Supply' ? 'left' : 'right' %>"><%= h %></th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% [
+               ['(a) Outward taxable supplies (other than zero rated, nil rated and exempted)',
+                @output[:taxable], @output[:igst], @output[:cgst], @output[:sgst], 0],
+               ['(b) Outward taxable supplies (zero rated)', 0, 0, 0, 0, 0],
+               ['(c) Other outward supplies (Nil rated, exempted)', 0, 0, 0, 0, 0],
+               ['(d) Inward supplies (liable to reverse charge)', 0, 0, 0, 0, 0],
+               ['(e) Non-GST outward supplies', 0, 0, 0, 0, 0],
+             ].each do |row| %>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:11px 14px;font-size:12px;max-width:340px"><%= row[0] %></td>
+              <% row[1..].each do |v| %>
+                <td style="padding:11px 14px;text-align:right;font-family:var(--mono);font-size:12px;
+                           color:<%= v.to_f > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
+                  <%= v.to_f > 0 ? number_with_precision(v, precision: 2, delimiter: ',') : '—' %>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%# 4 — ITC section %>
+  <div class="detail-section">
+    <div class="detail-section-title">4 — Eligible ITC (Input Tax Credit)</div>
+    <div style="overflow-x:auto">
+      <table id="gstr3b-itc-table" style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg)">
+            <% ['Details', 'Integrated Tax (₹)', 'Central Tax (₹)', 'State/UT Tax (₹)', 'Cess (₹)'].each do |h| %>
+              <th style="padding:10px 14px;font-family:var(--mono);font-size:10px;
+                         text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim);
+                         border-bottom:1px solid var(--border);
+                         text-align:<%= h == 'Details' ? 'left' : 'right' %>"><%= h %></th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% [
+               ['(A) ITC Available — Import of goods',           0, 0, 0, 0],
+               ['(A) ITC Available — Import of services',        0, 0, 0, 0],
+               ['(A) ITC Available — Inward supplies (others)', @input[:igst], @input[:cgst], @input[:sgst], 0],
+               ['(A) ITC Available — ISD',                       0, 0, 0, 0],
+               ['(B) ITC Reversed',                              0, 0, 0, 0],
+             ].each do |row| %>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:11px 14px;font-size:12px;max-width:340px"><%= row[0] %></td>
+              <% row[1..].each do |v| %>
+                <td style="padding:11px 14px;text-align:right;font-family:var(--mono);font-size:12px;
+                           color:<%= v.to_f > 0 ? 'var(--success)' : 'var(--text-dim)' %>">
+                  <%= v.to_f > 0 ? number_with_precision(v, precision: 2, delimiter: ',') : '—' %>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+          <%# Net ITC row %>
+          <tr style="background:var(--bg)">
+            <td style="padding:11px 14px;font-weight:700">Net ITC Available (A) − (B)</td>
+            <% [@input[:igst], @input[:cgst], @input[:sgst], 0].each do |v| %>
+              <td style="padding:11px 14px;text-align:right;font-family:var(--mono);
+                         font-weight:700;color:var(--success)">
+                <%= number_with_precision(v, precision: 2, delimiter: ',') %>
+              </td>
+            <% end %>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%# 5.1 — Net Tax Payable %>
+  <div class="detail-section">
+    <div class="detail-section-title">5.1 — Payment of Tax</div>
+    <div style="overflow-x:auto">
+      <table id="gstr3b-payment-table" style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg)">
+            <% ['Description', 'Tax Payable (₹)', 'ITC (IGST)', 'ITC (CGST)', 'ITC (SGST)', 'TDS/TCS', 'Net Cash Payable (₹)'].each do |h| %>
+              <th style="padding:10px 14px;font-family:var(--mono);font-size:10px;
+                         text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim);
+                         border-bottom:1px solid var(--border);
+                         text-align:<%= h == 'Description' ? 'left' : 'right' %>"><%= h %></th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <%
+            # Use the prescribed 7-step set-off breakdown from the controller.
+            # u = @itc_utilisation — shows exactly which ITC was used for which head.
+            u = @itc_utilisation
+            rows_5_1 = [
+              # [label,       output_due,       igst_used,             cgst_used,            sgst_used,  cash_payable]
+              ['Integrated Tax (IGST)', @output[:igst], u[:igst_vs_igst],  u[:cgst_vs_igst],    u[:sgst_vs_igst], @igst_payable],
+              ['Central Tax (CGST)',    @output[:cgst], u[:igst_vs_cgst],  u[:cgst_vs_cgst],    0,                @cgst_payable],
+              ['State/UT Tax (SGST)',   @output[:sgst], u[:igst_vs_sgst],  0,                   u[:sgst_vs_sgst], @sgst_payable],
+            ]
+          %>
+          <% rows_5_1.each do |label, payable, igst_itc, cgst_itc, sgst_itc, net| %>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:11px 14px;font-weight:500"><%= label %></td>
+              <td style="padding:11px 14px;text-align:right;font-family:var(--mono);color:var(--danger)">
+                <%= number_with_precision(payable, precision: 2, delimiter: ',') %>
+              </td>
+              <td style="padding:11px 14px;text-align:right;font-family:var(--mono);color:var(--success)">
+                <%= igst_itc > 0 ? number_with_precision(igst_itc, precision: 2, delimiter: ',') : '—' %>
+              </td>
+              <td style="padding:11px 14px;text-align:right;font-family:var(--mono);color:var(--success)">
+                <%= cgst_itc > 0 ? number_with_precision(cgst_itc, precision: 2, delimiter: ',') : '—' %>
+              </td>
+              <td style="padding:11px 14px;text-align:right;font-family:var(--mono);color:var(--success)">
+                <%= sgst_itc > 0 ? number_with_precision(sgst_itc, precision: 2, delimiter: ',') : '—' %>
+              </td>
+              <td style="padding:11px 14px;text-align:right;font-family:var(--mono)">—</td>
+              <td style="padding:11px 14px;text-align:right;font-family:var(--mono);font-weight:700;
+                         color:<%= net > 0 ? 'var(--warning)' : 'var(--success)' %>">
+                <%= net > 0 ? number_with_precision(net, precision: 2, delimiter: ',') : '0.00' %>
+              </td>
+            </tr>
+          <% end %>
+          <tr style="background:var(--bg)">
+            <td style="padding:12px 14px;font-weight:700">Total Net Cash Payable</td>
+            <td style="padding:12px 14px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--danger)">
+              ₹ <%= number_with_precision(@output[:tax], precision: 2, delimiter: ',') %>
+            </td>
+            <td colspan="4"></td>
+            <td style="padding:12px 14px;text-align:right;font-family:var(--mono);font-size:16px;
+                       font-weight:700;color:<%= @total_payable > 0 ? 'var(--warning)' : 'var(--success)' %>">
+              ₹ <%= number_with_precision(@total_payable, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <% if @total_payable <= 0 %>
+      <div style="margin-top:14px;padding:12px 16px;background:rgba(52,217,139,0.08);
+                  border:1px solid rgba(52,217,139,0.25);border-radius:8px;
+                  font-size:13px;color:var(--success)">
+        ✅ No GST cash payment required for <%= @period_label %>.
+        ITC fully covers your output tax liability.
+        Credit carry-forward to <%= (Date.new(@period_year, @period_month, 1) + 1.month).strftime('%B %Y') %>: IGST ₹<%= number_with_delimiter(@igst_credit) %> &nbsp;|&nbsp; CGST ₹<%= number_with_delimiter(@cgst_credit) %> &nbsp;|&nbsp; SGST ₹<%= number_with_delimiter(@sgst_credit) %>
+      </div>
+    <% else %>
+      <div style="margin-top:14px;padding:12px 16px;background:rgba(247,195,79,0.08);
+                  border:1px solid rgba(247,195,79,0.25);border-radius:8px;
+                  font-size:13px;color:var(--warning)">
+        ⚠ Cash payment of ₹<%= number_with_delimiter(@total_payable.round(0)) %> due by
+        <%= @gstr3b_due.strftime('%d %B %Y') %>.
+        File GSTR-3B on the GST portal and pay via challan.
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Opening Balance Banner ──────────────────────────────────────────── %>
+<% if @opening_total > 0 %>
+  <div style="margin-bottom:16px;padding:12px 16px;background:rgba(52,152,219,0.07);
+              border:1px solid rgba(52,152,219,0.2);border-radius:8px;font-size:13px">
+    <strong>Opening ITC balance from <%= (Date.new(@period_year, @period_month, 1) - 1.month).strftime('%B %Y') %>:</strong>
+    &nbsp; IGST ₹<%= number_with_delimiter(@opening[:igst]) %>
+    &nbsp;|&nbsp; CGST ₹<%= number_with_delimiter(@opening[:cgst]) %>
+    &nbsp;|&nbsp; SGST ₹<%= number_with_delimiter(@opening[:sgst]) %>
+    &nbsp;|&nbsp; <strong>Total ₹<%= number_with_delimiter(@opening_total) %></strong>
+  </div>
+<% end %>
+
+<%# ── Close Period Card ────────────────────────────────────────────────── %>
+<div style="margin-top:20px;padding:16px 20px;border:1px solid var(--border);
+            border-radius:10px;background:var(--bg2)">
+  <div style="font-size:14px;font-weight:600;margin-bottom:6px">
+    Electronic Credit Ledger — Close Period
+  </div>
+  <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+    Closing this period saves your ITC carry-forward balances to the database.
+    The next month's GSTR-3B will automatically open with these amounts.
+  </div>
+
+  <% if @ledger_entry.period_closed? %>
+    <div style="padding:10px 14px;background:rgba(52,217,139,0.08);
+                border:1px solid rgba(52,217,139,0.2);border-radius:6px;
+                font-size:13px;color:var(--success);margin-bottom:12px">
+      ✅ Period closed on <%= @ledger_entry.closed_at&.strftime('%d %b %Y at %H:%M') %>.
+      Carry-forward: IGST ₹<%= number_with_delimiter(@ledger_entry.closing_igst) %>
+      | CGST ₹<%= number_with_delimiter(@ledger_entry.closing_cgst) %>
+      | SGST ₹<%= number_with_delimiter(@ledger_entry.closing_sgst) %>
+    </div>
+  <% end %>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <% unless @ledger_entry.period_closed? %>
+      <%= button_to "Close #{@period_label} →  Lock carry-forward",
+            accounting_gst_close_period_path,
+            method: :post,
+            params: { year: @period_year, month: @period_month },
+            data: { confirm: "Close #{@period_label}? This will save the carry-forward balances. You can still view but the closing amounts will be locked." },
+            class: 'btn btn-primary',
+            style: 'font-size:13px' %>
+    <% end %>
+
+    <%= link_to '← Back to GST Dashboard',
+          accounting_gst_reports_path(month: @period_month, year: @period_year),
+          class: 'btn btn-secondary' %>
+  </div>
+</div>

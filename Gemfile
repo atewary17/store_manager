@@ -37,7 +37,7 @@ group :development, :test do
   gem 'minitest', '~> 5.0'
   gem 'rspec-rails', '~> 6.0'
   gem 'factory_bot_rails'
-  # gem 'dotenv-rails'
+  gem 'dotenv-rails'
 end
 
 group :development do
@@ -46,9 +46,11 @@ group :development do
 end
 
 group :test do
-  gem 'selenium-webdriver'
-  gem 'capybara'
+  # webdrivers gem removed — selenium-webdriver 4.11+ ships with Selenium Manager
+  # which auto-downloads the correct ChromeDriver. webdrivers is incompatible with Chrome 115+.
+  gem 'rails-controller-testing'  # provides assigns() and assert_template in controller specs
   gem 'rspec_junit_formatter'
+  gem 'database_cleaner-active_record', '~> 2.1'
 end
 
 gem "importmap-rails", "~> 2.2"

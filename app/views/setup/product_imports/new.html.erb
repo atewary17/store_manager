@@ -19,12 +19,58 @@
   <div style="margin-bottom:20px;padding:14px;background:var(--accent-dim);border-radius:8px;border:1px solid var(--border)">
     <div style="font-size:13px;color:var(--text);margin-bottom:8px;font-weight:500">Before uploading</div>
     <ul style="font-size:12px;color:var(--text-dim);padding-left:16px;line-height:1.8">
-      <li>Download the <%= link_to 'import template', template_setup_product_imports_path %> first</li>
-      <li>Column <code>category</code> must match an existing category name exactly</li>
-      <li>Column <code>uom</code> must match a UOM short name or name exactly</li>
-      <li>Existing records are matched by each category's configured import key</li>
-      <li>Leave <code>active</code> as <code>true</code> or <code>false</code></li>
+      <li>Download the <%= link_to 'import template', template_setup_product_imports_path %> first — it pre-fills your current catalogue</li>
+      <li><code>category</code> must match an existing category name exactly</li>
+      <li><code>uom</code> must match a UOM short name or name exactly</li>
+      <li>Products are matched by <strong>material_code</strong> (unique import key)</li>
+      <li>If a product already exists, only <code>mrp</code>, <code>internal_code</code> and <code>local_description</code> are updated (org-specific)</li>
+      <li>Master product fields (description, GST, HSN etc.) are only updated by super admin imports</li>
+      <li><code>mrp</code>, <code>internal_code</code>, <code>local_description</code> are specific to your organisation and do not affect other orgs</li>
     </ul>
+  </div>
+
+  <%# Column guide %>
+  <div style="margin-bottom:20px;padding:14px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                color:var(--text-dim);margin-bottom:10px;font-family:var(--mono)">Column Guide</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:4px 8px;color:var(--text-dim)">Column</th>
+          <th style="text-align:left;padding:4px 8px;color:var(--text-dim)">Updates</th>
+          <th style="text-align:left;padding:4px 8px;color:var(--text-dim)">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% [
+          ['category',          'Master product',   'Must match existing category name'],
+          ['uom',               'Master product',   'Short name or full name'],
+          ['brand',             'Master product',   'Must match existing brand'],
+          ['pack_code',         'Master product',   'e.g. 1L, 4L, 20L'],
+          ['description',       'Master product',   'Full product description'],
+          ['material_code',     'Master product',   '★ Unique import key — used to match existing products'],
+          ['product_code',      'Master product',   'Internal product code (optional)'],
+          ['hsn_code',          'Master product',   'GST HSN classification code'],
+          ['gst_rate',          'Master product',   '0 / 5 / 12 / 18 / 28'],
+          ['mrp',               'Your org only',    'Max retail price for your organisation'],
+          ['internal_code',     'Your org only',    'Your own shelf / SKU code'],
+          ['local_description', 'Your org only',    'Your own product description override'],
+          ['active',            'Master product',   'true or false'],
+        ].each do |col, scope, note| %>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px;font-family:var(--mono);color:var(--accent)"><%= col %></td>
+            <td style="padding:5px 8px">
+              <span style="font-size:10px;padding:1px 6px;border-radius:3px;
+                           background:<%= scope.include?('org') ? 'rgba(52,217,139,0.1)' : 'rgba(79,142,247,0.1)' %>;
+                           color:<%= scope.include?('org') ? 'var(--success)' : 'var(--accent)' %>">
+                <%= scope %>
+              </span>
+            </td>
+            <td style="padding:5px 8px;color:var(--text-dim)"><%= note %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
   </div>
 
   <%= form_with url: setup_product_imports_path, multipart: true do |f| %>

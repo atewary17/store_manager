@@ -1,0 +1,74 @@
+<%# app/views/inventory/tinting_machine/index.html.erb %>
+<% content_for :title, "Tinting Machine" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Inventory</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Tinting Machine</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Tinting Machine</div>
+    <div class="page-subtitle">Select a brand to manage colorant canisters</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+  <% @brands.each do |brand| %>
+    <% canisters  = @brand_summaries[brand] %>
+    <% active     = canisters.select { |c| c.product_id.present? } %>
+    <% critical   = canisters.select { |c| %w[critical].include?(c.status) && c.product_id.present? } %>
+    <% empty_loaded = canisters.select { |c| c.status == 'empty' && c.product_id.present? } %>
+    <% slot_count = brand.name.downcase.include?('salimar') ? 12 : 16 %>
+    <% bcolor     = helpers.brand_hex(brand) rescue '#4f8ef7' %>
+
+    <%= link_to inventory_tinting_machine_brand_path(brand_id: brand.id), style: "text-decoration:none" do %>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;
+                  padding:20px;cursor:pointer;transition:border-color .2s;
+                  position:relative;overflow:hidden"
+           onmouseover="this.style.borderColor='<%= bcolor %>'"
+           onmouseout="this.style.borderColor='var(--border)'">
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:<%= bcolor %>"></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;margin-top:6px">
+          <div style="width:38px;height:38px;border-radius:50%;
+                      background:<%= bcolor %>22;border:2px solid <%= bcolor %>;
+                      display:flex;align-items:center;justify-content:center;
+                      font-weight:700;font-size:12px;color:<%= bcolor %>">
+            <%= brand.name.split.map(&:first).first(2).join.upcase %>
+          </div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px;color:var(--text)"><%= brand.name %></div>
+            <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)"><%= slot_count %> slots · Carousel</div>
+          </div>
+          <% if (critical + empty_loaded).any? %>
+            <span style="font-size:10px;padding:2px 8px;border-radius:10px;
+                         background:rgba(247,97,79,0.12);color:var(--danger);font-weight:700">
+              ⚠ <%= (critical + empty_loaded).count %>
+            </span>
+          <% end %>
+        </div>
+        <%# Mini slot grid — coloured dots %>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:14px">
+          <% slot_count.times do |i| %>
+            <% c  = canisters.find { |x| x.slot_number == i + 1 } %>
+            <% dc = c&.product_id ? c.level_color : '#252a38' %>
+            <div style="width:14px;height:26px;border-radius:3px;background:<%= dc %>;
+                        opacity:<%= c&.product_id ? 1 : 0.5 %>"
+                 title="Slot <%= i+1 %><%= c&.product ? ': ' + c.product.description.truncate(25) : ': Empty' %>">
+            </div>
+          <% end %>
+        </div>
+        <div style="display:flex;gap:14px;font-size:11px;font-family:var(--mono);color:var(--text-dim)">
+          <span style="color:var(--success)"><%= active.count %>/<%= slot_count %> loaded</span>
+          <span>·</span>
+          <span style="color:<%= (critical+empty_loaded).any? ? 'var(--danger)' : 'var(--text-dim)' %>">
+            <%= (critical+empty_loaded).count %> need attention
+          </span>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+  <% if @brands.empty? %>
+    <div class="empty-state"><p>No active brands found.</p></div>
+  <% end %>
+</div>

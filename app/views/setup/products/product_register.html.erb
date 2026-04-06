@@ -19,13 +19,13 @@
     <%= link_to setup_products_path, class: 'btn btn-secondary' do %>
       ← My Org Products
     <% end %>
-    <%= link_to export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' do %>
+    <%= link_to product_register_export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' do %>
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      Export Excel
+      Export All Products
     <% end %>
     <%= link_to new_setup_product_path, class: 'btn btn-primary' do %>
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -231,3 +231,149 @@
     });
   });
 </script>
+
+<%# ══ UNMATCHED / PENDING PRODUCTS SECTION ══════════════════════ %>
+<% if @pending_count > 0 %>
+<div style="margin-top:36px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <div style="font-size:16px;font-weight:600;color:var(--text)">Unmatched Products — Pending Review</div>
+    <span style="font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:10px;
+                 background:rgba(247,97,79,0.12);color:var(--danger);font-weight:600">
+      <%= @pending_count %> pending
+    </span>
+  </div>
+
+  <div style="margin-bottom:12px;padding:10px 14px;background:rgba(247,195,79,0.08);
+              border:1px solid rgba(247,195,79,0.3);border-radius:6px;font-size:12px;
+              color:var(--text-dim)">
+    These products were created by the AI enrichment engine when purchase invoice items could not be matched.
+    Review each one and <strong style="color:var(--success)">Approve</strong> to make it live,
+    or <strong style="color:var(--accent)">Edit &amp; Approve</strong> to correct details first.
+    Stock is already being tracked for these products.
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Material Code</th>
+          <th>HSN</th>
+          <th>GST</th>
+          <th>Category</th>
+          <th>Organisation</th>
+          <th>AI Confidence</th>
+          <th>Status</th>
+          <th>Stock Qty</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @pending_products.each do |p| %>
+          <% vs       = p.metadata['validation_status'] || 'pending' %>
+          <% conf     = ((p.metadata['ai_confidence'].to_f) * 100).round %>
+          <% orgs     = p.organisation_products.map { |op| op.organisation&.name }.compact %>
+          <% stock    = StockLevel.where(product_id: p.id).sum(:quantity).to_f %>
+          <tr>
+            <td>
+              <div style="font-weight:500"><%= p.description %></div>
+              <%# Brand — actual or AI guess %>
+              <% if p.brand.present? %>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+                  🏷 <%= p.brand.name %>
+                </div>
+              <% elsif p.metadata['ai_brand_guess'].present? %>
+                <div style="font-size:11px;color:var(--warning);margin-top:2px">
+                  🏷 <%= p.metadata['ai_brand_guess'] %>
+                  <em style="font-size:10px">(AI guess — set on Edit)</em>
+                </div>
+              <% end %>
+              <% if p.metadata['original_name'].present? && p.metadata['original_name'] != p.description %>
+                <div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-top:2px">
+                  From invoice: "<%= p.metadata['original_name'] %>"
+                </div>
+              <% end %>
+              <% if p.metadata['ai_notes'].present? %>
+                <div style="font-size:10px;color:var(--text-dim);margin-top:2px">
+                  📝 <%= p.metadata['ai_notes'] %>
+                </div>
+              <% end %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px"><%= p.material_code.presence || '—' %></td>
+            <td style="font-family:var(--mono);font-size:12px"><%= p.hsn_code.presence || '—' %></td>
+            <td style="font-family:var(--mono);font-size:12px;text-align:right"><%= p.gst_rate.to_f.round(0) %>%</td>
+            <td style="font-size:12px">
+              <%= p.product_category&.name ||
+                  p.metadata['ai_category_guess'].presence ||
+                  '—' %>
+              <% if p.product_category.nil? %>
+                <span style="font-size:9px;color:var(--warning);font-weight:600;
+                             display:block;margin-top:1px">⚠ needs review</span>
+              <% end %>
+            </td>
+            <td style="font-size:11px">
+              <% orgs.each do |org_name| %>
+                <span style="font-size:10px;padding:1px 6px;border-radius:3px;
+                             background:var(--accent-dim);color:var(--accent);
+                             font-family:var(--mono);display:inline-block;margin:1px">
+                  <%= org_name %>
+                </span>
+              <% end %>
+            </td>
+            <td style="text-align:center">
+              <% conf_color = conf >= 80 ? 'var(--success)' : conf >= 50 ? 'var(--warning)' : 'var(--danger)' %>
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:<%= conf_color %>">
+                <%= conf %>%
+              </span>
+            </td>
+            <td>
+              <% badge_bg    = vs == 'needs_validation' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>
+              <% badge_color = vs == 'needs_validation' ? 'var(--warning)'       : 'var(--danger)' %>
+              <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:3px;
+                           text-transform:uppercase;letter-spacing:.05em;
+                           background:<%= badge_bg %>;color:<%= badge_color %>">
+                <%= vs.humanize %>
+              </span>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;text-align:right;
+                       color:<%= stock > 0 ? 'var(--success)' : 'var(--text-dim)' %>">
+              <%= stock > 0 ? number_with_precision(stock, precision: 2, delimiter: ',') : '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+              <%= p.created_at.strftime('%d %b %Y') %>
+            </td>
+            <td>
+              <div style="display:flex;gap:6px;flex-wrap:nowrap">
+                <%# Approve — set active:true %>
+                <%= button_to '✅ Approve',
+                      approve_pending_setup_products_path(p),
+                      method: :post,
+                      class: 'btn btn-secondary btn-sm',
+                      style: 'color:var(--success);border-color:var(--success);white-space:nowrap',
+                      data: { turbo_confirm: "Approve #{p.description}? It will become fully active and appear in sales searches." } %>
+
+                <%# Edit & Approve — open product edit form %>
+                <%= link_to '✏️ Edit',
+                      edit_setup_product_path(p),
+                      class: 'btn btn-secondary btn-sm',
+                      style: 'white-space:nowrap' %>
+
+                <%# Reject — only if no stock %>
+                <% if stock <= 0 %>
+                  <%= button_to '🗑 Delete',
+                        reject_pending_setup_products_path(p),
+                        method: :delete,
+                        class: 'btn btn-secondary btn-sm',
+                        style: 'color:var(--danger);border-color:var(--danger);white-space:nowrap',
+                        data: { turbo_confirm: "Delete #{p.description}? This cannot be undone." } %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% end %>
