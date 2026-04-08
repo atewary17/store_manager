@@ -134,4 +134,36 @@ Rails.application.routes.draw do
 
   get  'dashboard', to: 'dashboard#index', as: :dashboard
   root 'dashboard#index'
+
+  # ── Mobile API — v1 ──────────────────────────────────────────────────────
+  # All endpoints under /api/v1/
+  # Authentication: POST /api/v1/auth/login → returns JWT Bearer token
+  # All other endpoints require:  Authorization: Bearer <token>
+  namespace :api do
+    namespace :v1 do
+
+      # Auth
+      post 'auth/login',  to: 'auth#login'
+      post 'auth/logout', to: 'auth#logout'
+      get  'auth/me',     to: 'auth#me'
+
+      # Purchase Invoices
+      resources :purchase_invoices, only: [:index, :show, :create] do
+        member     { post :confirm }
+        collection { post :from_digitiser }
+      end
+
+      # Sales Invoices
+      resources :sales_invoices, only: [:index, :show, :create] do
+        member { post :confirm; post :void }
+      end
+
+      # Accounts & Payments
+      get 'accounts/payable',    to: 'accounts#payable'
+      get 'accounts/receivable', to: 'accounts#receivable'
+      get 'accounts/payments',   to: 'accounts#payments'
+
+    end
+  end
+
 end

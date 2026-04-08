@@ -30,6 +30,7 @@ gem 'hiredis-client'           # faster Redis driver
 gem 'wicked_pdf'
 gem 'wkhtmltopdf-binary'
 gem 'dotenv-rails'  # not grouped, so it loads in production too
+gem 'jwt', '~> 2.8'
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]

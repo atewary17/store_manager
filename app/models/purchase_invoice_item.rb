@@ -12,8 +12,10 @@ class PurchaseInvoiceItem < ApplicationRecord
   # ── Validations ───────────────────────────────────────────────
   validates :quantity,     presence: true,
                            numericality: { greater_than: 0 }
-  validates :unit_rate,    presence: true,
-                           numericality: { greater_than_or_equal_to: 0 }
+  # unit_rate is allowed to be 0 on creation — confirm! recalculates it
+  # from total_amount / quantity. Requiring it on the API create path would
+  # force callers to send a value that gets overwritten immediately.
+  validates :unit_rate,    numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :total_amount, presence: true,
                            numericality: { greater_than_or_equal_to: 0 }
 
