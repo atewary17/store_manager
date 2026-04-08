@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_01_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -188,7 +188,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
     t.datetime "updated_at", null: false
     t.decimal "mrp", precision: 10, scale: 2
     t.jsonb "metadata", default: {}
-    t.bigint "brand_id"
+    t.bigint "brand_id", null: false
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"
@@ -346,12 +346,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
     t.decimal "total_taxable_amount", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_tax_amount", precision: 12, scale: 2, default: "0.0"
     t.decimal "total_discount_amount", precision: 12, scale: 2, default: "0.0"
-    t.decimal "overall_discount_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "total_amount", precision: 12, scale: 2, default: "0.0"
     t.datetime "confirmed_at"
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "overall_discount_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.date "payment_due_date"
     t.datetime "voided_at"
     t.bigint "voided_by_id"
@@ -444,7 +444,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
   end
 
   create_table "suppliers", force: :cascade do |t|
-    t.bigint "organisation_id", null: false
     t.string "name", null: false
     t.string "gstin"
     t.string "pan"
@@ -454,6 +453,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "organisation_id", null: false
     t.index ["active"], name: "index_suppliers_on_active"
     t.index ["gstin"], name: "index_suppliers_on_gstin"
     t.index ["metadata"], name: "index_suppliers_on_metadata", using: :gin
@@ -523,7 +523,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
     t.string "last_name"
     t.string "phone_number"
     t.jsonb "preferences", default: {}, null: false
+    t.string "jti"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["jti"], name: "index_users_on_jti", unique: true
     t.index ["organisation_id"], name: "index_users_on_organisation_id"
     t.index ["preferences"], name: "index_users_on_preferences", using: :gin
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
