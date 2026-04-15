@@ -1,7 +1,7 @@
 <%# app/views/purchasing/suppliers/index.html.erb %>
 <% content_for :title, "Suppliers" %>
 <% content_for :breadcrumb do %>
-  <span style="color:var(--text-dim)">Purchasing</span>
+  <span style="color:var(--text-dim)">Trade Relations</span>
   <span class="breadcrumb-sep">/</span>
   <span class="breadcrumb-current">Suppliers</span>
 <% end %>
@@ -11,8 +11,30 @@
     <div class="page-title">Suppliers</div>
     <div class="page-subtitle">Paint and hardware suppliers</div>
   </div>
-  <div class="actions">
-    <%= link_to '+ New Supplier', new_purchasing_supplier_path, class: 'btn btn-primary' %>
+  <%= link_to '+ New Supplier', new_purchasing_supplier_path, class: 'btn btn-primary' %>
+</div>
+
+<%# Stats %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+  <div class="stat-card">
+    <div class="stat-label">Total Suppliers</div>
+    <div class="stat-value accent"><%= @total_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active</div>
+    <div class="stat-value success"><%= @active_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Purchased</div>
+    <div class="stat-value" style="font-size:18px">
+      ₹<%= number_with_delimiter(@total_invoiced.round(0)) %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Payable</div>
+    <div class="stat-value" style="font-size:18px;color:var(--warning)">
+      ₹<%= number_with_delimiter(@total_outstanding.round(0)) %>
+    </div>
   </div>
 </div>
 
@@ -25,22 +47,41 @@
           <th>GSTIN</th>
           <th>PAN</th>
           <th>State</th>
+          <th style="text-align:right">Invoices</th>
+          <th style="text-align:right">Total Purchased</th>
+          <th style="text-align:right">Outstanding</th>
           <th>Status</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         <% @suppliers.each do |s| %>
+          <%
+            s_invoiced    = s.purchase_invoices.confirmed.sum(:total_amount).to_f
+            s_paid        = s.purchase_invoices.confirmed.joins(:purchase_payments)
+                             .sum('purchase_payments.amount').to_f
+            s_outstanding = (s_invoiced - s_paid).round(2)
+          %>
           <tr>
-            <td style="font-weight:600"><%= s.name %></td>
+            <td>
+              <%= link_to s.name, purchasing_supplier_path(s), style: "font-weight:600" %>
+            </td>
             <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
               <%= s.gstin.presence || '—' %>
             </td>
             <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
               <%= s.pan.presence || '—' %>
             </td>
-            <td style="font-size:13px;color:var(--text-dim)">
-              <%= s.state.presence || '—' %>
+            <td style="font-size:13px;color:var(--text-dim)"><%= s.state.presence || '—' %></td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= s.purchase_invoices.confirmed.count %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              ₹<%= number_with_delimiter(s_invoiced.round(0)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);
+                       color:<%= s_outstanding > 0 ? 'var(--warning)' : 'var(--text-dim)' %>">
+              ₹<%= number_with_delimiter(s_outstanding) %>
             </td>
             <td>
               <span class="badge <%= s.active? ? 'badge-active' : 'badge-inactive' %>">
@@ -49,13 +90,8 @@
             </td>
             <td>
               <div class="actions">
-                <%= link_to 'Edit', edit_purchasing_supplier_path(s),
-                      class: 'btn btn-secondary btn-sm' %>
-                <%= button_to 'Delete', purchasing_supplier_path(s),
-                      method: :delete,
-                      class: 'btn btn-danger btn-sm',
-                      form: { style: 'margin:0;display:inline' },
-                      data: { turbo_confirm: "Delete #{s.name}?" } %>
+                <%= link_to 'View', purchasing_supplier_path(s), class: 'btn btn-secondary btn-sm' %>
+                <%= link_to 'Edit', edit_purchasing_supplier_path(s), class: 'btn btn-secondary btn-sm' %>
               </div>
             </td>
           </tr>

@@ -9,6 +9,7 @@ class SalesInvoice < ApplicationRecord
   belongs_to :customer,   optional: true
   belongs_to :user
   belongs_to :voided_by,  class_name: 'User', foreign_key: :voided_by_id, optional: true
+  belongs_to :referrer,   optional: true
   has_many   :sales_invoice_items, dependent: :destroy
   has_many   :sale_payments,       dependent: :destroy
 

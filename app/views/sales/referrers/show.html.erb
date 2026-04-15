@@ -1,0 +1,158 @@
+<%# app/views/sales/referrers/show.html.erb %>
+<% content_for :title, @referrer.name %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Referrers', sales_referrers_path, style: 'color:var(--text-dim)' %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @referrer.name %></span>
+<% end %>
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div style="width:52px;height:52px;border-radius:50%;background:var(--accent-dim);color:var(--accent);
+                display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;
+                border:2px solid var(--accent)">
+      <%= @referrer.name[0].upcase %>
+    </div>
+    <div>
+      <div class="page-title"><%= @referrer.name %></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <span class="badge badge-plan"><%= @referrer.display_trade %></span>
+        <span class="badge <%= @referrer.active? ? 'badge-active' : 'badge-inactive' %>">
+          <%= @referrer.active? ? 'Active' : 'Inactive' %>
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to 'Edit', edit_sales_referrer_path(@referrer), class: 'btn btn-secondary' %>
+    <% unless @referrer.can_delete? %>
+      <%= link_to (params[:confirm_deactivate] ? 'Confirm Deactivate' : 'Deactivate'),
+            sales_referrer_path(@referrer, referrer: { active: false }),
+            method: :patch,
+            class: 'btn btn-danger',
+            data: { turbo_confirm: 'Deactivate this referrer? They will no longer appear in invoice dropdowns.' } %>
+    <% end %>
+  </div>
+</div>
+
+<%# Stats row %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Referrals</div>
+    <div class="stat-value accent"><%= @invoice_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Value Referred</div>
+    <div class="stat-value success">₹<%= number_with_delimiter(@total_amount.round(0)) %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Outstanding</div>
+    <div class="stat-value" style="color:var(--warning)">₹<%= number_with_delimiter(@total_outstanding.round(0)) %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last Referral</div>
+    <div class="stat-value" style="font-size:16px">
+      <%= @last_referral&.strftime('%d %b %Y') || '—' %>
+    </div>
+  </div>
+</div>
+
+<%# Details card %>
+<div class="detail-card" style="margin-bottom:24px">
+  <div class="detail-section">
+    <div class="detail-section-title">Contact Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Full Name</label>
+        <div class="value"><%= @referrer.name %></div>
+      </div>
+      <div class="detail-field">
+        <label>Trade / Profession</label>
+        <div class="value"><%= @referrer.display_trade %></div>
+      </div>
+      <div class="detail-field">
+        <label>Mobile Number</label>
+        <div class="value mono"><%= @referrer.phone.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Area / Locality</label>
+        <div class="value"><%= @referrer.area.presence || '—' %></div>
+      </div>
+      <div class="detail-field" style="grid-column:span 2">
+        <label>Address</label>
+        <div class="value"><%= @referrer.address.presence || '—' %></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Referred invoices %>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <div style="font-size:15px;font-weight:600">
+    Referred Invoices
+    <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);font-weight:400;margin-left:8px">
+      <%= @invoice_count %> confirmed
+    </span>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <% if @invoices.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th style="text-align:right">Amount</th>
+          <th style="text-align:right">Paid</th>
+          <th style="text-align:right">Outstanding</th>
+          <th>Payment</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @invoices.each do |inv| %>
+          <tr>
+            <td>
+              <%= link_to inv.display_number, sales_sales_invoice_path(inv) %>
+            </td>
+            <td style="color:var(--text-dim);font-size:13px">
+              <%= inv.customer&.name || 'Walk-in' %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim);font-family:var(--mono)">
+              <%= inv.invoice_date&.strftime('%d %b %Y') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              ₹<%= number_with_delimiter(inv.total_amount.to_f.round(0)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              ₹<%= number_with_delimiter(inv.total_paid.to_f.round(0)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);
+                       color:<%= inv.outstanding_amount.to_f > 0 ? 'var(--warning)' : 'var(--text-dim)' %>">
+              ₹<%= number_with_delimiter(inv.outstanding_amount.to_f.round(0)) %>
+            </td>
+            <td>
+              <% ps = inv.payment_status %>
+              <span style="font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;
+                           background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                           color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
+                <%= ps.upcase %>
+              </span>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>No confirmed invoices from this referrer yet.</p>
+    </div>
+  <% end %>
+</div>
+
+<div style="margin-top:20px">
+  <%= link_to '← Back to Referrers', sales_referrers_path, class: 'btn btn-secondary' %>
+</div>

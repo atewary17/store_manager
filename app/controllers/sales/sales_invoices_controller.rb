@@ -226,7 +226,7 @@ class Sales::SalesInvoicesController < Sales::BaseController
 
   def invoice_params
     params.require(:sales_invoice).permit(
-      :customer_id, :invoice_number, :invoice_date, :payment_due_date,
+      :customer_id, :referrer_id, :invoice_number, :invoice_date, :payment_due_date,
       :payment_mode, :reverse_charge, :status,
       :overall_discount_amount,
       metadata: {},

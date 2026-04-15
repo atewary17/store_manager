@@ -1,0 +1,196 @@
+<%# app/views/purchasing/suppliers/show.html.erb %>
+<% content_for :title, @supplier.name %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Trade Relations</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Suppliers', purchasing_suppliers_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @supplier.name %></span>
+<% end %>
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div style="width:52px;height:52px;border-radius:50%;background:var(--accent-dim);
+                color:var(--accent);display:flex;align-items:center;justify-content:center;
+                font-size:20px;font-weight:600;border:2px solid var(--accent)">
+      <%= @supplier.name[0].upcase %>
+    </div>
+    <div>
+      <div class="page-title"><%= @supplier.name %></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <span class="badge <%= @supplier.active? ? 'badge-active' : 'badge-inactive' %>">
+          <%= @supplier.active? ? 'Active' : 'Inactive' %>
+        </span>
+        <% if @supplier.state == @organisation.state %>
+          <span class="badge badge-plan">Intra-state</span>
+        <% else %>
+          <span class="badge" style="background:rgba(247,195,79,0.12);color:var(--warning)">
+            Inter-state
+          </span>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to 'Edit', edit_purchasing_supplier_path(@supplier), class: 'btn btn-secondary' %>
+    <%= link_to '+ New Invoice', new_purchasing_purchase_invoice_path, class: 'btn btn-primary' %>
+  </div>
+</div>
+
+<%# Stats %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Confirmed Invoices</div>
+    <div class="stat-value accent"><%= @invoice_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Purchased</div>
+    <div class="stat-value" style="font-size:18px">
+      ₹<%= number_with_delimiter(@total_invoiced.round(0)) %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Paid</div>
+    <div class="stat-value success" style="font-size:18px">
+      ₹<%= number_with_delimiter(@total_paid.round(0)) %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Outstanding Payable</div>
+    <div class="stat-value" style="font-size:18px;color:<%= @total_outstanding > 0 ? 'var(--warning)' : 'var(--success)' %>">
+      ₹<%= number_with_delimiter(@total_outstanding.round(0)) %>
+    </div>
+  </div>
+</div>
+
+<%# Supplier details %>
+<div class="detail-card" style="margin-bottom:24px">
+  <div class="detail-section">
+    <div class="detail-section-title">Supplier Details</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Name</label>
+        <div class="value"><%= @supplier.name %></div>
+      </div>
+      <div class="detail-field">
+        <label>GSTIN</label>
+        <div class="value mono"><%= @supplier.gstin.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>PAN</label>
+        <div class="value mono"><%= @supplier.pan.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>State</label>
+        <div class="value">
+          <%= @supplier.state.presence || '—' %>
+          <% if @supplier.state_code.present? %>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-left:6px">
+              Code: <%= @supplier.state_code %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>GST Type</label>
+        <div class="value">
+          <% if @supplier.state == @organisation.state %>
+            <span style="color:var(--success)">Intra-state → CGST + SGST</span>
+          <% else %>
+            <span style="color:var(--warning)">Inter-state → IGST</span>
+          <% end %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Last Invoice</label>
+        <div class="value"><%= @last_invoice&.strftime('%d %b %Y') || '—' %></div>
+      </div>
+      <% if @supplier.address.present? %>
+        <div class="detail-field" style="grid-column:span 2">
+          <label>Address</label>
+          <div class="value"><%= @supplier.address %></div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%# Purchase invoice history %>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <div style="font-size:15px;font-weight:600">
+    Purchase History
+    <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);font-weight:400;margin-left:8px">
+      <%= @invoice_count %> confirmed
+      <% if @draft_count > 0 %>
+        · <%= @draft_count %> draft
+      <% end %>
+    </span>
+  </div>
+  <%= link_to 'View All →', purchasing_purchase_invoices_path,
+        style: "font-size:12px;color:var(--accent);text-decoration:none" %>
+</div>
+
+<div class="table-wrap">
+  <% if @invoices.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Date</th>
+          <th>Delivery</th>
+          <th style="text-align:right">Amount</th>
+          <th style="text-align:right">Paid</th>
+          <th style="text-align:right">Outstanding</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @invoices.each do |inv| %>
+          <tr>
+            <td>
+              <%= link_to inv.display_number, purchasing_purchase_invoice_path(inv) %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim);font-family:var(--mono)">
+              <%= inv.invoice_date&.strftime('%d %b %Y') %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim);font-family:var(--mono)">
+              <%= inv.delivery_date&.strftime('%d %b %Y') || '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              ₹<%= number_with_delimiter(inv.total_amount.to_f.round(0)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              ₹<%= number_with_delimiter(inv.total_paid.to_f.round(0)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);
+                       color:<%= inv.outstanding_amount.to_f > 0 ? 'var(--warning)' : 'var(--text-dim)' %>">
+              ₹<%= number_with_delimiter(inv.outstanding_amount.to_f.round(0)) %>
+            </td>
+            <td>
+              <% ps = inv.respond_to?(:payment_status) ? inv.payment_status : 'unknown' %>
+              <span style="font-family:var(--mono);font-size:10px;font-weight:600;
+                           padding:2px 8px;border-radius:10px;
+                           background:<%= inv.outstanding_amount.to_f <= 0 ? 'rgba(52,217,139,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                           color:<%= inv.outstanding_amount.to_f <= 0 ? 'var(--success)' : 'var(--danger)' %>">
+                <%= inv.outstanding_amount.to_f <= 0 ? 'PAID' : 'UNPAID' %>
+              </span>
+            </td>
+            <td>
+              <%= link_to 'View', purchasing_purchase_invoice_path(inv),
+                    class: 'btn btn-secondary btn-sm' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>No confirmed invoices from this supplier yet.</p>
+    </div>
+  <% end %>
+</div>
+
+<div style="margin-top:20px">
+  <%= link_to '← Back to Suppliers', purchasing_suppliers_path, class: 'btn btn-secondary' %>
+</div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -277,6 +277,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
     t.index ["user_id"], name: "index_purchase_payments_on_user_id"
   end
 
+  create_table "referrers", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.string "name", null: false
+    t.string "phone"
+    t.string "trade", default: "painter", null: false
+    t.string "address"
+    t.string "area"
+    t.boolean "active", default: true, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organisation_id", "active"], name: "index_referrers_on_organisation_id_and_active"
+    t.index ["organisation_id", "phone"], name: "idx_referrers_org_phone_unique", unique: true, where: "(phone IS NOT NULL)"
+    t.index ["organisation_id", "trade"], name: "index_referrers_on_organisation_id_and_trade"
+    t.index ["organisation_id"], name: "index_referrers_on_organisation_id"
+  end
+
   create_table "sale_payments", force: :cascade do |t|
     t.bigint "organisation_id", null: false
     t.bigint "sales_invoice_id", null: false
@@ -355,6 +372,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
     t.date "payment_due_date"
     t.datetime "voided_at"
     t.bigint "voided_by_id"
+    t.bigint "referrer_id"
     t.index ["customer_id"], name: "index_sales_invoices_on_customer_id"
     t.index ["invoice_date"], name: "index_sales_invoices_on_invoice_date"
     t.index ["invoice_number"], name: "index_sales_invoices_on_invoice_number"
@@ -362,6 +380,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
     t.index ["organisation_id"], name: "index_sales_invoices_on_organisation_id"
     t.index ["payment_due_date"], name: "index_sales_invoices_on_payment_due_date"
     t.index ["payment_mode"], name: "index_sales_invoices_on_payment_mode"
+    t.index ["referrer_id"], name: "index_sales_invoices_on_referrer_id"
     t.index ["status"], name: "index_sales_invoices_on_status"
     t.index ["user_id"], name: "index_sales_invoices_on_user_id"
     t.index ["voided_by_id"], name: "index_sales_invoices_on_voided_by_id"
@@ -550,6 +569,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
   add_foreign_key "purchase_payments", "purchase_invoices"
   add_foreign_key "purchase_payments", "suppliers"
   add_foreign_key "purchase_payments", "users"
+  add_foreign_key "referrers", "organisations"
   add_foreign_key "sale_payments", "customers"
   add_foreign_key "sale_payments", "organisations"
   add_foreign_key "sale_payments", "sales_invoices"
@@ -561,6 +581,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_31_000001) do
   add_foreign_key "sales_invoice_items", "shade_catalogues"
   add_foreign_key "sales_invoices", "customers"
   add_foreign_key "sales_invoices", "organisations"
+  add_foreign_key "sales_invoices", "referrers"
   add_foreign_key "sales_invoices", "users"
   add_foreign_key "shade_catalogue_imports", "organisations"
   add_foreign_key "shade_catalogue_imports", "product_categories"

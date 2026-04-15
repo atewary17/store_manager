@@ -39,6 +39,7 @@
       <% else %>
         <span class="badge badge-plan">Draft</span>
       <% end %>
+
     </div>
   </div>
 
@@ -152,6 +153,10 @@
 
 <%# ── Invoice Details card ── %>
 <div class="detail-card" style="margin-bottom:20px">
+
+
+
+  <%# ── Invoice Details section ── %>
   <div class="detail-section">
     <div class="detail-section-title">Invoice Details</div>
     <div class="detail-grid">
@@ -239,6 +244,34 @@
       </div>
     </div>
   </div>
+
+  <%# ── Referred By — shown below totals, only when set ── %>
+  <% if @invoice.referrer %>
+  <div class="detail-section" style="border-left:3px solid var(--accent);background:rgba(79,142,247,0.03)">
+    <div class="detail-section-title" style="color:var(--accent)">Referred By</div>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Name</label>
+        <div class="value" style="font-weight:600">
+          <%= link_to @invoice.referrer.name, sales_referrer_path(@invoice.referrer),
+                style: "color:var(--accent)" %>
+        </div>
+      </div>
+      <div class="detail-field">
+        <label>Trade</label>
+        <div class="value"><%= @invoice.referrer.display_trade %></div>
+      </div>
+      <div class="detail-field">
+        <label>Mobile</label>
+        <div class="value mono"><%= @invoice.referrer.phone.presence || '—' %></div>
+      </div>
+      <div class="detail-field">
+        <label>Area</label>
+        <div class="value"><%= @invoice.referrer.area.presence || '—' %></div>
+      </div>
+    </div>
+  </div>
+  <% end %>
 </div>
 
 <%# ── Line Items ── %>

@@ -1,0 +1,25 @@
+<% content_for :title, "New Referrer" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Referrers', sales_referrers_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">New Referrer</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Add Referrer</div>
+    <div class="page-subtitle">Register a painter, contractor or craftsman who refers customers</div>
+  </div>
+</div>
+
+<div class="form-card">
+  <%= form_with model: [:sales, @referrer], local: true do |f| %>
+    <%= render 'form', referrer: @referrer, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Add Referrer', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', sales_referrers_path, class: 'btn btn-secondary' %>
+    </div>
+  <% end %>
+</div>

@@ -5,14 +5,38 @@ class CustomersController < ApplicationController
   before_action :set_customer, only: [:show, :edit, :update, :destroy]
 
   def index
-    @customers = Customer.for_org(@organisation.id).ordered
+    @customers = Customer.for_org(@organisation.id).ordered.includes(:sales_invoices)
+    @total_count      = @customers.count
+    @active_count     = @customers.where(active: true).count
+    @total_invoiced   = SalesInvoice.confirmed.where(organisation: @organisation)
+                                     .sum(:total_amount).to_f.round(2)
+    @total_outstanding = SalesInvoice.confirmed.where(organisation: @organisation)
+                          .joins(:sale_payments)
+                          .select('sales_invoices.total_amount - COALESCE(SUM(sale_payments.amount),0) AS outstanding')
+                          .group('sales_invoices.id')
+                          .map { |i| i.outstanding.to_f }.sum.round(2)
   end
 
   def new
     @customer = Customer.new(organisation: @organisation)
   end
 
-  def show; end
+  def show
+    @invoices = @customer.sales_invoices
+                          .confirmed
+                          .includes(:sale_payments)
+                          .order(invoice_date: :desc)
+                          .limit(20)
+
+    @total_invoiced   = @customer.sales_invoices.confirmed.sum(:total_amount).to_f.round(2)
+    @total_paid       = @customer.sales_invoices.confirmed
+                                  .joins(:sale_payments)
+                                  .sum('sale_payments.amount').to_f.round(2)
+    @total_outstanding = (@total_invoiced - @total_paid).round(2)
+    @invoice_count    = @customer.sales_invoices.confirmed.count
+    @last_invoice     = @customer.sales_invoices.confirmed.maximum(:invoice_date)
+    @draft_count      = @customer.sales_invoices.draft.count
+  end
 
   def edit; end
 

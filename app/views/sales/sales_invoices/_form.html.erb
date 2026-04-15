@@ -173,7 +173,29 @@
         </div>
       </div>
 
-      <%# Row 2: Payment Due Date — highlighted so it's impossible to miss %>
+      <%# Row 2: Referrer + Due Date %>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;margin-bottom:4px">
+        <%# Referrer — optional %>
+        <div class="form-group" style="margin-bottom:0">
+          <%= f.label :referrer_id, "Referred By" %>
+          <%= f.hidden_field :referrer_id, id: 'referrer_id_field', value: invoice.referrer_id %>
+          <div style="position:relative">
+            <input type="text" id="referrer-search-input" class="form-control"
+                   placeholder="Painter, contractor, craftsman..."
+                   autocomplete="off"
+                   value="<%= invoice.referrer&.display_name %>">
+            <div id="referrer-ac-dropdown" class="ac-dd" style="top:calc(100% + 2px)"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px">
+            Optional — who referred this customer?
+          </div>
+        </div>
+
+        <%# Placeholder for alignment %>
+        <div></div>
+      </div>
+
+      <%# Row 3: Payment Due Date — highlighted so it's impossible to miss %>
       <div style="padding:14px 16px;margin-top:4px;background:rgba(79,142,247,0.05);
                   border:1px dashed var(--accent-dim);border-radius:8px;
                   display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
@@ -1015,5 +1037,38 @@
   })();
 
 })();
+
+  // ── Referrer autocomplete ──
+  (function() {
+    const input  = document.getElementById('referrer-search-input');
+    const hidden = document.getElementById('referrer_id_field');
+    const dd     = document.getElementById('referrer-ac-dropdown');
+    if (!input) return;
+
+    input.addEventListener('input', function() {
+      const q = this.value.trim();
+      if (q.length < 1) { dd.innerHTML=''; dd.style.display='none'; return; }
+      fetch(`<%= search_sales_referrers_path %>?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(results => {
+          if (!results.length) { dd.style.display='none'; return; }
+          dd.innerHTML = results.map(r =>
+            `<div class="ac-item" data-id="${r.id}" data-label="${r.label}">${r.label}</div>`
+          ).join('');
+          dd.style.display = 'block';
+          dd.querySelectorAll('.ac-item').forEach(item => {
+            item.addEventListener('click', () => {
+              hidden.value  = item.dataset.id;
+              input.value   = item.dataset.label;
+              dd.style.display = 'none';
+            });
+          });
+        });
+    });
+
+    document.addEventListener('click', e => {
+      if (!input.contains(e.target)) dd.style.display = 'none';
+    });
+  })();
 </script>
 </div><%# /inv-scope %>

@@ -1,0 +1,64 @@
+<%# app/views/sales/referrers/_form.html.erb %>
+<% if referrer.errors.any? %>
+  <div class="flash alert" style="margin:0 24px 0">
+    <strong><%= referrer.errors.count %> error(s):</strong>
+    <ul style="margin-top:6px;padding-left:16px">
+      <% referrer.errors.full_messages.each do |msg| %>
+        <li style="margin-top:2px"><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<div class="form-section">
+  <div class="form-section-title">Personal Details</div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :name, "Full Name *" %>
+      <%= f.text_field :name, placeholder: 'e.g. Ramesh Kumar' %>
+      <% if referrer.errors[:name].any? %>
+        <div class="form-error"><%= referrer.errors[:name].first %></div>
+      <% end %>
+    </div>
+    <div class="form-group">
+      <%= f.label :phone, "Mobile Number" %>
+      <%= f.text_field :phone, placeholder: '9876543210' %>
+      <div class="form-hint">Used to identify them when linking to invoices</div>
+      <% if referrer.errors[:phone].any? %>
+        <div class="form-error"><%= referrer.errors[:phone].first %></div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :trade, "Trade / Profession *" %>
+      <%= f.select :trade,
+            Referrer::TRADES.map { |t| [t.humanize, t] },
+            { include_blank: '— Select trade —' } %>
+      <% if referrer.errors[:trade].any? %>
+        <div class="form-error"><%= referrer.errors[:trade].first %></div>
+      <% end %>
+    </div>
+    <div class="form-group">
+      <%= f.label :area, "Area / Locality" %>
+      <%= f.text_field :area, placeholder: 'e.g. Asansol, Burnpur' %>
+      <div class="form-hint">Helps find the right referrer quickly</div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :address, "Full Address" %>
+    <%= f.text_area :address, placeholder: 'Street, locality, city, PIN', rows: 2 %>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-title">Status</div>
+  <div class="form-group" style="max-width:200px">
+    <%= f.label :active, "Active" %>
+    <%= f.select :active, [['Active', true], ['Inactive', false]] %>
+    <div class="form-hint">Inactive referrers won't appear in invoice dropdowns</div>
+  </div>
+</div>

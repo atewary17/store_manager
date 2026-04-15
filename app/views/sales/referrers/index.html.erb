@@ -1,0 +1,125 @@
+<%# app/views/sales/referrers/index.html.erb %>
+<% content_for :title, "Referrers" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Sales</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Referrers</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Referrers</div>
+    <div class="page-subtitle">Painters, contractors and craftsmen who bring customers</div>
+  </div>
+  <%= link_to new_sales_referrer_path, class: 'btn btn-primary' do %>
+    + Add Referrer
+  <% end %>
+</div>
+
+<%# Stats %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+  <div class="stat-card">
+    <div class="stat-label">Total Referrers</div>
+    <div class="stat-value accent"><%= @total_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Invoices via Referral</div>
+    <div class="stat-value"><%= @invoices_with_ref %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Referred Value</div>
+    <div class="stat-value success">₹<%= number_with_delimiter(@total_referred.round(0)) %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Top Referrer</div>
+    <div class="stat-value" style="font-size:16px;color:var(--warning)">
+      <%= @top_referrer&.name&.truncate(16) || '—' %>
+    </div>
+  </div>
+</div>
+
+<%# Filters %>
+<div class="filter-bar">
+  <% trades = [['All Trades', '']] + Referrer::TRADES.map { |t| [t.humanize, t] } %>
+  <% trades.each do |label, value| %>
+    <%= link_to label,
+          sales_referrers_path(trade: value.presence, status: params[:status]),
+          class: "btn btn-secondary btn-sm #{params[:trade].to_s == value ? 'active' : ''}",
+          style: params[:trade].to_s == value ? 'background:var(--accent-dim);color:var(--accent);border-color:var(--accent)' : '' %>
+  <% end %>
+  <div style="margin-left:auto">
+    <%= link_to 'Active', sales_referrers_path(trade: params[:trade]),
+          style: params[:status] != 'inactive' ? 'color:var(--accent);font-size:12px' : 'color:var(--text-dim);font-size:12px' %>
+    &nbsp;|&nbsp;
+    <%= link_to 'Inactive', sales_referrers_path(trade: params[:trade], status: 'inactive'),
+          style: params[:status] == 'inactive' ? 'color:var(--accent);font-size:12px' : 'color:var(--text-dim);font-size:12px' %>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <% if @referrers.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Trade</th>
+          <th>Area</th>
+          <th>Phone</th>
+          <th style="text-align:right">Invoices</th>
+          <th style="text-align:right">Total Value</th>
+          <th>Last Referral</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @referrers.each do |r| %>
+          <tr>
+            <td>
+              <%= link_to r.name, sales_referrer_path(r) %>
+            </td>
+            <td>
+              <span class="badge badge-plan"><%= r.display_trade %></span>
+            </td>
+            <td style="color:var(--text-dim);font-size:12px">
+              <%= r.area.presence || '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px">
+              <%= r.phone.presence || '—' %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= r.total_invoices %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              ₹<%= number_with_delimiter(r.total_referred_amount.round(0)) %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim)">
+              <%= r.last_referral_date&.strftime('%d %b %Y') || '—' %>
+            </td>
+            <td>
+              <span class="badge <%= r.active? ? 'badge-active' : 'badge-inactive' %>">
+                <%= r.active? ? 'Active' : 'Inactive' %>
+              </span>
+            </td>
+            <td>
+              <div class="actions">
+                <%= link_to 'View', sales_referrer_path(r), class: 'btn btn-secondary btn-sm' %>
+                <%= link_to 'Edit', edit_sales_referrer_path(r), class: 'btn btn-secondary btn-sm' %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24" style="color:var(--muted);margin:0 auto 12px;display:block">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <p>No referrers yet. <%= link_to 'Add your first referrer →', new_sales_referrer_path, style: 'color:var(--accent)' %></p>
+    </div>
+  <% end %>
+</div>

@@ -1,7 +1,7 @@
 <%# app/views/customers/index.html.erb %>
 <% content_for :title, "Customers" %>
 <% content_for :breadcrumb do %>
-  <span style="color:var(--text-dim)">Sales</span>
+  <span style="color:var(--text-dim)">Trade Relations</span>
   <span class="breadcrumb-sep">/</span>
   <span class="breadcrumb-current">Customers</span>
 <% end %>
@@ -11,64 +11,93 @@
     <div class="page-title">Customers</div>
     <div class="page-subtitle"><%= @organisation.name %></div>
   </div>
-  <div class="actions">
-    <%= link_to new_customer_path, class: 'btn btn-primary' do %>
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      New Customer
-    <% end %>
+  <%= link_to new_customer_path, class: 'btn btn-primary' do %>
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    New Customer
+  <% end %>
+</div>
+
+<%# Stats %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+  <div class="stat-card">
+    <div class="stat-label">Total Customers</div>
+    <div class="stat-value accent"><%= @total_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active</div>
+    <div class="stat-value success"><%= @active_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Sales Value</div>
+    <div class="stat-value" style="font-size:18px">
+      ₹<%= number_with_delimiter(@total_invoiced.round(0)) %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Outstanding</div>
+    <div class="stat-value" style="font-size:18px;color:var(--warning)">
+      ₹<%= number_with_delimiter(@total_outstanding.round(0)) %>
+    </div>
   </div>
 </div>
 
 <div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Phone</th>
-        <th>GSTIN</th>
-        <th>State</th>
-        <th style="text-align:right">Invoices</th>
-        <th>Status</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @customers.each do |c| %>
+  <% if @customers.any? %>
+    <table>
+      <thead>
         <tr>
-          <td style="font-weight:500"><%= c.name %></td>
-          <td style="font-family:var(--mono);font-size:12px"><%= c.phone.presence || '—' %></td>
-          <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)"><%= c.gstin.presence || '—' %></td>
-          <td style="font-size:12px;color:var(--text-dim)"><%= c.state.presence || '—' %></td>
-          <td style="text-align:right;font-family:var(--mono)"><%= c.sales_invoices.count %></td>
-          <td>
-            <% if c.active? %>
-              <span class="badge badge-active">Active</span>
-            <% else %>
-              <span class="badge badge-inactive">Inactive</span>
-            <% end %>
-          </td>
-          <td style="text-align:right">
-            <div style="display:flex;gap:8px;justify-content:flex-end">
-              <%= link_to 'Edit', edit_customer_path(c), class: 'btn btn-secondary btn-sm' %>
-              <% if c.can_delete? %>
-                <%= button_to 'Delete', customer_path(c), method: :delete,
-                      class: 'btn btn-danger btn-sm',
-                      data: { turbo_confirm: "Delete #{c.name}?" } %>
-              <% end %>
-            </div>
-          </td>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>GSTIN</th>
+          <th>State</th>
+          <th style="text-align:right">Invoices</th>
+          <th style="text-align:right">Total Sales</th>
+          <th>Status</th>
+          <th></th>
         </tr>
-      <% end %>
-      <% if @customers.empty? %>
-        <tr>
-          <td colspan="7" style="text-align:center;padding:40px;color:var(--text-dim)">
-            No customers yet.
-            <%= link_to 'Add your first customer →', new_customer_path, style: 'color:var(--accent)' %>
-          </td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <% @customers.each do |c| %>
+          <tr>
+            <td>
+              <%= link_to c.name, customer_path(c), style: "font-weight:500" %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px"><%= c.phone.presence || '—' %></td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= c.gstin.presence || '—' %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim)"><%= c.state.presence || '—' %></td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= c.sales_invoices.confirmed.count %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+              ₹<%= number_with_delimiter(c.sales_invoices.confirmed.sum(:total_amount).to_f.round(0)) %>
+            </td>
+            <td>
+              <span class="badge <%= c.active? ? 'badge-active' : 'badge-inactive' %>">
+                <%= c.active? ? 'Active' : 'Inactive' %>
+              </span>
+            </td>
+            <td>
+              <div class="actions">
+                <%= link_to 'View', customer_path(c), class: 'btn btn-secondary btn-sm' %>
+                <%= link_to 'Edit', edit_customer_path(c), class: 'btn btn-secondary btn-sm' %>
+                <% if c.can_delete? %>
+                  <%= button_to 'Delete', customer_path(c), method: :delete,
+                        class: 'btn btn-danger btn-sm',
+                        data: { turbo_confirm: "Delete #{c.name}?" } %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <div class="empty-state">
+      <p>No customers yet. <%= link_to 'Add your first customer →', new_customer_path, style: 'color:var(--accent)' %></p>
+    </div>
+  <% end %>
 </div>

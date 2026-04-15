@@ -4,14 +4,38 @@ class Purchasing::SuppliersController < Purchasing::BaseController
   before_action :set_supplier, only: [:show, :edit, :update, :destroy]
 
   def index
-    @suppliers = Supplier.for_org(@organisation.id).ordered
+    @suppliers = Supplier.for_org(@organisation.id).ordered.includes(:purchase_invoices)
+    @total_count      = @suppliers.count
+    @active_count     = @suppliers.where(active: true).count
+    @total_invoiced   = PurchaseInvoice.confirmed.where(organisation: @organisation)
+                                        .sum(:total_amount).to_f.round(2)
+    @total_outstanding = PurchaseInvoice.confirmed.where(organisation: @organisation)
+                          .joins(:purchase_payments)
+                          .select('purchase_invoices.total_amount - COALESCE(SUM(purchase_payments.amount),0) AS outstanding')
+                          .group('purchase_invoices.id')
+                          .map { |i| i.outstanding.to_f }.sum.round(2)
   end
 
   def new
     @supplier = Supplier.new(organisation: @organisation)
   end
 
-  def show; end
+  def show
+    @invoices = @supplier.purchase_invoices
+                          .confirmed
+                          .includes(:purchase_payments)
+                          .order(invoice_date: :desc)
+                          .limit(20)
+
+    @total_invoiced   = @supplier.purchase_invoices.confirmed.sum(:total_amount).to_f.round(2)
+    @total_paid       = @supplier.purchase_invoices.confirmed
+                                  .joins(:purchase_payments)
+                                  .sum('purchase_payments.amount').to_f.round(2)
+    @total_outstanding = (@total_invoiced - @total_paid).round(2)
+    @invoice_count    = @supplier.purchase_invoices.confirmed.count
+    @last_invoice     = @supplier.purchase_invoices.confirmed.maximum(:invoice_date)
+    @draft_count      = @supplier.purchase_invoices.draft.count
+  end
 
   def edit; end
 
@@ -85,7 +109,7 @@ class Purchasing::SuppliersController < Purchasing::BaseController
 
   def supplier_params
     params.require(:supplier).permit(
-      :name, :gstin, :pan, :state, :state_code, :active, :organisation_id,
+      :name, :gstin, :pan, :state, :state_code, :active,
       metadata: [:address, {}]
     )
   end
