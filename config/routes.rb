@@ -136,6 +136,20 @@ Rails.application.routes.draw do
        to:  'setup/shade_catalogues#import_download_errors',
        as:  'import_download_errors_setup_shade_catalogue'
 
+  # ── Reports ──────────────────────────────────────────────────────────────
+  namespace :reports do
+    resources :sales, only: [:index] do
+      collection do
+        get :export   # → export_reports_sales_path
+      end
+    end
+    resources :purchases, only: [:index] do
+      collection do
+        get :export   # → export_reports_purchases_path
+      end
+    end
+  end
+
   get  'dashboard', to: 'dashboard#index', as: :dashboard
   root 'dashboard#index'
 

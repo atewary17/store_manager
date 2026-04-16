@@ -1,0 +1,155 @@
+<%# app/views/reports/sales/_overdue.html.erb %>
+<%# Note: date filter is ignored for overdue — always shows current state %>
+
+<div style="margin-bottom:16px;padding:10px 16px;background:rgba(247,97,79,0.07);
+            border:1px solid rgba(247,97,79,0.2);border-radius:8px;font-size:12px;
+            color:var(--danger);display:flex;align-items:center;gap:8px">
+  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  Showing all overdue invoices as of today (<%= Date.today.strftime('%d %b %Y') %>). Date filter does not apply here.
+</div>
+
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <% bucket_order = ['0–30 days','31–60 days','61–90 days','90+ days'] %>
+  <% bucket_colors = { '0–30 days' => 'var(--warning)', '31–60 days' => '#f7a24f',
+                       '61–90 days' => '#f7614f', '90+ days' => 'var(--danger)' } %>
+  <div class="stat-card">
+    <div class="stat-label">Total Overdue</div>
+    <div class="stat-value" style="color:var(--danger)">₹<%= number_with_delimiter(@total_overdue.round(0)) %></div>
+  </div>
+  <% bucket_order.drop(0).each_with_index do |b, i| %>
+    <div class="stat-card">
+      <div class="stat-label"><%= b %></div>
+      <div class="stat-value" style="font-size:18px;color:<%= bucket_colors[b] %>">
+        ₹<%= number_with_delimiter(@bucket_totals[b].to_f.round(0)) %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<%# Stacked bar chart by bucket %>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            padding:20px;margin-bottom:24px">
+  <div id="chart-overdue" style="height:240px"></div>
+</div>
+
+<%# Bucket sections %>
+<% bucket_order.each do |bucket| %>
+  <% rows_in_bucket = @buckets[bucket] || [] %>
+  <% next if rows_in_bucket.empty? %>
+
+  <div style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:13px;font-weight:600;color:<%= bucket_colors[bucket] %>">
+        <%= bucket %>
+      </span>
+      <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+        <%= rows_in_bucket.size %> invoice<%= 's' if rows_in_bucket.size != 1 %>
+        · ₹<%= number_with_delimiter(@bucket_totals[bucket].to_f.round(0)) %>
+      </span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Invoice</th>
+            <th>Invoice Date</th>
+            <th>Due Date</th>
+            <th style="text-align:right">Days Overdue</th>
+            <th style="text-align:right">Outstanding (₹)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows_in_bucket.each do |r| %>
+            <tr>
+              <td style="font-weight:500">
+                <%= link_to r[:customer].name, customer_path(r[:customer]) %>
+                <% if r[:customer].phone.present? %>
+                  <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                    <%= r[:customer].phone %>
+                  </div>
+                <% end %>
+              </td>
+              <td>
+                <%= link_to r[:invoice].display_number, sales_sales_invoice_path(r[:invoice]),
+                      style: 'font-family:var(--mono);font-size:12px' %>
+              </td>
+              <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+                <%= r[:invoice_date]&.strftime('%d %b %Y') %>
+              </td>
+              <td style="font-family:var(--mono);font-size:12px;color:var(--danger)">
+                <%= r[:due_date]&.strftime('%d %b %Y') %>
+              </td>
+              <td style="text-align:right;font-family:var(--mono);font-weight:700;
+                         color:<%= bucket_colors[bucket] %>">
+                <%= r[:days_overdue] %> days
+              </td>
+              <td style="text-align:right;font-family:var(--mono);font-weight:700;
+                         color:<%= bucket_colors[bucket] %>">
+                ₹<%= number_with_delimiter(r[:outstanding].round(2)) %>
+              </td>
+              <td>
+                <%= link_to 'View Invoice', sales_sales_invoice_path(r[:invoice]),
+                      class: 'btn btn-secondary btn-sm' %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
+
+<% if @rows.empty? %>
+  <div style="text-align:center;padding:60px;color:var(--success)">
+    <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"
+         style="margin:0 auto 12px;display:block">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    <div style="font-size:15px;font-weight:500">No overdue invoices</div>
+    <div style="font-size:13px;margin-top:4px">All confirmed invoices are within their due dates.</div>
+  </div>
+<% end %>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var chart   = initChart('chart-overdue');
+  if (!chart) return;
+  var labels  = <%= raw @chart_labels.to_json %>;
+  var data    = <%= raw @chart_data.to_json %>;
+  var palette = [
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#f7c34f'},{offset:1,color:'#7a5c0a'}]),
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#f7a24f'},{offset:1,color:'#7a3a0a'}]),
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#f7614f'},{offset:1,color:'#7a1a0a'}]),
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#d63031'},{offset:1,color:'#5c0a0a'}])
+  ];
+  chart.setOption(Object.assign({}, EC_DARK, {
+    title: { text: 'Outstanding by ageing bucket', left: 'left', top: 8 },
+    grid: { left: 90, right: 80, top: 48, bottom: 16, containLabel: false },
+    tooltip: Object.assign({}, EC_DARK.tooltip, {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: function(p){ return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+    }),
+    xAxis: { type: 'value',
+             axisLabel: { formatter: function(v){ return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 },
+             splitLine: { lineStyle: { color: EC_COLORS.border, type: 'dashed' } } },
+    yAxis: { type: 'category', data: labels,
+             axisLabel: { color: EC_COLORS.text, fontSize: 12 },
+             axisLine: { show: false }, axisTick: { show: false } },
+    series: [{
+      type: 'bar', data: data, name: 'Outstanding', barMaxWidth: 32,
+      itemStyle: { borderRadius: [0,4,4,0],
+                   color: function(p){ return palette[p.dataIndex % palette.length]; } },
+      label: { show: true, position: 'right',
+               formatter: function(p){ return p.value > 0 ? inr(p.value) : ''; },
+               color: EC_COLORS.text, fontSize: 11 }
+    }]
+  }));
+});
+</script>

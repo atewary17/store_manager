@@ -22,14 +22,14 @@ gem 'prawn-table'
 gem 'pundit'
 gem 'cancancan'
 gem 'good_job'
-gem 'roo'           # Excel parsing
-gem 'caxlsx'        # Excel generation (error reports)
-gem 'caxlsx_rails'  # Rails integration
+gem 'roo'           
 gem 'redis', '~> 5.0'          # later use
 gem 'hiredis-client'           # faster Redis driver
 gem 'wicked_pdf'
 gem 'wkhtmltopdf-binary'
 gem 'dotenv-rails'  # not grouped, so it loads in production too
+gem 'caxlsx', '~> 3.4'
+gem 'caxlsx_rails', '~> 0.6'
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]

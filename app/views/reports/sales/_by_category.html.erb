@@ -1,0 +1,235 @@
+<%# app/views/reports/sales/_by_category.html.erb %>
+
+<%# ── Summary stats ── %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Revenue</div>
+    <div class="stat-value accent">₹<%= number_with_delimiter(@total_revenue.round(0)) %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Categories</div>
+    <div class="stat-value"><%= @categories.size %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Top Category</div>
+    <div class="stat-value" style="font-size:16px;color:var(--warning)">
+      <%= @categories.keys.first || '—' %>
+    </div>
+  </div>
+</div>
+
+<% if @categories.empty? %>
+  <div style="text-align:center;padding:60px;color:var(--text-dim)">No product sales in this period.</div>
+<% else %>
+
+<%# ── Instruction hint ── %>
+<div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;display:flex;align-items:center;gap:6px">
+  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  Click any category card to see its brand-wise breakdown.
+</div>
+
+<%# ── Category grid — one donut per category ── %>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;margin-bottom:24px">
+  <% @categories.each_with_index do |(cat_name, cat_data), idx| %>
+    <div class="cat-card"
+         id="cat-card-<%= idx %>"
+         onclick="selectCategory(<%= idx %>)"
+         style="background:var(--surface);border:2px solid var(--border);border-radius:10px;
+                cursor:pointer;transition:border-color .2s,box-shadow .2s;overflow:hidden">
+      <%# Card header %>
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);
+                  display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)"><%= cat_name %></div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+            <%= cat_data[:brands].size %> brand<%= 's' if cat_data[:brands].size != 1 %>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--success)">
+            ₹<%= number_with_delimiter(cat_data[:total].round(0)) %>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim)">
+            <%= number_with_precision(cat_data[:total] / [@total_revenue, 0.01].max * 100, precision: 1) %>% of total
+          </div>
+        </div>
+      </div>
+      <%# Donut chart for this category's brand split %>
+      <div id="cat-chart-<%= idx %>" style="height:190px"></div>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Brand detail panel (hidden until a category is clicked) ── %>
+<div id="brand-panel"
+     style="display:none;background:var(--surface);border:1px solid var(--accent);
+            border-radius:10px;padding:20px;margin-bottom:24px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div id="brand-panel-title" style="font-size:15px;font-weight:600;color:var(--text)"></div>
+    <button onclick="closeBrandPanel()"
+            style="background:none;border:1px solid var(--border);border-radius:6px;
+                   color:var(--text-dim);cursor:pointer;padding:4px 10px;font-size:12px">
+      Close
+    </button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+    <div id="brand-chart" style="height:260px"></div>
+    <div id="brand-table-wrap" style="overflow-y:auto;max-height:260px;border:1px solid var(--border);border-radius:8px"></div>
+  </div>
+</div>
+
+<% end %>
+
+<script>
+// All category data embedded once — avoids repeated JSON in script tags
+var CAT_DATA = <%= raw @categories.map { |name, data|
+  {
+    name:   name,
+    total:  data[:total].round(2),
+    brands: data[:brands].map { |b|
+      { name: b[:brand] || 'No Brand', revenue: b[:revenue].round(2),
+        tax: b[:tax].round(2), qty: b[:qty].round(2), count: b[:count] }
+    }
+  }
+}.to_json %>;
+
+var PALETTE = ['#4f8ef7','#34d98b','#f7c34f','#f7614f','#9b7cf7','#34c6d9','#f7a34f','#a8f74f','#f74fa8'];
+var catCharts  = {};
+var brandChart = null;
+var activeCatIdx = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  CAT_DATA.forEach(function(cat, idx) {
+    var c = initChart('cat-chart-' + idx);
+    if (!c) return;
+    c.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: EC_COLORS.surface, borderColor: EC_COLORS.border, borderRadius: 8,
+        textStyle: { color: EC_COLORS.text, fontSize: 11 },
+        formatter: function(p) {
+          return '<b>' + p.name + '</b><br/>' + inr(p.value) + '<br/>' + p.percent.toFixed(1) + '%';
+        }
+      },
+      legend: { show: false },
+      color: PALETTE,
+      series: [{
+        type: 'pie',
+        radius: ['38%', '68%'],
+        center: ['50%', '50%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 5, borderColor: EC_COLORS.bg, borderWidth: 2 },
+        label: {
+          show: true,
+          formatter: function(p) { return p.percent >= 8 ? p.percent.toFixed(0) + '%' : ''; },
+          color: EC_COLORS.text, fontSize: 10
+        },
+        emphasis: { scale: true, scaleSize: 6 },
+        data: cat.brands.map(function(b) { return { name: b.name, value: b.revenue }; })
+      }]
+    });
+    // clicking the chart itself also triggers selection
+    c.on('click', function() { selectCategory(idx); });
+    catCharts[idx] = c;
+  });
+});
+
+function selectCategory(idx) {
+  activeCatIdx = idx;
+  var cat = CAT_DATA[idx];
+
+  // Highlight selected card, reset others
+  document.querySelectorAll('.cat-card').forEach(function(el, i) {
+    el.style.borderColor = i === idx ? 'var(--accent)' : 'var(--border)';
+    el.style.boxShadow   = i === idx ? '0 0 0 3px rgba(79,142,247,0.15)' : 'none';
+  });
+
+  // Update panel title
+  document.getElementById('brand-panel-title').textContent = cat.name + ' — Brand Breakdown';
+
+  // Show panel and scroll to it
+  var panel = document.getElementById('brand-panel');
+  panel.style.display = 'block';
+  setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+
+  // Brand bar chart (sorted ascending so longest bar is at top after reversal)
+  var brands = cat.brands.slice().sort(function(a, b) { return a.revenue - b.revenue; });
+  var chartEl = document.getElementById('brand-chart');
+  if (brandChart) { brandChart.dispose(); }
+  brandChart = echarts.init(chartEl, null, { renderer: 'canvas' });
+  brandChart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      backgroundColor: EC_COLORS.surface, borderColor: EC_COLORS.border, borderRadius: 8,
+      textStyle: { color: EC_COLORS.text, fontSize: 11 },
+      formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+    },
+    grid: { left: 10, right: 70, top: 16, bottom: 16, containLabel: true },
+    xAxis: {
+      type: 'value',
+      axisLabel: {
+        color: EC_COLORS.textDim, fontSize: 10,
+        formatter: function(v) { return v >= 1000 ? '₹' + (v / 1000).toFixed(0) + 'k' : '₹' + v; }
+      },
+      splitLine: { lineStyle: { color: EC_COLORS.border, type: 'dashed' } }
+    },
+    yAxis: {
+      type: 'category',
+      data: brands.map(function(b) { return b.name; }),
+      axisLabel: {
+        color: EC_COLORS.text, fontSize: 11,
+        formatter: function(v) { return v.length > 16 ? v.slice(0, 16) + '…' : v; }
+      },
+      axisLine: { show: false }, axisTick: { show: false }
+    },
+    series: [{
+      type: 'bar', barMaxWidth: 28,
+      itemStyle: { borderRadius: [0, 4, 4, 0] },
+      color: PALETTE,
+      data: brands.map(function(b, i) {
+        return { value: b.revenue, itemStyle: { color: PALETTE[i % PALETTE.length] } };
+      }),
+      label: {
+        show: true, position: 'right', color: EC_COLORS.textDim, fontSize: 10,
+        formatter: function(p) { return inr(p.value); }
+      }
+    }]
+  });
+
+  // Brand detail table
+  var total = cat.brands.reduce(function(s, b) { return s + b.revenue; }, 0);
+  var rows  = cat.brands.map(function(b) {
+    var pct = total > 0 ? (b.revenue / total * 100).toFixed(1) : '0.0';
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:8px 12px;font-size:12px;font-weight:500;color:var(--text)">' + b.name + '</td>' +
+      '<td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--success)">' + inr(b.revenue) + '</td>' +
+      '<td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--warning)">' + inr(b.tax) + '</td>' +
+      '<td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">' + pct + '%</td>' +
+      '</tr>';
+  }).join('');
+
+  document.getElementById('brand-table-wrap').innerHTML =
+    '<table style="width:100%;border-collapse:collapse">' +
+    '<thead><tr style="background:var(--bg)">' +
+    '<th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em">Brand</th>' +
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em">Revenue</th>' +
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em">Tax</th>' +
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em">Share</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function closeBrandPanel() {
+  document.getElementById('brand-panel').style.display = 'none';
+  document.querySelectorAll('.cat-card').forEach(function(el) {
+    el.style.borderColor = 'var(--border)';
+    el.style.boxShadow   = 'none';
+  });
+  if (brandChart) { brandChart.dispose(); brandChart = null; }
+  activeCatIdx = null;
+}
+</script>

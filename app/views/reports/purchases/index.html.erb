@@ -1,0 +1,180 @@
+<%# app/views/reports/purchases/index.html.erb %>
+<% content_for :title, "Purchase Reports" %>
+
+<% content_for :head do %>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+  <script>
+    (function() {
+      var cs  = getComputedStyle(document.documentElement);
+      var get = function(v) { return cs.getPropertyValue(v).trim(); };
+      var _text    = get('--text');
+      var _textDim = get('--text-dim');
+      var _bg      = get('--bg');
+      var _surface = get('--surface');
+      var _border  = get('--border');
+
+      window.EC_COLORS = { text: _text, textDim: _textDim, bg: _bg, surface: _surface, border: _border };
+
+      window.EC_DARK = {
+        backgroundColor: 'transparent',
+        textStyle:   { color: _text, fontFamily: 'IBM Plex Sans, sans-serif' },
+        title:       { textStyle: { color: _text, fontSize: 13, fontWeight: '500' } },
+        legend:      { textStyle: { color: _textDim } },
+        tooltip:     {
+          backgroundColor: _surface, borderColor: _border, borderRadius: 8,
+          textStyle: { color: _text, fontSize: 12 },
+          confine: true
+        },
+        grid:  { containLabel: true, left: 16, right: 24, top: 48, bottom: 16 },
+        xAxis: { axisLine: { lineStyle: { color: _border } },
+                 axisLabel: { color: _textDim, fontSize: 11 },
+                 splitLine: { lineStyle: { color: _border } } },
+        yAxis: { axisLine: { show: false },
+                 axisLabel: { color: _textDim, fontSize: 11 },
+                 splitLine: { lineStyle: { color: _border, type: 'dashed' } } },
+        color: ['#4f8ef7','#34d98b','#f7c34f','#f7614f','#9b7cf7','#34c6d9']
+      };
+    })();
+
+    window.inr = function(v) {
+      return '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    };
+
+    window.initChart = function(id) {
+      var dom = document.getElementById(id);
+      if (!dom) return null;
+      var c = echarts.getInstanceByDom(dom);
+      if (c) c.dispose();
+      return echarts.init(dom, null, { renderer: 'canvas' });
+    };
+  </script>
+<% end %>
+
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Reports</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Purchases</span>
+<% end %>
+
+<div class="page-header" style="margin-bottom:16px">
+  <div>
+    <div class="page-title">Purchase Reports</div>
+    <div class="page-subtitle"><%= @period_label %></div>
+  </div>
+  <%= link_to export_reports_purchases_path(tab: @tab, from: @date_from.iso8601, to: @date_to.iso8601),
+        class: 'btn btn-secondary',
+        style: 'display:flex;align-items:center;gap:6px' do %>
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Export Excel
+  <% end %>
+</div>
+
+<%# ── Filters ── %>
+<%
+  _fy_start     = Date.today.month >= 4 ? Date.new(Date.today.year,4,1) : Date.new(Date.today.year-1,4,1)
+  _this_mo_from = Date.today.beginning_of_month.iso8601
+  _this_mo_to   = Date.today.end_of_month.iso8601
+  _this_fy_from = _fy_start.iso8601
+  _this_fy_to   = Date.today.iso8601
+  _input_style  = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                   padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none'
+  _select_style = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                   padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:12px;
+                   outline:none;cursor:pointer'
+%>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
+  <svg width="14" height="14" fill="none" stroke="var(--text-dim)" stroke-width="2" viewBox="0 0 24 24">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+
+  <%= form_with url: reports_purchases_path, method: :get, local: true, id: 'filter-form' do |f| %>
+    <%= f.hidden_field :tab, value: @tab %>
+    <div style="display:flex;align-items:center;gap:16px;flex:1">
+      <div style="display:flex;align-items:center;gap:8px">
+        <%= f.date_field :from, value: @date_from, id: 'filter-from', style: _input_style %>
+        <span style="color:var(--text-dim);font-size:13px">to</span>
+        <%= f.date_field :to,   value: @date_to,   id: 'filter-to',   style: _input_style %>
+        <%= f.submit 'Apply', class: 'btn btn-primary btn-sm' %>
+      </div>
+      <div style="width:1px;height:24px;background:var(--border)"></div>
+      <select id="quick-select" onchange="applyQuickSelect(this)" style="<%= _select_style %>">
+        <option value="">Quick select…</option>
+        <optgroup label="This Financial Year">
+          <% quarters_for_select.each do |q| %>
+            <option value="<%= q[:from] %>|<%= q[:to] %>"
+                    <%= 'selected' if @date_from.iso8601 == q[:from] && @date_to.iso8601 == q[:to] %>>
+              <%= q[:label] %>
+            </option>
+          <% end %>
+          <option value="<%= _this_mo_from %>|<%= _this_mo_to %>"
+                  <%= 'selected' if @date_from.iso8601 == _this_mo_from && @date_to.iso8601 == _this_mo_to %>>
+            This Month
+          </option>
+          <option value="<%= _this_fy_from %>|<%= _this_fy_to %>"
+                  <%= 'selected' if @date_from.iso8601 == _this_fy_from && @date_to.iso8601 == _this_fy_to %>>
+            This FY (to date)
+          </option>
+        </optgroup>
+      </select>
+    </div>
+  <% end %>
+</div>
+
+<script>
+function applyQuickSelect(sel) {
+  if (!sel.value) return;
+  var p = sel.value.split('|');
+  document.getElementById('filter-from').value = p[0];
+  document.getElementById('filter-to').value   = p[1];
+  document.getElementById('filter-form').submit();
+}
+</script>
+
+<%# ── Tab Navigation ── %>
+<%
+  tabs = [
+    { key: 'summary',     label: 'Purchase Summary',    icon: 'M18 20V10M12 20V4M6 20V14M2 20h20' },
+    { key: 'by_supplier', label: 'By Supplier',         icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75' },
+    { key: 'by_product',  label: 'By Product',          icon: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z M3 6h18 M16 10a4 4 0 0 1-8 0' },
+    { key: 'overdue',     label: 'Overdue Payables',    icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01' }
+  ]
+%>
+<div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:24px;overflow-x:auto">
+  <% tabs.each do |t| %>
+    <%= link_to reports_purchases_path(tab: t[:key], from: @date_from.iso8601, to: @date_to.iso8601),
+          style: "display:flex;align-items:center;gap:7px;padding:10px 16px;
+                  font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap;
+                  border-bottom:2px solid #{@tab == t[:key] ? 'var(--accent)' : 'transparent'};
+                  color:#{@tab == t[:key] ? 'var(--accent)' : 'var(--text-dim)'};
+                  transition:all .15s" do %>
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="<%= t[:icon] %>"/>
+      </svg>
+      <%= t[:label] %>
+      <% if t[:key] == 'overdue' %>
+        <span style="background:rgba(247,97,79,0.15);color:var(--danger);
+                     font-size:9px;padding:1px 5px;border-radius:3px;font-family:var(--mono)">
+          URGENT
+        </span>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<% if @tab == 'summary' %>
+  <%= render 'summary' %>
+<% elsif @tab == 'by_supplier' %>
+  <%= render 'by_supplier' %>
+<% elsif @tab == 'by_product' %>
+  <%= render 'by_product' %>
+<% elsif @tab == 'overdue' %>
+  <%= render 'overdue' %>
+<% end %>

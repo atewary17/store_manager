@@ -1,0 +1,118 @@
+<%# app/views/reports/purchases/_overdue.html.erb %>
+
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Overdue</div>
+    <div class="stat-value" style="color:var(--danger)">₹<%= number_with_delimiter(@total_overdue.round(0)) %></div>
+  </div>
+  <% ['0–30 days','31–60 days','61–90 days','90+ days'].each do |b| %>
+    <div class="stat-card">
+      <div class="stat-label"><%= b %></div>
+      <div class="stat-value" style="font-size:16px;color:<%= b == '90+ days' ? 'var(--danger)' : 'var(--warning)' %>">
+        ₹<%= number_with_delimiter((@bucket_totals[b] || 0).round(0)) %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            padding:20px;margin-bottom:24px">
+  <div id="chart-purchase-overdue" style="height:240px"></div>
+</div>
+
+<div class="table-wrap">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      Overdue payables — sorted by age
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Supplier</th>
+        <th>Invoice</th>
+        <th>Invoice Date</th>
+        <th>Due Date</th>
+        <th style="text-align:right">Days Overdue</th>
+        <th>Bucket</th>
+        <th style="text-align:right">Outstanding (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @rows.any? %>
+        <% @rows.each do |r| %>
+          <tr>
+            <td style="font-weight:500"><%= r[:supplier]&.name || '—' %></td>
+            <td style="font-family:var(--mono);font-size:12px">
+              <%= r[:invoice].display_number %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= r[:invoice_date]&.strftime('%d %b %Y') %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--danger)">
+              <%= r[:due_date]&.strftime('%d %b %Y') %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600;
+                       color:<%= r[:days_overdue] > 90 ? 'var(--danger)' : 'var(--warning)' %>">
+              <%= r[:days_overdue] %>
+            </td>
+            <td>
+              <span style="font-family:var(--mono);font-size:10px;
+                           background:<%= r[:days_overdue] > 90 ? 'rgba(247,97,79,0.15)' : 'rgba(247,195,79,0.15)' %>;
+                           color:<%= r[:days_overdue] > 90 ? 'var(--danger)' : 'var(--warning)' %>;
+                           padding:2px 7px;border-radius:4px">
+                <%= r[:bucket] %>
+              </span>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--danger)">
+              <%= number_with_delimiter(r[:outstanding]) %>
+            </td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr><td colspan="7" style="text-align:center;padding:60px;color:var(--text-dim)">
+          No overdue payables.
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var chart  = initChart('chart-purchase-overdue');
+  if (!chart) return;
+  var labels = <%= raw @chart_labels.to_json %>;
+  var data   = <%= raw @chart_data.to_json %>;
+  var colors = [
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#f7c34f'},{offset:1,color:'#7a5c0a'}]),
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#f7a24f'},{offset:1,color:'#7a3a0a'}]),
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#f7614f'},{offset:1,color:'#7a1a0a'}]),
+    new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#d63031'},{offset:1,color:'#5c0a0a'}])
+  ];
+  chart.setOption(Object.assign({}, EC_DARK, {
+    title: { text: 'Overdue payables by age bucket', left: 'left', top: 8 },
+    tooltip: Object.assign({}, EC_DARK.tooltip, {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+    }),
+    grid: { left: 100, right: 80, top: 48, bottom: 16, containLabel: false },
+    xAxis: { type: 'value',
+             axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 },
+             splitLine: { lineStyle: { color: EC_COLORS.border, type: 'dashed' } } },
+    yAxis: { type: 'category', data: labels.slice().reverse(),
+             axisLabel: { color: EC_COLORS.text, fontSize: 12 },
+             axisLine: { show: false }, axisTick: { show: false } },
+    series: [{
+      type: 'bar', data: data.slice().reverse(), name: 'Outstanding',
+      barMaxWidth: 36,
+      itemStyle: { borderRadius: [0,4,4,0],
+                   color: function(p) { return colors[(colors.length - 1) - p.dataIndex] || colors[0]; } },
+      label: { show: true, position: 'right',
+               formatter: function(p) { return inr(p.value); },
+               color: EC_COLORS.text, fontSize: 11 }
+    }]
+  }));
+});
+</script>

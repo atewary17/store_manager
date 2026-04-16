@@ -1,0 +1,113 @@
+<%# app/views/reports/sales/_by_product.html.erb %>
+
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Revenue</div>
+    <div class="stat-value accent">₹<%= number_with_delimiter(@total_revenue.round(0)) %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Products Sold</div>
+    <div class="stat-value"><%= @rows.size %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Top Product</div>
+    <div class="stat-value" style="font-size:13px;color:var(--warning);line-height:1.3">
+      <%= @rows.first&.dig(:name)&.truncate(30) || '—' %>
+    </div>
+  </div>
+</div>
+
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            padding:20px;margin-bottom:24px">
+  <div id="chart-by-product" style="height:280px"></div>
+</div>
+
+<div class="table-wrap">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      All products — sorted by revenue
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Product</th>
+        <th>Brand</th>
+        <th>Category</th>
+        <th style="text-align:right">Qty Sold</th>
+        <th style="text-align:right">Revenue (₹)</th>
+        <th style="text-align:right">Tax (₹)</th>
+        <th style="text-align:right">Invoices</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @rows.each_with_index do |r, i| %>
+        <tr>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= i + 1 %></td>
+          <td style="font-size:13px;font-weight:500">
+            <%= r[:name] %>
+            <% if i < 3 %>
+              <span style="font-family:var(--mono);font-size:9px;background:rgba(79,142,247,0.12);
+                           color:var(--accent);padding:1px 5px;border-radius:3px;margin-left:4px">
+                <%= ['🥇','🥈','🥉'][i] %> #<%= i+1 %>
+              </span>
+            <% end %>
+          </td>
+          <td style="font-size:12px;color:var(--text-dim)"><%= r[:brand].presence || '—' %></td>
+          <td style="font-size:12px;color:var(--text-dim)"><%= r[:category].presence || '—' %></td>
+          <td style="text-align:right;font-family:var(--mono)">
+            <%= number_with_precision(r[:total_qty], precision: 1) %> <%= r[:uom] %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+            <%= number_with_delimiter(r[:total_revenue]) %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono);color:var(--warning)">
+            <%= number_with_delimiter(r[:total_tax]) %>
+          </td>
+          <td style="text-align:right;font-family:var(--mono)"><%= r[:invoice_count] %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var chart   = initChart('chart-by-product');
+  if (!chart) return;
+  var labels  = <%= raw @chart_labels.to_json %>;
+  var data    = <%= raw @chart_data.to_json %>;
+  var palette = [
+    new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#4f8ef7'},{offset:1,color:'#1e3a6e'}]),
+    new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#34d98b'},{offset:1,color:'#0a5c3a'}]),
+    new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#f7c34f'},{offset:1,color:'#7a5c0a'}]),
+    new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#f7614f'},{offset:1,color:'#7a1a0a'}]),
+    new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#9b7cf7'},{offset:1,color:'#3d1e7a'}])
+  ];
+  chart.setOption(Object.assign({}, EC_DARK, {
+    title: { text: 'Top 5 products by revenue', left: 'left', top: 8 },
+    tooltip: Object.assign({}, EC_DARK.tooltip, {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: function(p){ return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+    }),
+    xAxis: Object.assign({}, EC_DARK.xAxis, {
+      type: 'category', data: labels,
+      axisLabel: { color: EC_COLORS.textDim, fontSize: 10,
+                   formatter: function(v){ return v.length > 16 ? v.slice(0,16)+'…' : v; } }
+    }),
+    yAxis: Object.assign({}, EC_DARK.yAxis, {
+      axisLabel: { formatter: function(v){ return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
+    }),
+    series: [{
+      type: 'bar', data: data, name: 'Revenue', barMaxWidth: 56,
+      itemStyle: { borderRadius: [4,4,0,0],
+                   color: function(p){ return palette[p.dataIndex % palette.length]; } },
+      label: { show: true, position: 'top',
+               formatter: function(p){ return inr(p.value); },
+               color: EC_COLORS.text, fontSize: 11 }
+    }]
+  }));
+});
+</script>
