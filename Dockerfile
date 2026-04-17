@@ -65,4 +65,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/up || exit 1
 
 # Start Puma
-CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]
+# Entrypoint: migrate + seed + start
+# Seeds are idempotent (guarded at top of seeds.rb) so safe to run on every deploy
+CMD ["sh", "-c", "bundle exec rails db:migrate && bundle exec rails db:seed && bundle exec puma -C config/puma.rb"]
