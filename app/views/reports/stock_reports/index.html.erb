@@ -1,0 +1,218 @@
+<%# app/views/reports/stock_reports/index.html.erb %>
+<% content_for :title, "Stock Reports" %>
+
+<% content_for :head do %>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+  <script>
+    (function() {
+      var cs  = getComputedStyle(document.documentElement);
+      var get = function(v) { return cs.getPropertyValue(v).trim(); };
+      var _text = get('--text'), _textDim = get('--text-dim'),
+          _bg   = get('--bg'),  _surface  = get('--surface'), _border = get('--border');
+      window.EC_COLORS = { text: _text, textDim: _textDim, bg: _bg, surface: _surface, border: _border };
+      window.EC_DARK = {
+        backgroundColor: 'transparent',
+        textStyle: { color: _text, fontFamily: 'IBM Plex Sans, sans-serif' },
+        title:     { textStyle: { color: _text, fontSize: 13, fontWeight: '500' } },
+        legend:    { textStyle: { color: _textDim } },
+        tooltip:   { backgroundColor: _surface, borderColor: _border, borderRadius: 8,
+                     textStyle: { color: _text, fontSize: 12 }, confine: true },
+        grid:      { containLabel: true, left: 16, right: 24, top: 48, bottom: 16 },
+        xAxis:     { axisLine: { lineStyle: { color: _border } },
+                     axisLabel: { color: _textDim, fontSize: 11 },
+                     splitLine: { lineStyle: { color: _border } } },
+        yAxis:     { axisLine: { show: false }, axisLabel: { color: _textDim, fontSize: 11 },
+                     splitLine: { lineStyle: { color: _border, type: 'dashed' } } },
+        color:     ['#34d98b','#f7614f','#4f8ef7','#f7c34f','#9b7cf7','#34c6d9']
+      };
+    })();
+    window.inr = function(v) {
+      return '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    };
+    window.initChart = function(id) {
+      var dom = document.getElementById(id);
+      if (!dom) return null;
+      var c = echarts.getInstanceByDom(dom);
+      if (c) c.dispose();
+      return echarts.init(dom, null, { renderer: 'canvas' });
+    };
+  </script>
+<% end %>
+
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Reports</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Stock Reports</span>
+<% end %>
+
+<div class="page-header" style="margin-bottom:16px">
+  <div>
+    <div class="page-title">Stock Reports</div>
+    <div class="page-subtitle">
+      <% if @tab == 'register' || @tab == 'low_stock' %>
+        Current snapshot
+      <% elsif @tab == 'velocity' %>
+        Last <%= @days %> days
+      <% else %>
+        <%= @period_label %>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%# ── Date / Range Filters (movement tab only) ── %>
+<%
+  _fy_start     = Date.today.month >= 4 ? Date.new(Date.today.year,4,1) : Date.new(Date.today.year-1,4,1)
+  _this_mo_from = Date.today.beginning_of_month.iso8601
+  _this_mo_to   = Date.today.end_of_month.iso8601
+  _this_fy_from = _fy_start.iso8601
+  _this_fy_to   = Date.today.iso8601
+  _input_style  = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                   padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none'
+  _select_style = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                   padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:12px;
+                   outline:none;cursor:pointer'
+%>
+
+<% if @tab == 'movement' %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
+    <svg width="14" height="14" fill="none" stroke="var(--text-dim)" stroke-width="2" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    <%= form_with url: reports_stock_reports_path, method: :get, local: true, id: 'filter-form' do |f| %>
+      <%= f.hidden_field :tab, value: @tab %>
+      <div style="display:flex;align-items:center;gap:16px;flex:1;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">
+          <%= f.date_field :from, value: @date_from, id: 'filter-from', style: _input_style %>
+          <span style="color:var(--text-dim);font-size:13px">to</span>
+          <%= f.date_field :to, value: @date_to, id: 'filter-to', style: _input_style %>
+          <%= f.submit 'Apply', class: 'btn btn-primary btn-sm' %>
+        </div>
+        <div style="width:1px;height:24px;background:var(--border)"></div>
+        <select id="quick-select" onchange="applyQuickSelect(this)" style="<%= _select_style %>">
+          <option value="">Quick select…</option>
+          <optgroup label="This Financial Year">
+            <% quarters_for_select.each do |q| %>
+              <option value="<%= q[:from] %>|<%= q[:to] %>"
+                      <%= 'selected' if @date_from.iso8601 == q[:from] && @date_to.iso8601 == q[:to] %>>
+                <%= q[:label] %>
+              </option>
+            <% end %>
+            <option value="<%= _this_mo_from %>|<%= _this_mo_to %>"
+                    <%= 'selected' if @date_from.iso8601 == _this_mo_from && @date_to.iso8601 == _this_mo_to %>>
+              This Month
+            </option>
+            <option value="<%= _this_fy_from %>|<%= _this_fy_to %>"
+                    <%= 'selected' if @date_from.iso8601 == _this_fy_from && @date_to.iso8601 == _this_fy_to %>>
+              This FY (to date)
+            </option>
+          </optgroup>
+        </select>
+        <div style="width:1px;height:24px;background:var(--border)"></div>
+        <select name="product_id" onchange="document.getElementById('filter-form').submit()" style="<%= _select_style %>;max-width:220px">
+          <option value="">All products…</option>
+          <% @products_for_select.each do |name, id| %>
+            <option value="<%= id %>" <%= 'selected' if @product_id.to_s == id.to_s %>><%= name %></option>
+          <% end %>
+        </select>
+      </div>
+    <% end %>
+  </div>
+  <script>
+  function applyQuickSelect(sel) {
+    if (!sel.value) return;
+    var p = sel.value.split('|');
+    document.getElementById('filter-from').value = p[0];
+    document.getElementById('filter-to').value   = p[1];
+    document.getElementById('filter-form').submit();
+  }
+  </script>
+<% elsif @tab == 'velocity' %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
+    <svg width="14" height="14" fill="none" stroke="var(--text-dim)" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+    <%= form_with url: reports_stock_reports_path, method: :get, local: true do |f| %>
+      <%= f.hidden_field :tab, value: @tab %>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:var(--text-dim)">Period:</span>
+        <% [30, 60, 90].each do |d| %>
+          <%= link_to "#{d} days",
+                reports_stock_reports_path(tab: 'velocity', days: d),
+                style: "font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:5px;
+                        text-decoration:none;
+                        background:#{@days == d ? 'var(--accent)' : 'var(--bg)'};
+                        color:#{@days == d ? '#fff' : 'var(--text-dim)'};
+                        border:1px solid #{@days == d ? 'var(--accent)' : 'var(--border)'}" %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% elsif @tab == 'low_stock' %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
+    <svg width="14" height="14" fill="none" stroke="var(--text-dim)" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    <%= form_with url: reports_stock_reports_path, method: :get, local: true do |f| %>
+      <%= f.hidden_field :tab, value: @tab %>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:var(--text-dim)">Alert threshold:</span>
+        <% [5, 10, 20, 50].each do |t| %>
+          <%= link_to "≤ #{t} units",
+                reports_stock_reports_path(tab: 'low_stock', threshold: t),
+                style: "font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:5px;
+                        text-decoration:none;
+                        background:#{@threshold == t.to_f ? 'var(--accent)' : 'var(--bg)'};
+                        color:#{@threshold == t.to_f ? '#fff' : 'var(--text-dim)'};
+                        border:1px solid #{@threshold == t.to_f ? 'var(--accent)' : 'var(--border)'}" %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<%# ── Tabs ── %>
+<%
+  tabs = [
+    { key: 'register',  label: 'Stock Register',       icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0-2-2 2 2 0 0 0-2 2' },
+    { key: 'movement',  label: 'Stock Movement',       icon: 'M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4' },
+    { key: 'velocity',  label: 'Fast / Slow Moving',   icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
+    { key: 'low_stock', label: 'Low Stock Alert',      icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01' }
+  ]
+%>
+<div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:24px;overflow-x:auto">
+  <% tabs.each do |t| %>
+    <%
+      href = reports_stock_reports_path(tab: t[:key])
+      href += "&days=#{@days}"        if t[:key] == 'velocity'   && @days.present?
+      href += "&threshold=#{@threshold}" if t[:key] == 'low_stock' && @threshold.present?
+    %>
+    <%= link_to href,
+          style: "display:flex;align-items:center;gap:7px;padding:10px 16px;
+                  font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap;
+                  border-bottom:2px solid #{@tab == t[:key] ? 'var(--accent)' : 'transparent'};
+                  color:#{@tab == t[:key] ? 'var(--accent)' : 'var(--text-dim)'};
+                  transition:all .15s" do %>
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="<%= t[:icon] %>"/>
+      </svg>
+      <%= t[:label] %>
+    <% end %>
+  <% end %>
+</div>
+
+<% if @tab == 'register' %>
+  <%= render 'register' %>
+<% elsif @tab == 'movement' %>
+  <%= render 'movement' %>
+<% elsif @tab == 'velocity' %>
+  <%= render 'velocity' %>
+<% elsif @tab == 'low_stock' %>
+  <%= render 'low_stock' %>
+<% end %>

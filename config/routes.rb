@@ -148,6 +148,12 @@ Rails.application.routes.draw do
         get :export   # → export_reports_purchases_path
       end
     end
+    resources :cash_flows, only: [:index] do
+      collection do
+        get :export   # → export_reports_cash_flows_path
+      end
+    end
+    resources :stock_reports, only: [:index]
   end
 
   get  'dashboard', to: 'dashboard#index', as: :dashboard

@@ -1,0 +1,122 @@
+<%# app/views/reports/stock_reports/_velocity.html.erb %>
+
+<%# KPIs %>
+<div class="stats-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Products Sold</div>
+    <div class="stat-value"><%= @total_products_sold %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Period</div>
+    <div class="stat-value" style="font-size:16px">Last <%= @days %> days</div>
+  </div>
+</div>
+
+<%# Fast vs Slow charts %>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
+    <div id="chart-velocity-fast" style="height:300px"></div>
+  </div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
+    <div id="chart-velocity-slow" style="height:300px"></div>
+  </div>
+</div>
+
+<%# Full table %>
+<div class="table-wrap">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      All products — sorted by quantity sold (high → low)
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Brand</th>
+        <th>Product</th>
+        <th style="text-align:right">Qty Sold</th>
+        <th style="text-align:right">Revenue (₹)</th>
+        <th style="text-align:right">Invoices</th>
+        <th style="text-align:right">Velocity</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @rows.any? %>
+        <% @rows.each_with_index do |r, i| %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= i + 1 %></td>
+            <td style="font-weight:500;font-size:13px"><%= r[:brand] %></td>
+            <td style="font-size:13px"><%= r[:product] %></td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;
+                       color:<%= i < 3 ? 'var(--success)' : (i >= @rows.length - 3 ? 'var(--danger)' : 'var(--text)') %>">
+              <%= r[:qty] %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono)">
+              <%= number_with_delimiter(r[:revenue].round(0)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-size:12px">
+              <%= r[:invoices] %>
+            </td>
+            <td style="text-align:right">
+              <% vpd = (r[:qty] / @days).round(2) %>
+              <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;
+                           background:<%= vpd >= 1 ? 'rgba(52,217,139,0.12)' : 'rgba(100,100,100,0.08)' %>;
+                           color:<%= vpd >= 1 ? 'var(--success)' : 'var(--text-dim)' %>">
+                <%= vpd %>/day
+              </span>
+            </td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-dim)">
+          No sales in this period.
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var fastLabels = <%= raw @fast_labels.to_json %>;
+  var fastData   = <%= raw @fast_data.to_json %>;
+  var slowLabels = <%= raw @slow_labels.to_json %>;
+  var slowData   = <%= raw @slow_data.to_json %>;
+
+  function hBar(id, title, labels, data, color) {
+    var chart = initChart(id);
+    if (!chart || !labels.length) return;
+    chart.setOption(Object.assign({}, EC_DARK, {
+      title: { text: title, left: 'left', top: 8 },
+      grid: { containLabel: true, left: 120, right: 24, top: 48, bottom: 16 },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis',
+        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + p[0].value + ' units'; }
+      }),
+      xAxis: Object.assign({}, EC_DARK.xAxis, {
+        type: 'value',
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 10 }
+      }),
+      yAxis: Object.assign({}, EC_DARK.yAxis, {
+        type: 'category', data: labels,
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 10, width: 110, overflow: 'truncate' },
+        splitLine: { show: false }
+      }),
+      series: [{
+        type: 'bar', data: data, name: 'Qty', barMaxWidth: 28,
+        itemStyle: {
+          borderRadius: [0,4,4,0],
+          color: new echarts.graphic.LinearGradient(1,0,0,0,
+            [{offset:0,color:color},{offset:1,color:color+'44'}])
+        },
+        label: { show: true, position: 'right', color: EC_COLORS.textDim, fontSize: 10 }
+      }]
+    }));
+  }
+
+  hBar('chart-velocity-fast', 'Top 10 fast-moving products', fastLabels, fastData, '#34d98b');
+  hBar('chart-velocity-slow', 'Bottom 10 slow-moving products', slowLabels, slowData, '#f7614f');
+});
+</script>

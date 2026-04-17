@@ -1,0 +1,114 @@
+<%# app/views/reports/stock_reports/_register.html.erb %>
+
+<%# Hero KPIs %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Products</div>
+    <div class="stat-value"><%= @total_products %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">In Stock</div>
+    <div class="stat-value" style="color:var(--success)"><%= @in_stock_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Out of Stock</div>
+    <div class="stat-value" style="color:var(--danger)"><%= @out_of_stock_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Stock Value</div>
+    <div class="stat-value" style="font-size:18px">₹<%= number_with_delimiter(@total_stock_value.round(0)) %></div>
+  </div>
+</div>
+
+<%# Value by category donut %>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            padding:20px;margin-bottom:24px">
+  <div id="chart-register-cat" style="height:280px"></div>
+</div>
+
+<%# Product table %>
+<div class="table-wrap">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      All products — current stock
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Brand</th>
+        <th>Category</th>
+        <th>Product</th>
+        <th>Code</th>
+        <th style="text-align:right">Qty</th>
+        <th>UOM</th>
+        <th style="text-align:right">Avg Cost (₹)</th>
+        <th style="text-align:right">Value (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @rows.any? %>
+        <% @rows.each do |r| %>
+          <tr>
+            <td style="font-weight:500;font-size:13px"><%= r[:brand] %></td>
+            <td style="font-size:12px;color:var(--text-dim)"><%= r[:category] %></td>
+            <td style="font-size:13px"><%= r[:product] %></td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= r[:code] %></td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600;
+                       color:<%= r[:quantity] > 0 ? 'var(--text)' : 'var(--danger)' %>">
+              <%= r[:quantity] %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= r[:uom] %></td>
+            <td style="text-align:right;font-family:var(--mono);font-size:12px">
+              <%= number_with_delimiter(r[:avg_cost].round(2)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600">
+              <%= number_with_delimiter(r[:value].round(2)) %>
+            </td>
+          </tr>
+        <% end %>
+        <tr style="background:var(--bg);font-weight:700">
+          <td colspan="7" style="font-family:var(--mono);font-size:12px">Total</td>
+          <td style="text-align:right;font-family:var(--mono)">
+            <%= number_with_delimiter(@total_stock_value.round(2)) %>
+          </td>
+        </tr>
+      <% else %>
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-dim)">
+          No stock data found.
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var labels = <%= raw @chart_labels.to_json %>;
+  var data   = <%= raw @chart_data.to_json %>;
+
+  var donut = initChart('chart-register-cat');
+  if (donut && labels.length) {
+    donut.setOption(Object.assign({}, EC_DARK, {
+      title: { text: 'Stock value by category', left: 'left', top: 8 },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'item',
+        formatter: function(p) {
+          return '<b>' + p.name + '</b><br/>' + inr(p.value) + ' (' + p.percent.toFixed(1) + '%)';
+        }
+      }),
+      legend: { right: 16, top: 8, orient: 'vertical',
+                textStyle: { color: EC_COLORS.textDim, fontSize: 11 } },
+      series: [{
+        type: 'pie', radius: ['38%','62%'], center: ['36%','54%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 5, borderColor: EC_COLORS.bg, borderWidth: 2 },
+        label: { show: false },
+        emphasis: { scale: true, scaleSize: 6 },
+        data: labels.map(function(l, i) { return { name: l, value: data[i] }; })
+      }]
+    }));
+  }
+});
+</script>

@@ -1,0 +1,146 @@
+<%# app/views/reports/stock_reports/_low_stock.html.erb %>
+
+<%# Hero KPIs %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Products</div>
+    <div class="stat-value"><%= @total_products %></div>
+  </div>
+  <div class="stat-card" style="border-color:var(--danger)">
+    <div class="stat-label">Out of Stock</div>
+    <div class="stat-value" style="color:var(--danger)"><%= @out_of_stock_count %></div>
+  </div>
+  <div class="stat-card" style="border-color:#f7614f">
+    <div class="stat-label">Critical (≤ <%= (@threshold / 2).round(1) %>)</div>
+    <div class="stat-value" style="color:#f7614f"><%= @critical_count %></div>
+  </div>
+  <div class="stat-card" style="border-color:#f7c34f">
+    <div class="stat-label">Low (≤ <%= @threshold.round(1) %>)</div>
+    <div class="stat-value" style="color:#f7c34f"><%= @low_count %></div>
+  </div>
+</div>
+
+<% if @rows.any? %>
+  <%# By-category bar chart %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:20px;margin-bottom:24px">
+    <div id="chart-lowstock-cat" style="height:240px"></div>
+  </div>
+<% end %>
+
+<%# Alert table %>
+<div class="table-wrap">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border);
+              display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      Products at or below threshold (≤ <%= @threshold.round(1) %> units)
+    </span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;
+                   background:rgba(247,97,79,0.12);color:var(--danger)">
+        Out of Stock: <%= @out_of_stock_count %>
+      </span>
+      <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;
+                   background:rgba(247,97,79,0.08);color:#f7614f">
+        Critical: <%= @critical_count %>
+      </span>
+      <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;
+                   background:rgba(247,195,79,0.12);color:#f7c34f">
+        Low: <%= @low_count %>
+      </span>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Brand</th>
+        <th>Category</th>
+        <th>Product</th>
+        <th>Code</th>
+        <th style="text-align:right">Qty</th>
+        <th>UOM</th>
+        <th style="text-align:right">Avg Cost (₹)</th>
+        <th style="text-align:right">Value (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @rows.any? %>
+        <% @rows.each do |r| %>
+          <%
+            status_styles = {
+              'out_of_stock' => ['rgba(247,97,79,0.12)',   'var(--danger)', 'Out of Stock'],
+              'critical'     => ['rgba(247,97,79,0.08)',   '#f7614f',       'Critical'],
+              'low'          => ['rgba(247,195,79,0.12)',  '#f7c34f',       'Low']
+            }
+            sbg, sfg, slabel = status_styles[r[:status]]
+          %>
+          <tr>
+            <td>
+              <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;
+                           background:<%= sbg %>;color:<%= sfg %>">
+                <%= slabel %>
+              </span>
+            </td>
+            <td style="font-weight:500;font-size:13px"><%= r[:brand] %></td>
+            <td style="font-size:12px;color:var(--text-dim)"><%= r[:category] %></td>
+            <td style="font-size:13px"><%= r[:product] %></td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= r[:code] %></td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;
+                       color:<%= r[:quantity] <= 0 ? 'var(--danger)' : '#f7c34f' %>">
+              <%= r[:quantity] %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= r[:uom] %></td>
+            <td style="text-align:right;font-family:var(--mono);font-size:12px">
+              <%= number_with_delimiter(r[:avg_cost].round(2)) %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-size:12px">
+              <%= number_with_delimiter(r[:value].round(2)) %>
+            </td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--success)">
+          All products are above the threshold of <%= @threshold.round(1) %> units.
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var labels = <%= raw @chart_labels.to_json %>;
+  var data   = <%= raw @chart_data.to_json %>;
+  if (!labels.length) return;
+
+  var bar = initChart('chart-lowstock-cat');
+  if (!bar) return;
+
+  bar.setOption(Object.assign({}, EC_DARK, {
+    title: { text: 'Low-stock items by category', left: 'left', top: 8 },
+    tooltip: Object.assign({}, EC_DARK.tooltip, {
+      trigger: 'axis',
+      formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + p[0].value + ' product(s)'; }
+    }),
+    xAxis: Object.assign({}, EC_DARK.xAxis, {
+      type: 'category', data: labels,
+      axisLabel: { color: EC_COLORS.textDim, fontSize: 10, rotate: labels.length > 6 ? 20 : 0 }
+    }),
+    yAxis: Object.assign({}, EC_DARK.yAxis, {
+      axisLabel: { color: EC_COLORS.textDim, fontSize: 10 },
+      minInterval: 1
+    }),
+    series: [{
+      type: 'bar', data: data, name: 'Count', barMaxWidth: 48,
+      itemStyle: {
+        borderRadius: [4,4,0,0],
+        color: new echarts.graphic.LinearGradient(0,0,0,1,
+          [{offset:0,color:'#f7614f'},{offset:1,color:'#7a1a0a'}])
+      },
+      label: { show: true, position: 'top', color: EC_COLORS.textDim, fontSize: 11 }
+    }]
+  }));
+});
+</script>

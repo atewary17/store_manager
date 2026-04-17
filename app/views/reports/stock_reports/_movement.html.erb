@@ -1,0 +1,127 @@
+<%# app/views/reports/stock_reports/_movement.html.erb %>
+
+<%# Hero KPIs %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Entries</div>
+    <div class="stat-value"><%= @txn_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total In</div>
+    <div class="stat-value" style="color:var(--success)">+<%= @total_in %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Out</div>
+    <div class="stat-value" style="color:var(--danger)">-<%= @total_out %></div>
+  </div>
+</div>
+
+<%# Daily net movement chart %>
+<% if @chart_labels.any? %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:20px;margin-bottom:24px">
+    <div id="chart-movement-daily" style="height:280px"></div>
+  </div>
+<% end %>
+
+<%# Ledger table %>
+<div class="table-wrap">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      Ledger entries
+      <% if @product_id.present? %>
+        — filtered by product
+      <% end %>
+    </span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date &amp; Time</th>
+        <th>Product</th>
+        <th>Type</th>
+        <th style="text-align:right">Qty</th>
+        <th style="text-align:right">Unit Cost (₹)</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @rows.any? %>
+        <% @rows.each do |r| %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap">
+              <%= r[:date].strftime('%d %b %Y %H:%M') %>
+            </td>
+            <td style="font-size:13px;font-weight:500"><%= r[:product] %></td>
+            <td>
+              <%
+                type_colors = {
+                  'purchase'   => ['rgba(52,217,139,0.12)', 'var(--success)'],
+                  'opening'    => ['rgba(79,142,247,0.12)', '#4f8ef7'],
+                  'sale'       => ['rgba(247,97,79,0.12)',  'var(--danger)'],
+                  'adjustment' => ['rgba(247,195,79,0.12)', '#f7c34f'],
+                  'return'     => ['rgba(155,124,247,0.12)','#9b7cf7']
+                }
+                bg, fg = (type_colors[r[:type]] || ['var(--border)', 'var(--text-dim)'])
+              %>
+              <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;
+                           background:<%= bg %>;color:<%= fg %>">
+                <%= r[:type].titleize %>
+              </span>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600;
+                       color:<%= r[:quantity] >= 0 ? 'var(--success)' : 'var(--danger)' %>">
+              <%= r[:quantity] >= 0 ? '+' : '' %><%= r[:quantity] %>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-size:12px">
+              <%= r[:unit_cost] ? number_with_delimiter(r[:unit_cost].round(2)) : '—' %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim)"><%= r[:notes] %></td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-dim)">
+          No ledger entries in this period.
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var labels = <%= raw @chart_labels.to_json %>;
+  var data   = <%= raw @chart_data.to_json %>;
+  if (!labels.length) return;
+
+  var bar = initChart('chart-movement-daily');
+  if (!bar) return;
+
+  bar.setOption(Object.assign({}, EC_DARK, {
+    title: { text: 'Daily net stock movement', left: 'left', top: 8 },
+    tooltip: Object.assign({}, EC_DARK.tooltip, {
+      trigger: 'axis',
+      formatter: function(p) {
+        return '<b>' + p[0].name + '</b><br/>' + (p[0].value >= 0 ? '+' : '') + p[0].value;
+      }
+    }),
+    xAxis: Object.assign({}, EC_DARK.xAxis, {
+      type: 'category', data: labels,
+      axisLabel: { color: EC_COLORS.textDim, fontSize: 10, rotate: labels.length > 14 ? 30 : 0 }
+    }),
+    yAxis: Object.assign({}, EC_DARK.yAxis, {
+      axisLabel: { color: EC_COLORS.textDim, fontSize: 10 }
+    }),
+    series: [{
+      type: 'bar', data: data, name: 'Net Qty', barMaxWidth: 40,
+      itemStyle: {
+        borderRadius: [4,4,0,0],
+        color: function(params) {
+          return params.value >= 0 ? 'rgba(52,217,139,0.8)' : 'rgba(247,97,79,0.8)';
+        }
+      }
+    }]
+  }));
+});
+</script>

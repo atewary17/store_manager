@@ -1,0 +1,158 @@
+<%# app/views/reports/cash_flows/_inflow.html.erb %>
+
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Received</div>
+    <div class="stat-value" style="color:var(--success)">₹<%= number_with_delimiter(@total_inflow.round(0)) %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Transactions</div>
+    <div class="stat-value"><%= @txn_count %></div>
+  </div>
+  <% top_mode = @by_mode.first %>
+  <div class="stat-card">
+    <div class="stat-label">Top Mode</div>
+    <div class="stat-value" style="font-size:16px;color:var(--accent)">
+      <%= top_mode ? top_mode[0].titleize : '—' %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Avg per Transaction</div>
+    <div class="stat-value" style="font-size:16px">
+      ₹<%= @txn_count > 0 ? number_with_delimiter((@total_inflow / @txn_count).round(0)) : '0' %>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:24px">
+  <%# Timeline bar chart %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
+    <div id="chart-inflow-daily" style="height:260px"></div>
+  </div>
+  <%# Mode donut %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px">
+    <div id="chart-inflow-mode" style="height:260px"></div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border);
+              display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--text-dim)">
+      All payments received
+    </span>
+    <%# Mode breakdown pills %>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <% @by_mode.each do |mode, amt| %>
+        <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;
+                     border-radius:4px;background:rgba(52,217,139,0.12);color:var(--success)">
+          <%= mode.titleize %>: ₹<%= number_with_delimiter(amt) %>
+        </span>
+      <% end %>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Receipt #</th>
+        <th>Customer</th>
+        <th>Invoice</th>
+        <th>Mode</th>
+        <th style="text-align:right">Amount (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @rows.any? %>
+        <% @rows.each do |r| %>
+          <tr>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= r[:date]&.strftime('%d %b %Y') %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= r[:receipt] %></td>
+            <td style="font-weight:500;font-size:13px"><%= r[:customer] %></td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= r[:invoice] %></td>
+            <td>
+              <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;
+                           background:rgba(52,217,139,0.1);color:var(--success)">
+                <%= r[:mode].titleize %>
+              </span>
+            </td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--success)">
+              <%= number_with_delimiter(r[:amount]) %>
+            </td>
+          </tr>
+        <% end %>
+        <tr style="background:var(--bg);font-weight:700">
+          <td colspan="5" style="font-family:var(--mono);font-size:12px">Total</td>
+          <td style="text-align:right;font-family:var(--mono);color:var(--success)">
+            <%= number_with_delimiter(@total_inflow) %>
+          </td>
+        </tr>
+      <% else %>
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-dim)">
+          No payments received in this period.
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var labels = <%= raw @chart_labels.to_json %>;
+  var data   = <%= raw @chart_data.to_json %>;
+
+  var bar = initChart('chart-inflow-daily');
+  if (bar) {
+    bar.setOption(Object.assign({}, EC_DARK, {
+      title: { text: 'Daily inflow', left: 'left', top: 8 },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis',
+        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+      }),
+      xAxis: Object.assign({}, EC_DARK.xAxis, {
+        type: 'category', data: labels,
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 10, rotate: labels.length > 14 ? 30 : 0 }
+      }),
+      yAxis: Object.assign({}, EC_DARK.yAxis, {
+        axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
+      }),
+      series: [{
+        type: 'bar', data: data, name: 'Received', barMaxWidth: 40,
+        itemStyle: {
+          borderRadius: [4,4,0,0],
+          color: new echarts.graphic.LinearGradient(0,0,0,1,
+            [{offset:0,color:'#34d98b'},{offset:1,color:'#0a5c3a'}])
+        },
+        label: { show: data.length <= 10, position: 'top',
+                 formatter: function(p) { return inr(p.value); },
+                 color: EC_COLORS.textDim, fontSize: 10 }
+      }]
+    }));
+  }
+
+  var modeLabels = <%= raw @mode_labels.to_json %>;
+  var modeData   = <%= raw @mode_data.to_json %>;
+  var donut = initChart('chart-inflow-mode');
+  if (donut && modeLabels.length) {
+    donut.setOption(Object.assign({}, EC_DARK, {
+      title: { text: 'By payment mode', left: 'left', top: 8 },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'item',
+        formatter: function(p) { return '<b>' + p.name + '</b><br/>' + inr(p.value) + ' (' + p.percent.toFixed(1) + '%)'; }
+      }),
+      legend: { bottom: 0, left: 'center', textStyle: { color: EC_COLORS.textDim, fontSize: 11 } },
+      series: [{
+        type: 'pie', radius: ['40%','68%'], center: ['50%','46%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 5, borderColor: EC_COLORS.bg, borderWidth: 2 },
+        label: { show: false },
+        emphasis: { scale: true, scaleSize: 6 },
+        data: modeLabels.map(function(l, i) { return { name: l, value: modeData[i] }; })
+      }]
+    }));
+  }
+});
+</script>
