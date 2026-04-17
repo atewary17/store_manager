@@ -1,16 +1,20 @@
 # docker-compose.yml
-# For local development and testing Docker setup before deploying to server
-# Usage: docker compose up
+#
+# LOCAL DEV (uses local Postgres):
+#   docker compose up
+#
+# TEST AGAINST NEON (uses your Neon DB):
+#   DATABASE_URL=postgres://... docker compose up web worker
 
 services:
 
-  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  # ── PostgreSQL (local dev only) ────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: store_manager
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_in_production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
       POSTGRES_DB: store_manager_production
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -19,83 +23,41 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    ports:
-      - "5432:5432"   # remove in production — only expose internally
 
-  # ── Redis ─────────────────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Rails Web ─────────────────────────────────────────────────────────────
+  # ── Rails Web ──────────────────────────────────────────────────────────────
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
+    build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+    env_file: .env
     environment:
-      RAILS_ENV: production
-      DATABASE_URL: postgres://store_manager:${POSTGRES_PASSWORD:-changeme_in_production}@db:5432/store_manager_production
-      REDIS_URL: redis://redis:6379/0
-      RAILS_SERVE_STATIC_FILES: "true"
-      RAILS_LOG_TO_STDOUT: "true"
-      DISABLE_PREPARED_STATEMENTS: "true"
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY}
-      API_JWT_SECRET: ${API_JWT_SECRET}
+      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_production}
+      # REDIS_URL intentionally omitted — app falls back to memory store
     ports:
       - "3000:3000"
     volumes:
-      - storage_data:/app/storage   # ActiveStorage uploads
+      - storage_data:/app/storage
     command: >
       sh -c "
         bundle exec rails db:migrate &&
         bundle exec rails db:seed &&
         bundle exec puma -C config/puma.rb
       "
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/up"]
-      interval: 30s
-      timeout: 10s
-      start_period: 60s
-      retries: 3
 
-  # ── GoodJob (background jobs) ─────────────────────────────────────────────
+  # ── GoodJob Worker ─────────────────────────────────────────────────────────
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
+    build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+    env_file: .env
     environment:
-      RAILS_ENV: production
-      DATABASE_URL: postgres://store_manager:${POSTGRES_PASSWORD:-changeme_in_production}@db:5432/store_manager_production
-      REDIS_URL: redis://redis:6379/0
-      RAILS_LOG_TO_STDOUT: "true"
-      DISABLE_PREPARED_STATEMENTS: "true"
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY}
-    command: bundle exec good_job start
+      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_production}
+    command: bundle exec good_job start  # uses PostgreSQL, no Redis needed
 
 volumes:
   postgres_data:
-  redis_data:
   storage_data:
