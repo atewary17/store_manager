@@ -1,62 +1,68 @@
-# syntax = docker/dockerfile:1
+# ── Stage 1: Build ─────────────────────────────────────────────────────────
+FROM ruby:3.3.5-slim AS builder
 
-# Make sure RUBY_VERSION matches the Ruby version in .ruby-version and Gemfile
-ARG RUBY_VERSION=3.3.5
-FROM registry.docker.com/library/ruby:$RUBY_VERSION-slim as base
+# System deps for native gem compilation
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    libvips-dev \
+    git \
+    curl \
+    gnupg2 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Rails app lives here
-WORKDIR /rails
+# Node 20 + Yarn (needed for asset pipeline)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g yarn \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set production environment
-ENV RAILS_ENV="production" \
-    BUNDLE_DEPLOYMENT="1" \
-    BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="development"
+WORKDIR /app
 
-
-# Throw-away build stage to reduce size of final image
-FROM base as build
-
-# Install packages needed to build gems
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libpq-dev libvips pkg-config
-
-# Install application gems
+# Install gems first (layer cache — only rebuilds if Gemfile changes)
 COPY Gemfile Gemfile.lock ./
-RUN bundle install && \
-    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
-    bundle exec bootsnap precompile --gemfile
+RUN bundle config set --local without 'development test' \
+    && bundle install --jobs 4 --retry 3
 
-# Copy application code
+# Copy app source
 COPY . .
 
-# Precompile bootsnap code for faster boot times
-RUN bundle exec bootsnap precompile app/ lib/
+# Precompile assets
+RUN SECRET_KEY_BASE=placeholder \
+    RAILS_ENV=production \
+    bundle exec rails assets:precompile
 
-# Precompiling assets for production without requiring secret RAILS_MASTER_KEY
-RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
+# ── Stage 2: Runtime ────────────────────────────────────────────────────────
+FROM ruby:3.3.5-slim AS runtime
 
+# Runtime-only system deps
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    libvips-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Final stage for app image
-FROM base
+# Create non-root user for security
+RUN groupadd --system rails \
+    && useradd --system --gid rails --home /app rails
 
-# Install packages needed for deployment
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libvips postgresql-client && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+WORKDIR /app
 
-# Copy built artifacts: gems, application
-COPY --from=build /usr/local/bundle /usr/local/bundle
-COPY --from=build /rails /rails
+# Copy gems from builder
+COPY --from=builder /usr/local/bundle /usr/local/bundle
 
-# Run and own only the runtime files as a non-root user for security
-RUN useradd rails --create-home --shell /bin/bash && \
-    chown -R rails:rails db log storage tmp
-USER rails:rails
+# Copy compiled app from builder
+COPY --from=builder --chown=rails:rails /app /app
 
-# Entrypoint prepares the database.
-ENTRYPOINT ["/rails/bin/docker-entrypoint"]
+# Switch to non-root user
+USER rails
 
-# Start the server by default, this can be overwritten at runtime
+# Expose Puma port
 EXPOSE 3000
-CMD ["./bin/rails", "server"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/up || exit 1
+
+# Start Puma
+CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]
