@@ -23,8 +23,8 @@ gem 'pundit'
 gem 'cancancan'
 gem 'good_job'
 gem 'roo'           
-gem 'redis', '~> 5.0'          # later use
-gem 'hiredis-client'           # faster Redis driver
+# gem 'redis', '~> 5.0'          # later use
+# gem 'hiredis-client'           # faster Redis driver
 gem 'wicked_pdf'
 gem 'wkhtmltopdf-binary'
 gem 'dotenv-rails'  # not grouped, so it loads in production too
