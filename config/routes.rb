@@ -157,7 +157,8 @@ Rails.application.routes.draw do
   end
 
   get  'dashboard', to: 'dashboard#index', as: :dashboard
-  root 'dashboard#index'
+  get  'landing',   to: 'pages#home',      as: :landing
+  root 'pages#home'
 
   # ── Mobile API — v1 ──────────────────────────────────────────────────────
   # All endpoints under /api/v1/

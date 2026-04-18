@@ -15,7 +15,9 @@ services:
     environment:
       POSTGRES_USER: store_manager
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
-      POSTGRES_DB: store_manager_production
+      POSTGRES_DB: store_manager_development
+    ports:
+      - "5432:5432"   # expose to host so local `rails s` can connect
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -33,7 +35,7 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_production}
+      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_development}
       # REDIS_URL intentionally omitted — app falls back to memory store
     ports:
       - "3000:3000"
@@ -55,7 +57,7 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_production}
+      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_development}
     command: bundle exec good_job start  # uses PostgreSQL, no Redis needed
 
 volumes:

@@ -3,197 +3,147 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In — StoreERP</title>
+  <title>Sign In — My Store Manager</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <%= csrf_meta_tags %>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:          #0b0e16;
-      --surface:     #111520;
-      --surface-2:   #181d2e;
-      --border:      #1e2438;
-      --border-2:    #2a3050;
-      --text:        #dde3f4;
-      --text-dim:    #6b7799;
-      --text-muted:  #3d4a6a;
-      --accent:      #4f8ef7;
-      --accent-glow: rgba(79, 142, 247, 0.18);
-      --accent-dim:  #1a2f5c;
-      --success:     #34d98b;
-      --danger:      #f7614f;
-      --mono:        'IBM Plex Mono', monospace;
-      --sans:        'IBM Plex Sans', sans-serif;
+      --navy:    #0c1123;
+      --navy2:   #111829;
+      --navy3:   #192038;
+      --navy4:   #1e2848;
+      --blue:    #4f8ef7;
+      --blue2:   #2563eb;
+      --teal:    #34d98b;
+      --red:     #f7614f;
+      --text:    #dde3f4;
+      --muted:   #6b7799;
+      --dimmer:  #3d4a6a;
+      --border:  rgba(79,142,247,0.12);
+      --border2: rgba(79,142,247,0.22);
+      --glow:    rgba(79,142,247,0.18);
+      --font:    'Inter', sans-serif;
+      --mono:    'IBM Plex Mono', monospace;
     }
 
-    html, body { height: 100%; }
+    html, body { height: 100%; overflow: hidden; }
 
     body {
-      font-family: var(--sans);
-      background: var(--bg);
+      font-family: var(--font);
+      background: var(--navy);
       color: var(--text);
       display: flex;
       min-height: 100vh;
-      overflow: hidden;
     }
 
-    /* ─── GRID BACKGROUND PATTERN ─── */
+    /* grid bg */
     body::before {
       content: '';
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
       background-image:
-        linear-gradient(rgba(79,142,247,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(79,142,247,0.03) 1px, transparent 1px);
+        linear-gradient(rgba(79,142,247,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,0.035) 1px, transparent 1px);
       background-size: 40px 40px;
-      pointer-events: none;
-      z-index: 0;
     }
 
-    /* ─── LEFT PANEL ─── */
+    /* ════════════════════════════
+       LEFT PANEL
+    ════════════════════════════ */
     .left-panel {
-      width: 52%;
+      width: 48%;
       min-height: 100vh;
       position: relative;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      padding: 48px;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 56px 64px;
       overflow: hidden;
       z-index: 1;
     }
 
-    /* Diagonal cut border */
+    /* vertical accent line on right edge */
     .left-panel::after {
       content: '';
       position: absolute;
-      top: 0; right: -1px; bottom: 0;
+      top: 0; right: 0; bottom: 0;
       width: 1px;
       background: linear-gradient(to bottom,
         transparent 0%,
-        var(--border-2) 20%,
-        var(--accent) 50%,
-        var(--border-2) 80%,
+        var(--border2) 25%,
+        var(--blue) 50%,
+        var(--border2) 75%,
         transparent 100%
       );
-      opacity: 0.6;
+      opacity: 0.5;
     }
 
-    /* Radial glow orb */
+    /* ambient orb */
     .left-panel::before {
       content: '';
       position: absolute;
-      top: -120px;
-      left: -80px;
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, rgba(79,142,247,0.07) 0%, transparent 70%);
+      top: -160px; left: -120px;
+      width: 560px; height: 560px;
+      background: radial-gradient(circle, rgba(79,142,247,0.08) 0%, transparent 68%);
       pointer-events: none;
     }
 
-    /* ─── BRAND ─── */
+    /* brand */
     .brand {
-      animation: fadeSlideDown 0.6s ease both;
+      margin-bottom: 48px;
+      animation: fadeUp 0.7s ease both;
     }
-    .brand-tag {
+    .brand-eyebrow {
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.2em;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      font-size: 10px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--blue);
+      margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
     }
-    .brand-tag::before {
-      content: '';
-      width: 24px; height: 1px;
-      background: var(--accent);
+    .brand-eyebrow::before {
+      content: ''; width: 20px; height: 1px; background: var(--blue);
     }
     .brand-name {
-      font-size: 32px;
-      font-weight: 600;
-      letter-spacing: -0.03em;
-      color: var(--text);
-      line-height: 1;
-    }
-    .brand-name span { color: var(--accent); }
-
-    /* ─── HERO TEXT ─── */
-    .hero {
-      animation: fadeSlideUp 0.7s ease 0.15s both;
-    }
-    .hero-headline {
-      font-size: 42px;
-      font-weight: 300;
-      letter-spacing: -0.03em;
-      line-height: 1.15;
-      color: var(--text);
-      margin-bottom: 20px;
-    }
-    .hero-headline em {
-      font-style: italic;
-      color: var(--text-dim);
-    }
-    .hero-headline strong {
-      font-weight: 600;
+      font-size: 30px; font-weight: 700;
+      letter-spacing: -0.04em; line-height: 1;
       color: var(--text);
     }
-    .hero-desc {
-      font-size: 14px;
-      color: var(--text-dim);
-      line-height: 1.7;
-      max-width: 380px;
+    .brand-name span { color: var(--blue); }
+    .brand-sub {
+      font-size: 12px; color: var(--muted);
+      font-family: var(--mono); letter-spacing: 0.08em;
+      margin-top: 6px;
     }
 
-    /* ─── FEATURE PILLS ─── */
-    .feature-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 32px;
-      animation: fadeSlideUp 0.7s ease 0.25s both;
+    /* tagline */
+    .tagline {
+      margin-bottom: 48px;
+      animation: fadeUp 0.7s ease 0.12s both;
     }
-    .feature-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: var(--surface);
-      border: 1px solid var(--border-2);
-      border-radius: 100px;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-dim);
-      letter-spacing: 0.04em;
+    .tagline-h {
+      font-size: 40px; font-weight: 700;
+      letter-spacing: -0.04em; line-height: 1.1;
+      margin-bottom: 14px;
     }
-    .feature-pill svg { color: var(--accent); flex-shrink: 0; }
-
-    /* ─── STATS ROW ─── */
-    .stats {
-      display: flex;
-      gap: 32px;
-      animation: fadeSlideUp 0.7s ease 0.3s both;
-    }
-    .stat { }
-    .stat-num {
-      font-family: var(--mono);
-      font-size: 24px;
-      font-weight: 600;
-      color: var(--accent);
-      letter-spacing: -0.02em;
-    }
-    .stat-label {
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-top: 2px;
+    .tagline-h .accent { color: var(--blue); }
+    .tagline-h .light  { font-weight: 300; color: var(--muted); font-size: 34px; }
+    .tagline-p {
+      font-size: 14px; color: var(--muted); line-height: 1.75;
+      max-width: 340px;
     }
 
-    /* ─── RIGHT PANEL ─── */
+    /* mini genie illustration */
+    .genie-deco {
+      animation: fadeUp 0.8s ease 0.22s both, genieFloat 4s ease-in-out 1s infinite;
+    }
+
+    /* ════════════════════════════
+       RIGHT PANEL
+    ════════════════════════════ */
     .right-panel {
       flex: 1;
       display: flex;
@@ -204,269 +154,177 @@
       z-index: 1;
     }
 
-    .login-card {
-      width: 100%;
-      max-width: 400px;
-      animation: fadeSlideUp 0.6s ease 0.1s both;
+    /* orb behind form */
+    .right-panel::before {
+      content: '';
+      position: absolute;
+      bottom: -80px; right: -60px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(52,217,139,0.05) 0%, transparent 70%);
+      pointer-events: none;
     }
 
-    /* ─── FORM HEADER ─── */
-    .form-header { margin-bottom: 36px; }
+    .login-card {
+      width: 100%; max-width: 400px;
+      animation: fadeUp 0.6s ease 0.08s both;
+    }
+
+    /* form header */
+    .form-header { margin-bottom: 32px; }
     .form-eyebrow {
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--text-dim);
+      font-size: 10px; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--muted);
       margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
     }
     .form-eyebrow::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border-2);
+      content: ''; flex: 1; height: 1px; background: var(--border2);
     }
     .form-title {
-      font-size: 26px;
-      font-weight: 600;
-      letter-spacing: -0.025em;
-      color: var(--text);
+      font-size: 28px; font-weight: 700;
+      letter-spacing: -0.03em; color: var(--text);
       margin-bottom: 6px;
     }
-    .form-subtitle { font-size: 13px; color: var(--text-dim); }
+    .form-subtitle { font-size: 13px; color: var(--muted); }
 
-    /* ─── ALERT ─── */
+    /* flash messages */
     .alert-box {
       background: rgba(247,97,79,0.08);
       border: 1px solid rgba(247,97,79,0.25);
-      border-radius: 8px;
-      padding: 12px 14px;
-      font-size: 13px;
-      color: var(--danger);
+      border-radius: 8px; padding: 12px 14px;
+      font-size: 13px; color: var(--red);
       margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
     }
     .notice-box {
       background: rgba(52,217,139,0.07);
       border: 1px solid rgba(52,217,139,0.2);
-      border-radius: 8px;
-      padding: 12px 14px;
-      font-size: 13px;
-      color: var(--success);
+      border-radius: 8px; padding: 12px 14px;
+      font-size: 13px; color: var(--teal);
       margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
     }
 
-    /* ─── FORM FIELDS ─── */
+    /* fields */
     .field { margin-bottom: 18px; }
     .field label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-dim);
-      letter-spacing: 0.03em;
-      margin-bottom: 7px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; font-weight: 500; color: var(--muted);
+      letter-spacing: 0.03em; margin-bottom: 7px;
     }
     .field label a {
-      font-size: 11px;
-      color: var(--accent);
-      text-decoration: none;
-      font-family: var(--mono);
-      opacity: 0.8;
-      transition: opacity 0.15s;
+      font-size: 11px; color: var(--blue);
+      text-decoration: none; font-family: var(--mono);
+      opacity: 0.8; transition: opacity 0.15s;
     }
     .field label a:hover { opacity: 1; }
 
     .input-wrap { position: relative; }
     .input-icon {
-      position: absolute;
-      left: 13px;
-      top: 50%;
+      position: absolute; left: 13px; top: 50%;
       transform: translateY(-50%);
-      color: var(--text-muted);
-      transition: color 0.2s;
-      pointer-events: none;
+      color: var(--dimmer); transition: color 0.2s; pointer-events: none;
     }
-    .input-wrap:focus-within .input-icon { color: var(--accent); }
+    .input-wrap:focus-within .input-icon { color: var(--blue); }
 
     .field input {
       width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border-2);
+      background: var(--navy2);
+      border: 1px solid var(--border2);
       border-radius: 8px;
-      padding: 11px 14px 11px 40px;
+      padding: 12px 14px 12px 40px;
       color: var(--text);
-      font-family: var(--sans);
+      font-family: var(--font);
       font-size: 14px;
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
       -webkit-appearance: none;
     }
-    .field input::placeholder { color: var(--text-muted); font-size: 13px; }
+    .field input::placeholder { color: var(--dimmer); font-size: 13px; }
     .field input:focus {
-      border-color: var(--accent);
-      background: var(--surface-2);
-      box-shadow: 0 0 0 3px var(--accent-glow);
+      border-color: var(--blue);
+      background: var(--navy3);
+      box-shadow: 0 0 0 3px var(--glow);
     }
 
-    /* Password toggle */
+    /* password toggle */
     .pwd-toggle {
-      position: absolute;
-      right: 12px;
-      top: 50%;
+      position: absolute; right: 12px; top: 50%;
       transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--text-muted);
-      padding: 4px;
+      background: none; border: none; cursor: pointer;
+      color: var(--dimmer); padding: 4px;
       transition: color 0.2s;
-      display: flex;
-      align-items: center;
+      display: flex; align-items: center;
     }
-    .pwd-toggle:hover { color: var(--text-dim); }
+    .pwd-toggle:hover { color: var(--muted); }
 
-    /* ─── REMEMBER ME ─── */
+    /* remember me */
     .remember-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 24px;
+      display: flex; align-items: center; gap: 8px; margin-bottom: 22px;
     }
     .custom-checkbox {
       width: 16px; height: 16px;
-      border: 1px solid var(--border-2);
-      border-radius: 4px;
-      background: var(--surface);
-      appearance: none;
-      -webkit-appearance: none;
-      cursor: pointer;
-      position: relative;
-      flex-shrink: 0;
+      border: 1px solid var(--border2); border-radius: 4px;
+      background: var(--navy2);
+      appearance: none; -webkit-appearance: none;
+      cursor: pointer; position: relative; flex-shrink: 0;
       transition: all 0.15s;
     }
-    .custom-checkbox:checked {
-      background: var(--accent);
-      border-color: var(--accent);
-    }
+    .custom-checkbox:checked { background: var(--blue); border-color: var(--blue); }
     .custom-checkbox:checked::after {
       content: '';
-      position: absolute;
-      left: 4px; top: 1px;
+      position: absolute; left: 4px; top: 1px;
       width: 5px; height: 9px;
-      border: 2px solid #fff;
-      border-top: none;
-      border-left: none;
+      border: 2px solid #fff; border-top: none; border-left: none;
       transform: rotate(45deg);
     }
     .remember-row label {
-      font-size: 13px;
-      color: var(--text-dim);
-      cursor: pointer;
-      user-select: none;
+      font-size: 13px; color: var(--muted); cursor: pointer; user-select: none;
     }
 
-    /* ─── SUBMIT BUTTON ─── */
+    /* submit */
     .submit-btn {
-      width: 100%;
-      padding: 13px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
+      width: 100%; padding: 13px;
+      background: var(--blue); color: #fff; border: none;
       border-radius: 8px;
-      font-family: var(--sans);
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
+      font-family: var(--font); font-size: 15px; font-weight: 600;
+      cursor: pointer; position: relative; overflow: hidden;
       transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
-      box-shadow: 0 4px 20px rgba(79,142,247,0.25);
+      box-shadow: 0 4px 20px rgba(79,142,247,0.3);
     }
     .submit-btn::before {
       content: '';
-      position: absolute;
-      top: 0; left: -100%;
+      position: absolute; top: 0; left: -100%;
       width: 100%; height: 100%;
       background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
       transition: left 0.5s ease;
     }
-    .submit-btn:hover {
-      background: #3a78e8;
-      box-shadow: 0 4px 28px rgba(79,142,247,0.4);
-    }
+    .submit-btn:hover { background: var(--blue2); box-shadow: 0 4px 28px rgba(79,142,247,0.45); }
     .submit-btn:hover::before { left: 100%; }
     .submit-btn:active { transform: scale(0.99); }
 
-    /* ─── DIVIDER ─── */
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 22px 0;
-      color: var(--text-muted);
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.1em;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    /* ─── FOOTER NOTE ─── */
+    /* footer */
     .form-footer {
-      text-align: center;
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 20px;
-      font-family: var(--mono);
+      text-align: center; font-size: 12px; color: var(--dimmer);
+      margin-top: 22px; font-family: var(--mono);
+      line-height: 1.8;
     }
-    .form-footer a { color: var(--text-dim); text-decoration: none; }
-    .form-footer a:hover { color: var(--accent); }
+    .form-footer a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
+    .form-footer a:hover { color: var(--blue); }
 
-    /* ─── SECURITY BADGE ─── */
-    .security-badge {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      margin-top: 28px;
-      padding: 9px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-    }
-    .security-badge svg { color: var(--success); }
-
-    /* ─── ANIMATIONS ─── */
-    @keyframes fadeSlideDown {
-      from { opacity: 0; transform: translateY(-16px); }
+    /* keyframes */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-    @keyframes fadeSlideUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
+    @keyframes genieFloat {
+      0%,100% { transform: translateY(0px) rotate(-1deg); }
+      50%      { transform: translateY(-10px) rotate(1deg); }
     }
 
-    /* ─── RESPONSIVE ─── */
-    @media (max-width: 860px) {
+    /* responsive */
+    @media (max-width: 820px) {
       .left-panel { display: none; }
       .right-panel { padding: 32px 24px; }
       body { overflow: auto; }
@@ -475,78 +333,116 @@
 </head>
 <body>
 
-  <!-- ═══════════════════════════ LEFT PANEL ═══════════════════════════ -->
+  <!-- ════════════ LEFT PANEL ════════════ -->
   <div class="left-panel">
+
     <div class="brand">
-      <div class="brand-tag">Multi-tenant ERP</div>
-      <div class="brand-name">Store<span>ERP</span></div>
+      <div class="brand-eyebrow">Store Management</div>
+      <div class="brand-name">My<span>Store</span> Manager</div>
+      <div class="brand-sub">Made easy for your store</div>
     </div>
 
-    <div class="hero">
-      <div class="hero-headline">
-        <em>Manage</em> your entire<br>
-        store from <strong>one place.</strong>
+    <div class="tagline">
+      <div class="tagline-h">
+        Your Store,<br>
+        <span class="accent">Runs Smart.</span><br>
+        <span class="light">You Just Thrive.</span>
       </div>
-      <div class="hero-desc">
-        Inventory, orders, users, and billing — all unified in a
-        single platform built to scale with your business.
-      </div>
-
-      <div class="feature-row">
-        <div class="feature-pill">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          Multi-tenant
-        </div>
-        <div class="feature-pill">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          Role-based access
-        </div>
-        <div class="feature-pill">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          GST ready
-        </div>
-        <div class="feature-pill">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          Inventory tracking
-        </div>
-        <div class="feature-pill">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          Subscription plans
-        </div>
-      </div>
+      <p class="tagline-p">
+        Bills, inventory, accounts and taxes — all in one place.
+        Sign in and let the platform do the heavy lifting.
+      </p>
     </div>
 
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-num">4</div>
-        <div class="stat-label">Access Roles</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">∞</div>
-        <div class="stat-label">Organisations</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">v1.0</div>
-        <div class="stat-label">Current Build</div>
-      </div>
+    <!-- mini genie floating -->
+    <div class="genie-deco">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 220" width="110">
+        <defs>
+          <linearGradient id="s-tail" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4a9ee8"/>
+            <stop offset="100%" stop-color="#2a62b0" stop-opacity="0.3"/>
+          </linearGradient>
+          <radialGradient id="s-body" cx="35%" cy="30%" r="65%">
+            <stop offset="0%" stop-color="#7dd4f8"/>
+            <stop offset="100%" stop-color="#3a8ed4"/>
+          </radialGradient>
+          <radialGradient id="s-head" cx="35%" cy="30%" r="65%">
+            <stop offset="0%" stop-color="#8adaf8"/>
+            <stop offset="100%" stop-color="#4aaee0"/>
+          </radialGradient>
+        </defs>
+        <!-- tail -->
+        <ellipse cx="65" cy="208" rx="30" ry="9" fill="rgba(79,142,247,0.15)"/>
+        <path d="M30 202 Q18 184 27 162 Q36 144 30 130 Q40 127 65 130 Q90 127 100 130 Q94 144 103 162 Q112 184 100 202 Z" fill="url(#s-tail)"/>
+        <!-- body -->
+        <ellipse cx="65" cy="106" rx="38" ry="42" fill="url(#s-body)"/>
+        <ellipse cx="58" cy="95" rx="15" ry="17" fill="rgba(255,255,255,0.1)"/>
+        <!-- sash -->
+        <path d="M28 120 Q65 116 102 120 Q100 130 65 133 Q30 130 28 120Z" fill="#c8880a"/>
+        <path d="M29 120 Q65 117 101 120 L100 124 Q65 121 30 124Z" fill="#f0b020"/>
+        <!-- arms crossed -->
+        <path d="M30 106 Q18 118 28 127 Q38 135 54 131 Q66 127 82 122" stroke="#5ab5ec" stroke-width="17" fill="none" stroke-linecap="round"/>
+        <path d="M100 106 Q112 118 102 127 Q92 135 76 131 Q64 127 48 122" stroke="#5ab5ec" stroke-width="17" fill="none" stroke-linecap="round"/>
+        <ellipse cx="82" cy="123" rx="11" ry="9" fill="#6ac0ef"/>
+        <ellipse cx="48" cy="123" rx="11" ry="9" fill="#6ac0ef"/>
+        <!-- neck -->
+        <rect x="57" y="63" width="16" height="15" rx="8" fill="#6ac0ef"/>
+        <!-- head -->
+        <circle cx="65" cy="52" r="31" fill="url(#s-head)"/>
+        <!-- ears + earrings -->
+        <ellipse cx="35" cy="52" rx="6" ry="9" fill="#5ab5ec"/>
+        <ellipse cx="95" cy="52" rx="6" ry="9" fill="#5ab5ec"/>
+        <circle cx="35" cy="60" r="4" fill="#f0c030"/>
+        <circle cx="95" cy="60" r="4" fill="#f0c030"/>
+        <!-- eyes -->
+        <ellipse cx="55" cy="48" rx="7" ry="8" fill="white"/>
+        <ellipse cx="75" cy="48" rx="7" ry="8" fill="white"/>
+        <circle cx="56" cy="50" r="4.5" fill="#1a3a80"/>
+        <circle cx="76" cy="50" r="4.5" fill="#1a3a80"/>
+        <circle cx="56" cy="50" r="2.5" fill="#0a1a40"/>
+        <circle cx="76" cy="50" r="2.5" fill="#0a1a40"/>
+        <circle cx="57" cy="47" r="1.8" fill="white"/>
+        <circle cx="77" cy="47" r="1.8" fill="white"/>
+        <!-- eyebrows -->
+        <path d="M48 37 Q55 32 62 37" stroke="#1a5c8a" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M68 37 Q75 32 82 37" stroke="#1a5c8a" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <!-- nose -->
+        <path d="M62 56 Q65 61 68 56" stroke="#3a90c0" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- smile -->
+        <path d="M54 64 Q65 73 76 64" stroke="#1a5c8a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M56 65 Q65 72 74 65 Q65 70 56 65Z" fill="white" opacity="0.6"/>
+        <!-- turban -->
+        <path d="M35 34 Q38 16 65 13 Q92 16 95 34 Q84 41 65 43 Q46 41 35 34Z" fill="#c8880a"/>
+        <path d="M37 32 Q65 25 93 32" stroke="#f0b020" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M40 25 Q65 18 90 25" stroke="#c07808" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <ellipse cx="65" cy="13" rx="18" ry="9" fill="#e0a012"/>
+        <path d="M65 10 Q60 2 58 -3 Q64 2 65 10"  fill="#9b7cf7"/>
+        <path d="M65 10 Q65 1 65 -4 Q68 1 65 10"  fill="#7b5cf7"/>
+        <path d="M65 10 Q70 2 72 -3 Q66 2 65 10"  fill="#9b7cf7"/>
+        <circle cx="65" cy="22" r="7" fill="#a92020"/>
+        <circle cx="65" cy="22" r="4.5" fill="#d43030"/>
+        <circle cx="62" cy="20" r="2" fill="rgba(255,255,255,0.5)"/>
+      </svg>
     </div>
+
   </div>
 
-  <!-- ═══════════════════════════ RIGHT PANEL ═══════════════════════════ -->
+  <!-- ════════════ RIGHT PANEL ════════════ -->
   <div class="right-panel">
     <div class="login-card">
 
       <div class="form-header">
         <div class="form-eyebrow">Secure Access</div>
         <div class="form-title">Welcome back</div>
-        <div class="form-subtitle">Sign in to your StoreERP account</div>
+        <div class="form-subtitle">Sign in to your My Store Manager account</div>
       </div>
 
-      <!-- Flash Messages -->
       <% if alert %>
         <div class="alert-box">
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
           <%= alert %>
         </div>
@@ -561,10 +457,8 @@
         </div>
       <% end %>
 
-      <!-- Sign In Form -->
       <%= form_for(resource, as: resource_name, url: session_path(resource_name)) do |f| %>
 
-        <!-- Email -->
         <div class="field">
           <%= f.label :email, "Email Address" %>
           <div class="input-wrap">
@@ -579,7 +473,6 @@
           </div>
         </div>
 
-        <!-- Password -->
         <div class="field">
           <%= f.label :password do %>
             Password
@@ -603,34 +496,19 @@
           </div>
         </div>
 
-        <!-- Remember Me -->
         <% if devise_mapping.rememberable? %>
           <div class="remember-row">
             <%= f.check_box :remember_me, class: 'custom-checkbox', id: 'remember_me' %>
-            <%= f.label :remember_me, "Keep me signed in for 30 days" %>
+            <%= f.label :remember_me, "Keep me signed in" %>
           </div>
         <% end %>
 
-        <!-- Submit -->
-        <%= f.submit "Sign in to StoreERP", class: "submit-btn" %>
+        <%= f.submit "Sign in", class: "submit-btn" %>
 
       <% end %>
 
-      <div class="divider">or</div>
-
       <div class="form-footer">
-        Don't have an account?
-        <a href="mailto:admin@storeerp.com">Contact your administrator</a>
-        <br><br>
-        Having trouble? <a href="mailto:support@storeerp.com">Get support</a>
-      </div>
-
-      <!-- Security Badge -->
-      <div class="security-badge">
-        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        256-bit encrypted &nbsp;·&nbsp; Devise authentication &nbsp;·&nbsp; CSRF protected
+        Need access? <a href="mailto:admin@mystoremanager.com">Contact your administrator</a>
       </div>
 
     </div>

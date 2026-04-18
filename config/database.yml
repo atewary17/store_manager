@@ -7,7 +7,9 @@ default: &default
 
 development:
   <<: *default
-  database: store_manager_development
+  url: postgres://store_manager:devpassword@localhost:5432/store_manager_development
+
+  # database: store_manager_development
   # database: store_manager_development2
   # database: store_manager_development1
 
