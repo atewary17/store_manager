@@ -8,105 +8,279 @@
   <span class="breadcrumb-current"><%= @invoice.display_number %></span>
 <% end %>
 
-<div class="page-header">
-  <div>
-    <div class="page-title"><%= @invoice.display_number %></div>
-    <div style="display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap">
-      <% if @invoice.voided? %>
-        <span class="badge" style="background:rgba(247,97,79,0.15);color:var(--danger)">Voided</span>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-          <%= @invoice.voided_at&.strftime('%d %b %Y, %H:%M') %>
-        </span>
-      <% elsif @invoice.confirmed? %>
-        <span class="badge badge-active">Confirmed</span>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-          <%= @invoice.confirmed_at&.strftime('%d %b %Y, %H:%M') %>
-        </span>
-        <%# Payment status pill %>
-        <% ps = @invoice.payment_status %>
-        <span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 9px;
-                     border-radius:10px;letter-spacing:0.05em;text-transform:uppercase;
-                     background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
-                     color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
-          <%= ps %>
-        </span>
-        <% if @invoice.overdue? %>
-          <span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 9px;
-                       border-radius:10px;background:rgba(247,97,79,0.15);color:var(--danger)">
-            OVERDUE
-          </span>
-        <% end %>
-      <% else %>
-        <span class="badge badge-plan">Draft</span>
-      <% end %>
+<%
+  ps       = @invoice.payment_status   # 'paid' | 'partial' | 'unpaid'
+  is_paid  = @invoice.fully_paid?
+  overdue  = @invoice.overdue?
+  can_edit_due = !@invoice.voided? && !is_paid
+%>
 
-    </div>
-  </div>
+<style>
+  /* ── Page layout ── */
+  .inv-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    align-items: start;
+  }
+  .inv-main  { display: flex; flex-direction: column; gap: 20px; }
+  .inv-aside { display: flex; flex-direction: column; gap: 16px; }
 
-  <div class="actions">
-    <%# Single PDF button for all states — no duplicate %>
-    <%= link_to sales_sales_invoice_path(@invoice, format: :pdf),
-          class: 'btn btn-secondary', target: '_blank' do %>
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-      </svg>
-      Invoice PDF
-    <% end %>
+  /* ── Shared card ── */
+  .inv-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .inv-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .inv-card-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-dim); font-weight: 500;
+  }
 
-    <% if @invoice.draft? %>
-      <%= link_to '← Edit', edit_sales_sales_invoice_path(@invoice), class: 'btn btn-secondary' %>
-      <%= link_to 'Review & Confirm →', preview_sales_sales_invoice_path(@invoice), class: 'btn btn-primary' %>
-    <% end %>
+  /* ── Status strip (top of page) ── */
+  .inv-status-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 24px;
+    position: relative; overflow: hidden;
+  }
+  .inv-status-strip::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .strip-confirmed::before { background: linear-gradient(90deg, var(--success), rgba(52,217,139,0.3)); }
+  .strip-draft::before     { background: linear-gradient(90deg, var(--warning), rgba(247,195,79,0.3)); }
+  .strip-voided::before    { background: linear-gradient(90deg, var(--danger),  rgba(247,97,79,0.3)); }
+  .strip-overdue::before   { background: linear-gradient(90deg, var(--danger),  rgba(247,97,79,0.3)); }
 
-    <% if @invoice.confirmed? && !@invoice.fully_paid? %>
-      <%# Mark as Paid — quick full settlement %>
-      <%= button_to 'Mark as Paid',
-            mark_as_paid_sales_sales_invoice_path(@invoice),
-            method: :post,
-            data: { confirm: "Record full payment of ₹#{@invoice.outstanding_amount} as cash?" },
-            class: 'btn btn-primary' %>
-    <% end %>
+  .inv-number { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .inv-number-sub { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 3px; }
 
-    <% if @invoice.confirmed? %>
-      <%# Void with stock reversal %>
-      <%= button_to 'Void Invoice',
-            void_sales_sales_invoice_path(@invoice),
-            method: :post,
-            data: { confirm: "Void this invoice? Stock deductions will be reversed and the invoice cannot be edited." },
-            style: "background:none;border:1px solid var(--danger);color:var(--danger);
-                    padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;
-                    font-family:var(--sans)" %>
-    <% end %>
-  </div>
-</div>
+  .status-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .s-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    padding: 4px 11px; border-radius: 100px;
+  }
+  .s-badge-confirmed { background: rgba(52,217,139,0.12); color: var(--success); border: 1px solid rgba(52,217,139,0.2); }
+  .s-badge-draft     { background: rgba(247,195,79,0.12); color: var(--warning); border: 1px solid rgba(247,195,79,0.2); }
+  .s-badge-voided    { background: rgba(247,97,79,0.12);  color: var(--danger);  border: 1px solid rgba(247,97,79,0.2); }
+  .s-badge-paid      { background: rgba(52,217,139,0.12); color: var(--success); border: 1px solid rgba(52,217,139,0.2); }
+  .s-badge-partial   { background: rgba(247,195,79,0.12); color: var(--warning); border: 1px solid rgba(247,195,79,0.2); }
+  .s-badge-unpaid    { background: rgba(247,97,79,0.12);  color: var(--danger);  border: 1px solid rgba(247,97,79,0.2); }
+  .s-badge-overdue   { background: rgba(247,97,79,0.18);  color: var(--danger);  border: 1px solid rgba(247,97,79,0.3); }
+
+  .inv-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* ── Detail grid ── */
+  .detail-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .dg-field {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .dg-field:nth-child(even) { border-right: none; }
+  .dg-field:nth-last-child(-n+2) { border-bottom: none; }
+  .dg-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px;
+    font-weight: 500;
+  }
+  .dg-value { font-size: 13px; font-weight: 500; }
+  .dg-value.mono { font-family: var(--mono); }
+  .dg-sub { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+
+  /* ── Due date form ── */
+  .due-date-form {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .due-date-input {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 7px; padding: 6px 10px;
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    outline: none; color-scheme: dark;
+    transition: border-color 0.15s;
+  }
+  .due-date-input:focus { border-color: var(--accent); }
+  .due-date-input.overdue { border-color: rgba(247,97,79,0.5); color: var(--danger); }
+  .due-save-btn {
+    background: var(--accent-dim); border: 1px solid rgba(79,142,247,0.35);
+    color: var(--accent); border-radius: 7px; padding: 6px 12px;
+    font-size: 11px; font-family: var(--mono); cursor: pointer;
+    transition: background 0.15s;
+  }
+  .due-save-btn:hover { background: rgba(79,142,247,0.2); }
+  .due-readonly {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--text-dim); padding: 6px 0;
+  }
+
+  /* ── Summary aside card ── */
+  .sum-stat {
+    display: flex; flex-direction: column;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sum-stat:last-child { border-bottom: none; }
+  .sum-stat-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px;
+  }
+  .sum-stat-val {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .sum-stat-sub { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+  /* ── Line items table ── */
+  .li-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .li-table th {
+    background: var(--bg);
+    padding: 10px 14px;
+    text-align: left; font-family: var(--mono);
+    font-size: 9.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-dim);
+    font-weight: 500; border-bottom: 1px solid var(--border);
+  }
+  .li-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .li-table tr:last-child td { border-bottom: none; }
+  .li-table tr:hover td { background: rgba(79,142,247,0.02); }
+  .li-product { font-weight: 500; font-size: 13px; }
+  .li-sub { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-top: 3px; }
+  .li-type {
+    font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+    padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .type-paint   { background: rgba(247,195,79,0.12); color: var(--warning); }
+  .type-product { background: rgba(79,142,247,0.1);  color: var(--accent); }
+  .type-adhoc   { background: rgba(52,217,139,0.1);  color: var(--success); }
+  .tr { text-align: right; }
+
+  /* ── Payments card ── */
+  .pmt-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pmt-cell {
+    padding: 14px 18px;
+    border-right: 1px solid var(--border);
+  }
+  .pmt-cell:last-child { border-right: none; }
+  .pmt-cell-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;
+  }
+  .pmt-cell-val {
+    font-family: var(--mono); font-size: 17px; font-weight: 700;
+  }
+  .pmt-cell-sub { font-size: 10px; margin-top: 3px; color: var(--text-dim); }
+
+  .pmt-row {
+    display: grid;
+    grid-template-columns: 1fr 100px 90px 110px 80px 80px 32px;
+    align-items: center;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    gap: 8px;
+  }
+  .pmt-head { background: var(--bg); }
+  .pmt-head span {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .pmt-row:last-child { border-bottom: none; }
+  .pmt-row:not(.pmt-head):hover { background: rgba(79,142,247,0.02); }
+  .mode-badge {
+    font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+    padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+    background: var(--accent-dim); color: var(--accent);
+  }
+
+  /* ── Record payment form ── */
+  .pmt-form-wrap {
+    padding: 18px 20px;
+    border-top: 2px solid var(--border);
+    background: rgba(79,142,247,0.02);
+  }
+  .pmt-form-title {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-dim);
+    margin-bottom: 14px; font-weight: 600;
+  }
+  .pmt-form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .pmt-form-field { display: flex; flex-direction: column; gap: 5px; }
+  .pmt-form-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-dim); font-weight: 500;
+  }
+
+  /* ── Referrer card ── */
+  .ref-card { border-left: 3px solid var(--accent); }
+
+  /* ── Flash cards ── */
+  .flash-stock {
+    background: rgba(52,217,139,0.05);
+    border: 1px solid rgba(52,217,139,0.25);
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;
+  }
+  .flash-void {
+    background: rgba(247,97,79,0.05);
+    border: 1px solid rgba(247,97,79,0.25);
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;
+  }
+  .flash-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  .flash-table th {
+    text-align: left; padding: 4px 10px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .flash-table td { padding: 6px 10px; border-top: 1px solid var(--border); }
+
+  @media (max-width: 900px) {
+    .inv-layout { grid-template-columns: 1fr; }
+    .detail-grid-2 { grid-template-columns: 1fr; }
+    .dg-field { border-right: none; }
+    .dg-field:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
+    .dg-field:last-child { border-bottom: none; }
+    .pmt-summary { grid-template-columns: 1fr 1fr; }
+    .pmt-cell:nth-child(2) { border-right: none; }
+    .pmt-cell:nth-child(3) { grid-column: span 2; border-right: none; border-top: 1px solid var(--border); }
+  }
+</style>
 
 <%# ── Stock deduction flash ── %>
 <% if flash[:stock_lines].present? %>
-  <div style="background:rgba(52,217,139,0.06);border:1px solid rgba(52,217,139,0.3);
-              border-radius:8px;padding:16px 20px;margin-bottom:20px">
-    <div style="font-size:13px;font-weight:600;color:var(--success);margin-bottom:10px">
-      ✓ Invoice confirmed — stock deducted
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:0.06em">
-          <th style="text-align:left;padding:4px 10px">Product</th>
-          <th style="text-align:right;padding:4px 10px">Before</th>
-          <th style="text-align:right;padding:4px 10px">Deducted</th>
-          <th style="text-align:right;padding:4px 10px">After</th>
-        </tr>
-      </thead>
+  <div class="flash-stock">
+    <div style="font-size:13px;font-weight:600;color:var(--success)">&#10003; Invoice confirmed — stock deducted</div>
+    <table class="flash-table">
+      <thead><tr>
+        <th>Product</th><th style="text-align:right">Before</th>
+        <th style="text-align:right">Deducted</th><th style="text-align:right">After</th>
+      </tr></thead>
       <tbody>
         <% flash[:stock_lines].each do |line| %>
-          <tr style="border-top:1px solid var(--border)">
-            <td style="padding:6px 10px;font-weight:500"><%= line[:product] %></td>
-            <td style="padding:6px 10px;text-align:right;font-family:var(--mono)"><%= line[:before] %></td>
-            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);color:var(--danger)">
-              − <%= line[:deducted] %>
-            </td>
-            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;
+          <tr>
+            <td style="font-weight:500"><%= line[:product] %></td>
+            <td style="text-align:right;font-family:var(--mono)"><%= line[:before] %></td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--danger)">− <%= line[:deducted] %></td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;
                        color:<%= line[:after].to_f < 0 ? 'var(--danger)' : line[:after].to_f < 5 ? 'var(--warning)' : 'var(--success)' %>">
               <%= line[:after] %>
             </td>
@@ -119,31 +293,20 @@
 
 <%# ── Void reversal flash ── %>
 <% if flash[:reversed_lines].present? %>
-  <div style="background:rgba(247,97,79,0.06);border:1px solid rgba(247,97,79,0.3);
-              border-radius:8px;padding:16px 20px;margin-bottom:20px">
-    <div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:10px">
-      ✕ Invoice voided — stock restored
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:0.06em">
-          <th style="text-align:left;padding:4px 10px">Product</th>
-          <th style="text-align:right;padding:4px 10px">Before</th>
-          <th style="text-align:right;padding:4px 10px">Restored</th>
-          <th style="text-align:right;padding:4px 10px">After</th>
-        </tr>
-      </thead>
+  <div class="flash-void">
+    <div style="font-size:13px;font-weight:600;color:var(--danger)">&#10005; Invoice voided — stock restored</div>
+    <table class="flash-table">
+      <thead><tr>
+        <th>Product</th><th style="text-align:right">Before</th>
+        <th style="text-align:right">Restored</th><th style="text-align:right">After</th>
+      </tr></thead>
       <tbody>
         <% flash[:reversed_lines].each do |line| %>
-          <tr style="border-top:1px solid var(--border)">
-            <td style="padding:6px 10px;font-weight:500"><%= line[:product] %></td>
-            <td style="padding:6px 10px;text-align:right;font-family:var(--mono)"><%= line[:before] %></td>
-            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);color:var(--success)">
-              + <%= line[:restored] %>
-            </td>
-            <td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--success)">
-              <%= line[:after] %>
-            </td>
+          <tr>
+            <td style="font-weight:500"><%= line[:product] %></td>
+            <td style="text-align:right;font-family:var(--mono)"><%= line[:before] %></td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--success)">+ <%= line[:restored] %></td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:700;color:var(--success)"><%= line[:after] %></td>
           </tr>
         <% end %>
       </tbody>
@@ -151,396 +314,421 @@
   </div>
 <% end %>
 
-<%# ── Invoice Details card ── %>
-<div class="detail-card" style="margin-bottom:20px">
-
-
-
-  <%# ── Invoice Details section ── %>
-  <div class="detail-section">
-    <div class="detail-section-title">Invoice Details</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <label>Customer</label>
-        <div class="value"><%= @invoice.customer&.name || 'Walk-in' %></div>
-        <% if @invoice.customer&.phone.present? %>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-            <%= @invoice.customer.phone %>
-          </div>
-        <% end %>
-      </div>
-      <div class="detail-field">
-        <label>Invoice Number</label>
-        <div class="value mono"><%= @invoice.invoice_number.presence || '—' %></div>
-      </div>
-      <div class="detail-field">
-        <label>Invoice Date</label>
-        <div class="value mono"><%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %></div>
-      </div>
-      <div class="detail-field">
-        <label>Payment Due Date</label>
-        <%# Inline editable form — works on draft and confirmed invoices %>
-        <%= form_with url: sales_sales_invoice_path(@invoice), method: :patch, local: true,
-              style: "display:flex;align-items:center;gap:8px;margin-top:2px" do |f| %>
-          <%= f.date_field :payment_due_date,
-                value: @invoice.payment_due_date,
-                style: "background:var(--bg);border:1px solid var(--border);border-radius:5px;
-                        padding:5px 9px;color:#{'var(--danger)' if @invoice.overdue?};
-                        font-family:var(--mono);font-size:12px;outline:none;
-                        color-scheme:dark;",
-                name: 'sales_invoice[payment_due_date]' %>
-          <button type="submit"
-                  style="background:var(--accent-dim);border:1px solid var(--accent);
-                         color:var(--accent);border-radius:5px;padding:5px 10px;
-                         font-size:11px;cursor:pointer;font-family:var(--mono);
-                         white-space:nowrap">
-            Save
-          </button>
-          <% if @invoice.overdue? %>
-            <span style="font-family:var(--mono);font-size:10px;color:var(--danger);font-weight:600">
-              OVERDUE
-            </span>
-          <% end %>
-        <% end %>
-        <div style="font-size:10px;color:var(--text-dim);margin-top:4px">
-          For credit tracking — leave blank for cash sales
-        </div>
-      </div>
-      <div class="detail-field">
-        <label>Payment Mode</label>
-        <div class="value"><%= @invoice.payment_mode&.titleize || '—' %></div>
-      </div>
-      <div class="detail-field">
-        <label>Entered By</label>
-        <div class="value"><%= @invoice.user&.full_name %></div>
-      </div>
+<%# ── Status Strip ── %>
+<div class="inv-status-strip <%= @invoice.voided? ? 'strip-voided' : overdue ? 'strip-overdue' : @invoice.confirmed? ? 'strip-confirmed' : 'strip-draft' %>"
+     style="margin-bottom:20px">
+  <div>
+    <div class="inv-number"><%= @invoice.display_number %></div>
+    <div class="inv-number-sub">
+      <%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %>
+      &nbsp;·&nbsp; <%= @invoice.customer&.name || 'Walk-in' %>
     </div>
   </div>
-
-  <div class="detail-section">
-    <div class="detail-section-title">Totals</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <label>Taxable Amount</label>
-        <div class="value mono">₹ <%= number_with_delimiter(@invoice.computed_taxable_total.round(2)) %></div>
-      </div>
-      <div class="detail-field">
-        <label>Tax Amount</label>
-        <div class="value mono">₹ <%= number_with_delimiter(@invoice.computed_tax_total.round(2)) %></div>
-      </div>
-      <% if @invoice.overall_discount_amount.to_f > 0 %>
-        <div class="detail-field">
-          <label>Discount</label>
-          <div class="value mono" style="color:var(--warning)">
-            − ₹ <%= number_with_delimiter(@invoice.overall_discount_amount.to_f) %>
-          </div>
-        </div>
-      <% end %>
-      <div class="detail-field">
-        <label>Grand Total</label>
-        <div class="value mono" style="font-size:18px;font-weight:700;color:var(--accent)">
-          ₹ <%= number_with_delimiter(@invoice.computed_grand_total.round(2)) %>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <%# ── Referred By — shown below totals, only when set ── %>
-  <% if @invoice.referrer %>
-  <div class="detail-section" style="border-left:3px solid var(--accent);background:rgba(79,142,247,0.03)">
-    <div class="detail-section-title" style="color:var(--accent)">Referred By</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <label>Name</label>
-        <div class="value" style="font-weight:600">
-          <%= link_to @invoice.referrer.name, sales_referrer_path(@invoice.referrer),
-                style: "color:var(--accent)" %>
-        </div>
-      </div>
-      <div class="detail-field">
-        <label>Trade</label>
-        <div class="value"><%= @invoice.referrer.display_trade %></div>
-      </div>
-      <div class="detail-field">
-        <label>Mobile</label>
-        <div class="value mono"><%= @invoice.referrer.phone.presence || '—' %></div>
-      </div>
-      <div class="detail-field">
-        <label>Area</label>
-        <div class="value"><%= @invoice.referrer.area.presence || '—' %></div>
-      </div>
-    </div>
-  </div>
-  <% end %>
-</div>
-
-<%# ── Line Items ── %>
-<div class="table-wrap" style="margin-bottom:20px">
-  <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
-    <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
-                 text-transform:uppercase;color:var(--text-dim)">
-      Line Items (<%= @invoice.sales_invoice_items.size %>)
-    </span>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Product / Shade</th>
-        <th>Type</th>
-        <th>UOM</th>
-        <th style="text-align:right">Qty</th>
-        <th style="text-align:right">Rate (₹)</th>
-        <th style="text-align:right">Taxable (₹)</th>
-        <th style="text-align:right">GST</th>
-        <th style="text-align:right">Total (₹)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @invoice.sales_invoice_items.each do |item| %>
-        <tr>
-          <td>
-            <% if item.paint? %>
-              <div style="font-weight:500"><%= item.shade_display %></div>
-              <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
-                <%= item.metadata['colour_family'] %>
-                <% if item.base_product.present? %>· Base: <%= item.base_product.pack_code %><% end %>
-              </div>
-            <% elsif item.adhoc? %>
-              <div style="font-weight:500"><%= item.description.presence || 'Ad-hoc' %></div>
-            <% else %>
-              <div style="font-weight:500"><%= item.product&.display_name || '—' %></div>
-              <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
-                <%= item.product&.material_code %>
-              </div>
-            <% end %>
-          </td>
-          <td>
-            <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;
-                         background:<%= item.paint? ? 'rgba(247,195,79,0.12)' : item.adhoc? ? 'rgba(52,217,139,0.1)' : 'var(--accent-dim)' %>;
-                         color:<%= item.paint? ? 'var(--warning)' : item.adhoc? ? 'var(--success)' : 'var(--accent)' %>">
-              <%= item.line_type.upcase %>
-            </span>
-          </td>
-          <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
-            <%= item.product&.base_uom&.short_name || '—' %>
-          </td>
-          <td style="text-align:right;font-family:var(--mono)">
-            <%= number_with_precision(item.quantity, precision: 3, strip_insignificant_zeros: true) %>
-          </td>
-          <td style="text-align:right;font-family:var(--mono)">
-            <%= number_with_precision(item.unit_rate, precision: 2) %>
-          </td>
-          <td style="text-align:right;font-family:var(--mono)">
-            <%= number_with_precision(item.taxable_amount, precision: 2) %>
-          </td>
-          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-            <% gst = item.cgst_percent.to_f + item.sgst_percent.to_f %>
-            <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
-          </td>
-          <td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--accent)">
-            <%= number_with_precision(item.total_amount, precision: 2) %>
-          </td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-</div>
-
-<%# ── Payments Panel (confirmed invoices only) ── %>
-<% if @invoice.confirmed? %>
-  <div class="detail-card" style="margin-bottom:20px">
-
-    <%# Panel header with status badge %>
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border);
-                display:flex;justify-content:space-between;align-items:center">
-      <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
-                   text-transform:uppercase;color:var(--text-dim)">Payments</span>
-      <% ps = @invoice.payment_status %>
-      <span style="font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 10px;
-                   border-radius:4px;letter-spacing:0.05em;text-transform:uppercase;
-                   background:<%= ps=='paid' ? 'rgba(52,217,139,0.12)' : ps=='partial' ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
-                   color:<%= ps=='paid' ? 'var(--success)' : ps=='partial' ? 'var(--warning)' : 'var(--danger)' %>">
-        <%= ps.upcase %>
+  <div class="status-badges">
+    <% if @invoice.voided? %>
+      <span class="s-badge s-badge-voided">Voided</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+        <%= @invoice.voided_at&.strftime('%d %b %Y, %H:%M') %>
       </span>
-    </div>
+    <% elsif @invoice.confirmed? %>
+      <span class="s-badge s-badge-confirmed">Confirmed</span>
+      <span class="s-badge s-badge-<%= ps %>"><%= ps.upcase %></span>
+      <% if overdue %><span class="s-badge s-badge-overdue">Overdue</span><% end %>
+    <% else %>
+      <span class="s-badge s-badge-draft">Draft</span>
+    <% end %>
+  </div>
+  <div class="inv-actions">
+    <%= link_to sales_sales_invoice_path(@invoice, format: :pdf), class: 'btn btn-secondary btn-sm', target: '_blank' do %>
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      PDF
+    <% end %>
+    <% if @invoice.draft? %>
+      <%= link_to '← Edit', edit_sales_sales_invoice_path(@invoice), class: 'btn btn-secondary btn-sm' %>
+      <%= link_to 'Review &amp; Confirm →', preview_sales_sales_invoice_path(@invoice), class: 'btn btn-primary btn-sm' %>
+    <% end %>
+    <% if @invoice.confirmed? && !is_paid %>
+      <%= button_to 'Mark as Paid',
+            mark_as_paid_sales_sales_invoice_path(@invoice),
+            method: :post,
+            data: { confirm: "Record full payment of ₹#{@invoice.outstanding_amount} as cash?" },
+            class: 'btn btn-primary btn-sm' %>
+    <% end %>
+    <% if @invoice.confirmed? %>
+      <%= button_to 'Void',
+            void_sales_sales_invoice_path(@invoice),
+            method: :post,
+            data: { confirm: "Void this invoice? Stock deductions will be reversed." },
+            style: "background:none;border:1px solid var(--danger);color:var(--danger);
+                    padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;
+                    font-family:var(--sans);font-weight:500" %>
+    <% end %>
+  </div>
+</div>
 
-    <%# Three-stat summary bar %>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)">
-      <div style="background:var(--surface);padding:14px 20px">
-        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                    letter-spacing:0.07em;margin-bottom:4px">Invoice Total</div>
-        <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text)">
-          ₹ <%= number_with_delimiter(@invoice.computed_grand_total.round(2)) %>
-        </div>
+<%# ── Two-column layout ── %>
+<div class="inv-layout">
+
+  <%# ══════ MAIN COLUMN ══════ %>
+  <div class="inv-main">
+
+    <%# ── Invoice Details card ── %>
+    <div class="inv-card">
+      <div class="inv-card-head">
+        <span class="inv-card-label">Invoice Details</span>
       </div>
-      <div style="background:var(--surface);padding:14px 20px">
-        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                    letter-spacing:0.07em;margin-bottom:4px">Collected</div>
-        <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--success)">
-          ₹ <%= number_with_delimiter(@invoice.total_paid) %>
+      <div class="detail-grid-2">
+        <div class="dg-field">
+          <div class="dg-label">Customer</div>
+          <div class="dg-value"><%= @invoice.customer&.name || 'Walk-in' %></div>
+          <% if @invoice.customer&.phone.present? %>
+            <div class="dg-sub"><%= @invoice.customer.phone %></div>
+          <% end %>
         </div>
-      </div>
-      <div style="background:var(--surface);padding:14px 20px">
-        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                    letter-spacing:0.07em;margin-bottom:4px">Outstanding</div>
-        <div style="font-family:var(--mono);font-size:16px;font-weight:700;
-                    color:<%= @invoice.fully_paid? ? 'var(--success)' : 'var(--danger)' %>">
-          ₹ <%= number_with_delimiter(@invoice.outstanding_amount) %>
+        <div class="dg-field">
+          <div class="dg-label">Invoice Number</div>
+          <div class="dg-value mono"><%= @invoice.invoice_number.presence || '—' %></div>
         </div>
-        <% if @invoice.payment_due_date.present? && !@invoice.fully_paid? %>
-          <div style="font-size:10px;margin-top:3px;
-                      color:<%= @invoice.overdue? ? 'var(--danger)' : 'var(--text-dim)' %>">
-            Due <%= @invoice.payment_due_date.strftime('%d %b %Y') %>
-            <%= '· OVERDUE' if @invoice.overdue? %>
+        <div class="dg-field">
+          <div class="dg-label">Invoice Date</div>
+          <div class="dg-value mono"><%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %></div>
+        </div>
+        <div class="dg-field">
+          <div class="dg-label">Payment Mode</div>
+          <div class="dg-value"><%= @invoice.payment_mode&.titleize || '—' %></div>
+        </div>
+        <div class="dg-field">
+          <div class="dg-label">Entered By</div>
+          <div class="dg-value"><%= @invoice.user&.full_name %></div>
+        </div>
+        <% if @invoice.confirmed? %>
+          <div class="dg-field">
+            <div class="dg-label">Confirmed At</div>
+            <div class="dg-value mono" style="font-size:12px">
+              <%= @invoice.confirmed_at&.strftime('%d %b %Y, %H:%M') || '—' %>
+            </div>
           </div>
         <% end %>
       </div>
     </div>
 
-    <%# Existing payments table %>
-    <% if @invoice.sale_payments.any? %>
-      <table style="width:100%;border-collapse:collapse">
+    <%# ── Referrer card (only when set) ── %>
+    <% if @invoice.referrer %>
+      <div class="inv-card ref-card">
+        <div class="inv-card-head">
+          <span class="inv-card-label" style="color:var(--accent)">Referred By</span>
+        </div>
+        <div class="detail-grid-2">
+          <div class="dg-field">
+            <div class="dg-label">Name</div>
+            <div class="dg-value">
+              <%= link_to @invoice.referrer.name, sales_referrer_path(@invoice.referrer),
+                    style: "color:var(--accent);font-weight:600" %>
+            </div>
+          </div>
+          <div class="dg-field">
+            <div class="dg-label">Trade</div>
+            <div class="dg-value"><%= @invoice.referrer.display_trade %></div>
+          </div>
+          <div class="dg-field">
+            <div class="dg-label">Mobile</div>
+            <div class="dg-value mono"><%= @invoice.referrer.phone.presence || '—' %></div>
+          </div>
+          <div class="dg-field">
+            <div class="dg-label">Area</div>
+            <div class="dg-value"><%= @invoice.referrer.area.presence || '—' %></div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <%# ── Line Items ── %>
+    <div class="inv-card">
+      <div class="inv-card-head">
+        <span class="inv-card-label">Line Items</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+          <%= @invoice.sales_invoice_items.size %> item<%= @invoice.sales_invoice_items.size == 1 ? '' : 's' %>
+        </span>
+      </div>
+      <table class="li-table">
         <thead>
-          <tr style="background:var(--bg)">
-            <th style="padding:8px 20px;text-align:left;font-size:10px;font-weight:600;
-                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Receipt</th>
-            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;
-                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Date</th>
-            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;
-                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Mode</th>
-            <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;
-                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Ref #</th>
-            <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;
-                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Amount</th>
-            <th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:600;
-                       color:var(--text-dim);letter-spacing:0.07em;text-transform:uppercase">Receipt</th>
-            <th style="padding:8px 16px"></th>
+          <tr>
+            <th>Product / Description</th>
+            <th>Type</th>
+            <th>UOM</th>
+            <th class="tr">Qty</th>
+            <th class="tr">Rate (&#8377;)</th>
+            <th class="tr">Taxable</th>
+            <th class="tr">GST</th>
+            <th class="tr">Total (&#8377;)</th>
           </tr>
         </thead>
         <tbody>
-          <% @invoice.sale_payments.recent.each do |pmt| %>
-            <tr style="border-top:1px solid var(--border)">
-              <td style="padding:10px 20px;font-family:var(--mono);font-size:12px;font-weight:600;
-                         color:var(--text)">
-                <%= pmt.receipt_label %>
-              </td>
-              <td style="padding:10px 12px;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
-                <%= pmt.payment_date.strftime('%d %b %Y') %>
-              </td>
-              <td style="padding:10px 12px">
-                <span style="font-family:var(--mono);font-size:10px;padding:2px 7px;
-                             border-radius:3px;background:var(--accent-dim);color:var(--accent)">
-                  <%= pmt.payment_mode.upcase %>
-                </span>
-              </td>
-              <td style="padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-                <%= pmt.reference_number.presence || '—' %>
-              </td>
-              <td style="padding:10px 12px;text-align:right;font-family:var(--mono);
-                         font-size:14px;font-weight:600;color:var(--success)">
-                ₹ <%= number_with_delimiter(pmt.amount) %>
-              </td>
-              <td style="padding:10px 12px;text-align:center">
-                <%= link_to sales_sales_invoice_sale_payment_path(@invoice, pmt, format: :pdf),
-                      target: '_blank',
-                      style: "display:inline-flex;align-items:center;gap:4px;font-size:11px;
-                              color:var(--accent);text-decoration:none;font-family:var(--mono);
-                              padding:3px 9px;border:1px solid var(--accent-dim);border-radius:4px" do %>
-                  <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  Receipt
+          <% @invoice.sales_invoice_items.each do |item| %>
+            <tr>
+              <td>
+                <% if item.paint? %>
+                  <div class="li-product"><%= item.shade_display %></div>
+                  <div class="li-sub">
+                    <%= item.metadata['colour_family'] %>
+                    <% if item.base_product.present? %>&nbsp;· Base: <%= item.base_product.pack_code %><% end %>
+                  </div>
+                <% elsif item.adhoc? %>
+                  <div class="li-product"><%= item.description.presence || 'Ad-hoc charge' %></div>
+                <% else %>
+                  <div class="li-product"><%= item.product&.display_name || '—' %></div>
+                  <div class="li-sub"><%= item.product&.material_code %></div>
                 <% end %>
               </td>
-              <td style="padding:10px 16px;text-align:right">
-                <%= button_to '✕',
-                      sales_sales_invoice_sale_payment_path(@invoice, pmt),
-                      method: :delete,
-                      data: { confirm: "Delete payment #{pmt.receipt_label}?" },
-                      style: "background:none;border:none;color:var(--danger);
-                              cursor:pointer;font-size:14px;padding:2px 6px;
-                              border-radius:4px;line-height:1" %>
+              <td>
+                <span class="li-type <%= item.paint? ? 'type-paint' : item.adhoc? ? 'type-adhoc' : 'type-product' %>">
+                  <%= item.line_type.upcase %>
+                </span>
+              </td>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                <%= item.product&.base_uom&.short_name || '—' %>
+              </td>
+              <td class="tr" style="font-family:var(--mono)">
+                <%= number_with_precision(item.quantity, precision: 3, strip_insignificant_zeros: true) %>
+              </td>
+              <td class="tr" style="font-family:var(--mono)">
+                <%= number_with_precision(item.unit_rate, precision: 2) %>
+              </td>
+              <td class="tr" style="font-family:var(--mono)">
+                <%= number_with_precision(item.taxable_amount, precision: 2) %>
+              </td>
+              <td class="tr" style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                <% gst = item.cgst_percent.to_f + item.sgst_percent.to_f %>
+                <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
+              </td>
+              <td class="tr" style="font-family:var(--mono);font-weight:600;color:var(--accent)">
+                <%= number_with_precision(item.total_amount, precision: 2) %>
               </td>
             </tr>
           <% end %>
         </tbody>
       </table>
-    <% else %>
-      <div style="padding:24px 20px;color:var(--text-dim);font-size:13px">
-        No payments recorded yet.
-      </div>
-    <% end %>
+    </div>
 
-    <%# Record Payment form — only if not fully paid and not voided %>
-    <% unless @invoice.fully_paid? || @invoice.voided? %>
-      <div style="border-top:2px solid var(--border);padding:20px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-dim);
-                    text-transform:uppercase;letter-spacing:0.07em;margin-bottom:16px">
-          Record Payment
+    <%# ── Payments card (confirmed invoices only) ── %>
+    <% if @invoice.confirmed? %>
+      <div class="inv-card">
+        <div class="inv-card-head">
+          <span class="inv-card-label">Payments</span>
+          <span class="s-badge s-badge-<%= ps %>" style="font-size:9.5px;padding:3px 10px"><%= ps.upcase %></span>
         </div>
-        <%= form_with model: SalePayment.new,
-              url: sales_sales_invoice_sale_payments_path(@invoice),
-              local: true do |f| %>
-          <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
 
-            <div style="display:flex;flex-direction:column;gap:5px">
-              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                            letter-spacing:0.06em;font-weight:600">Date</label>
-              <%= f.date_field :payment_date, value: Date.today, class: 'form-control',
-                    style: 'width:145px' %>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:5px">
-              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                            letter-spacing:0.06em;font-weight:600">
-                Amount (₹)
-                <span style="color:var(--text-dim);font-weight:400;font-style:italic;
-                             text-transform:none;letter-spacing:0">
-                  — outstanding: ₹<%= number_with_delimiter(@invoice.outstanding_amount) %>
-                </span>
-              </label>
-              <%= f.number_field :amount,
-                    placeholder: @invoice.outstanding_amount,
-                    step: '0.01', min: '0.01',
-                    class: 'form-control',
-                    style: 'width:140px' %>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:5px">
-              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                            letter-spacing:0.06em;font-weight:600">Mode</label>
-              <%= f.select :payment_mode,
-                    SalePayment::PAYMENT_MODES.map { |m| [m.titleize, m] },
-                    {},
-                    class: 'form-control', style: 'width:145px' %>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:5px">
-              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                            letter-spacing:0.06em;font-weight:600">Ref # <span style="font-weight:400">(optional)</span></label>
-              <%= f.text_field :reference_number,
-                    placeholder: 'Cheque no. / UTR',
-                    class: 'form-control', style: 'width:160px' %>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:160px">
-              <label style="font-size:10px;color:var(--text-dim);text-transform:uppercase;
-                            letter-spacing:0.06em;font-weight:600">Notes <span style="font-weight:400">(optional)</span></label>
-              <%= f.text_field :notes,
-                    placeholder: 'e.g. advance payment',
-                    class: 'form-control' %>
-            </div>
-
-            <div>
-              <%= f.submit 'Add Payment',
-                    class: 'btn btn-primary',
-                    style: 'white-space:nowrap;height:38px' %>
+        <div class="pmt-summary">
+          <div class="pmt-cell">
+            <div class="pmt-cell-label">Invoice Total</div>
+            <div class="pmt-cell-val" style="color:var(--text)">
+              &#8377; <%= number_with_delimiter(@invoice.computed_grand_total.round(2)) %>
             </div>
           </div>
+          <div class="pmt-cell">
+            <div class="pmt-cell-label">Collected</div>
+            <div class="pmt-cell-val" style="color:var(--success)">
+              &#8377; <%= number_with_delimiter(@invoice.total_paid) %>
+            </div>
+          </div>
+          <div class="pmt-cell">
+            <div class="pmt-cell-label">Outstanding</div>
+            <div class="pmt-cell-val" style="color:<%= is_paid ? 'var(--success)' : 'var(--danger)' %>">
+              &#8377; <%= number_with_delimiter(@invoice.outstanding_amount) %>
+            </div>
+            <% if !is_paid && @invoice.payment_due_date.present? %>
+              <div class="pmt-cell-sub" style="color:<%= overdue ? 'var(--danger)' : 'var(--text-dim)' %>">
+                Due <%= @invoice.payment_due_date.strftime('%d %b %Y') %>
+                <%= overdue ? ' · OVERDUE' : '' %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <% if @invoice.sale_payments.any? %>
+          <div class="pmt-row pmt-head">
+            <span>Receipt</span><span>Date</span><span>Mode</span>
+            <span>Ref #</span><span style="text-align:right">Amount</span>
+            <span style="text-align:center">Receipt</span><span></span>
+          </div>
+          <% @invoice.sale_payments.recent.each do |pmt| %>
+            <div class="pmt-row">
+              <div style="font-family:var(--mono);font-size:11.5px;font-weight:600"><%= pmt.receipt_label %></div>
+              <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                <%= pmt.payment_date.strftime('%d %b %Y') %>
+              </div>
+              <div><span class="mode-badge"><%= pmt.payment_mode.upcase %></span></div>
+              <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                <%= pmt.reference_number.presence || '—' %>
+              </div>
+              <div style="font-family:var(--mono);font-size:13px;font-weight:600;
+                          color:var(--success);text-align:right">
+                &#8377; <%= number_with_delimiter(pmt.amount) %>
+              </div>
+              <div style="text-align:center">
+                <%= link_to sales_sales_invoice_sale_payment_path(@invoice, pmt, format: :pdf),
+                      target: '_blank',
+                      style: "font-family:var(--mono);font-size:10px;color:var(--accent);
+                              text-decoration:none;padding:3px 9px;
+                              border:1px solid var(--accent-dim);border-radius:4px" do %>
+                  &#11015; PDF
+                <% end %>
+              </div>
+              <div>
+                <%= button_to '&#10005;',
+                      sales_sales_invoice_sale_payment_path(@invoice, pmt),
+                      method: :delete,
+                      data: { confirm: "Delete payment #{pmt.receipt_label}?" },
+                      style: "background:none;border:none;color:var(--danger);
+                              cursor:pointer;font-size:13px;padding:2px 5px;
+                              border-radius:4px;line-height:1" %>
+              </div>
+            </div>
+          <% end %>
+        <% else %>
+          <div style="padding:20px 20px;color:var(--text-dim);font-size:13px">
+            No payments recorded yet.
+          </div>
         <% end %>
+
+        <% unless is_paid || @invoice.voided? %>
+          <div class="pmt-form-wrap">
+            <div class="pmt-form-title">Record Payment</div>
+            <%= form_with model: SalePayment.new,
+                  url: sales_sales_invoice_sale_payments_path(@invoice),
+                  local: true do |f| %>
+              <div class="pmt-form-row">
+                <div class="pmt-form-field">
+                  <label class="pmt-form-label">Date</label>
+                  <%= f.date_field :payment_date, value: Date.today, class: 'form-control', style: 'width:140px' %>
+                </div>
+                <div class="pmt-form-field">
+                  <label class="pmt-form-label">
+                    Amount (&#8377;)
+                    <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">
+                      — due: &#8377;<%= number_with_delimiter(@invoice.outstanding_amount) %>
+                    </span>
+                  </label>
+                  <%= f.number_field :amount, placeholder: @invoice.outstanding_amount,
+                        step: '0.01', min: '0.01', class: 'form-control', style: 'width:140px' %>
+                </div>
+                <div class="pmt-form-field">
+                  <label class="pmt-form-label">Mode</label>
+                  <%= f.select :payment_mode,
+                        SalePayment::PAYMENT_MODES.map { |m| [m.titleize, m] },
+                        {}, class: 'form-control', style: 'width:140px' %>
+                </div>
+                <div class="pmt-form-field">
+                  <label class="pmt-form-label">Ref # <span style="font-weight:400">(optional)</span></label>
+                  <%= f.text_field :reference_number, placeholder: 'Cheque no. / UTR',
+                        class: 'form-control', style: 'width:150px' %>
+                </div>
+                <div class="pmt-form-field" style="flex:1;min-width:140px">
+                  <label class="pmt-form-label">Notes <span style="font-weight:400">(optional)</span></label>
+                  <%= f.text_field :notes, placeholder: 'e.g. advance',
+                        class: 'form-control' %>
+                </div>
+                <div style="padding-bottom:1px">
+                  <%= f.submit 'Add Payment', class: 'btn btn-primary', style: 'height:38px;white-space:nowrap' %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+
       </div>
     <% end %>
 
-  </div>
-<% end %>
+  </div><%# /inv-main %>
+
+  <%# ══════ ASIDE COLUMN ══════ %>
+  <div class="inv-aside">
+
+    <%# ── Totals card ── %>
+    <div class="inv-card">
+      <div class="inv-card-head">
+        <span class="inv-card-label">Totals</span>
+      </div>
+      <div class="sum-stat">
+        <div class="sum-stat-label">Taxable Amount</div>
+        <div class="sum-stat-val" style="font-size:16px;color:var(--text)">
+          &#8377; <%= number_with_delimiter(@invoice.computed_taxable_total.round(2)) %>
+        </div>
+      </div>
+      <div class="sum-stat">
+        <div class="sum-stat-label">Tax (GST)</div>
+        <div class="sum-stat-val" style="font-size:16px;color:var(--text-dim)">
+          &#8377; <%= number_with_delimiter(@invoice.computed_tax_total.round(2)) %>
+        </div>
+      </div>
+      <% if @invoice.overall_discount_amount.to_f > 0 %>
+        <div class="sum-stat">
+          <div class="sum-stat-label">Discount</div>
+          <div class="sum-stat-val" style="font-size:16px;color:var(--warning)">
+            − &#8377; <%= number_with_delimiter(@invoice.overall_discount_amount.to_f) %>
+          </div>
+        </div>
+      <% end %>
+      <div class="sum-stat" style="border-bottom:none">
+        <div class="sum-stat-label">Grand Total</div>
+        <div class="sum-stat-val" style="color:var(--accent)">
+          &#8377; <%= number_with_delimiter(@invoice.computed_grand_total.round(2)) %>
+        </div>
+      </div>
+    </div>
+
+    <%# ── Due Date card (non-voided invoices) ── %>
+    <% unless @invoice.voided? %>
+      <div class="inv-card">
+        <div class="inv-card-head">
+          <span class="inv-card-label">Payment Due Date</span>
+          <% if overdue && !is_paid %>
+            <span class="s-badge s-badge-overdue" style="font-size:9px;padding:2px 8px">Overdue</span>
+          <% end %>
+        </div>
+        <div style="padding:16px 20px">
+          <% if can_edit_due %>
+            <%# Editable — invoice is not void and not fully paid %>
+            <%= form_with url: update_due_date_sales_sales_invoice_path(@invoice),
+                  method: :patch, local: true do |f| %>
+              <div class="due-date-form">
+                <%= f.date_field :payment_due_date,
+                      value: @invoice.payment_due_date,
+                      name: 'sales_invoice[payment_due_date]',
+                      class: "due-date-input#{overdue ? ' overdue' : ''}" %>
+                <button type="submit" class="due-save-btn">Save</button>
+              </div>
+            <% end %>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.5">
+              Sets a reminder for credit collection. Leave blank for cash sales.
+            </div>
+            <% if @invoice.payment_due_date.present? && !overdue && !is_paid %>
+              <% days_left = (@invoice.payment_due_date - Date.today).to_i %>
+              <% if days_left >= 0 %>
+                <div style="margin-top:8px;font-family:var(--mono);font-size:11px;
+                            color:<%= days_left <= 3 ? 'var(--warning)' : 'var(--success)' %>">
+                  <%= days_left == 0 ? 'Due today' : "#{days_left} day#{'s' if days_left != 1} remaining" %>
+                </div>
+              <% end %>
+            <% end %>
+          <% else %>
+            <%# Read-only — fully paid or voided %>
+            <div class="due-readonly">
+              <%= @invoice.payment_due_date&.strftime('%d %b %Y') || '—' %>
+            </div>
+            <% if is_paid %>
+              <div style="font-size:11px;color:var(--success);margin-top:6px">
+                &#10003; Fully paid — due date is locked
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+  </div><%# /inv-aside %>
+
+</div><%# /inv-layout %>

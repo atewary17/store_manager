@@ -1,7 +1,7 @@
 # app/controllers/sales/sales_invoices_controller.rb
 class Sales::SalesInvoicesController < Sales::BaseController
 
-  before_action :set_invoice, only: [:show, :edit, :update, :destroy, :confirm, :preview, :void, :mark_as_paid]
+  before_action :set_invoice, only: [:show, :edit, :update, :destroy, :confirm, :preview, :void, :mark_as_paid, :update_due_date]
 
   def index
     @invoices = SalesInvoice
@@ -92,6 +92,21 @@ class Sales::SalesInvoicesController < Sales::BaseController
       flash[:alert] = "Could not confirm: #{result[:errors]&.join(', ')}"
       redirect_to preview_sales_sales_invoice_path(@invoice)
     end
+  end
+
+  # PATCH /sales/sales_invoices/:id/update_due_date
+  # Allows updating payment_due_date on any non-voided invoice that is not fully paid.
+  def update_due_date
+    if @invoice.voided?
+      return redirect_to sales_sales_invoice_path(@invoice), alert: 'Cannot update a voided invoice.'
+    end
+    if @invoice.fully_paid?
+      return redirect_to sales_sales_invoice_path(@invoice), alert: 'Invoice is fully paid — due date cannot be changed.'
+    end
+
+    new_date = params.dig(:sales_invoice, :payment_due_date).presence
+    @invoice.update_column(:payment_due_date, new_date)
+    redirect_to sales_sales_invoice_path(@invoice), notice: new_date ? 'Due date updated.' : 'Due date cleared.'
   end
 
   # POST /sales/sales_invoices/:id/mark_as_paid

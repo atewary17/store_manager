@@ -1,7 +1,7 @@
 # app/controllers/purchasing/purchase_invoices_controller.rb
 class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
 
-  before_action :set_invoice, only: [:show, :edit, :update, :destroy, :confirm]
+  before_action :set_invoice, only: [:show, :edit, :update, :destroy, :confirm, :update_due_date]
 
   # GET /purchasing/purchase_invoices
   def index
@@ -24,6 +24,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def new
     @invoice = PurchaseInvoice.new(
       organisation: @organisation,
+      invoice_date:  Date.today,
       delivery_date: Date.today,
       status: 'draft'
     )
@@ -103,6 +104,19 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     end
   end
 
+  # PATCH /purchasing/purchase_invoices/:id/update_due_date
+  def update_due_date
+    if @invoice.fully_paid?
+      return redirect_to purchasing_purchase_invoice_path(@invoice),
+        alert: 'Invoice is fully paid — due date cannot be changed.'
+    end
+
+    new_date = params.dig(:purchase_invoice, :payment_due_date).presence
+    @invoice.update_column(:payment_due_date, new_date)
+    redirect_to purchasing_purchase_invoice_path(@invoice),
+      notice: new_date ? 'Due date updated.' : 'Due date cleared.'
+  end
+
   # GET /purchasing/purchase_invoices/product_search
   def product_search
     q = params[:q].to_s.strip
@@ -177,7 +191,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def invoice_params
     params.require(:purchase_invoice).permit(
       :supplier_id, :invoice_number, :invoice_date,
-      :delivery_date, :status,
+      :delivery_date, :payment_due_date, :status,
       metadata: {},
       purchase_invoice_items_attributes: [
         :id, :product_id, :quantity, :unit_rate, :total_amount,

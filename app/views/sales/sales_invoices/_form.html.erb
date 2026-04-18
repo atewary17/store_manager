@@ -700,25 +700,80 @@
     });
   }
 
-  /* generic autocomplete */
+  // ── Autocomplete portal ──────────────────────────────────────────────────
+  // Single dropdown appended to <body> with position:fixed so it is never
+  // clipped by table-cell overflow or covered by sibling rows.
+  var _acPortal      = null;
+  var _acActiveInput = null;
+
+  function acPortal() {
+    if (_acPortal) return _acPortal;
+    _acPortal = document.createElement('div');
+    _acPortal.className = 'ac-dd';
+    // Override the class's position:absolute with fixed + high z-index
+    _acPortal.style.cssText = 'position:fixed;z-index:99999;display:none;margin:0;min-width:180px';
+    document.body.appendChild(_acPortal);
+    // Close when clicking outside both the portal and the active input
+    document.addEventListener('mousedown', function (e) {
+      if (!_acPortal.contains(e.target) && e.target !== _acActiveInput) {
+        _acPortal.style.display = 'none';
+        _acActiveInput = null;
+      }
+    });
+    return _acPortal;
+  }
+
+  function positionPortal(input) {
+    var portal = acPortal();
+    var r = input.getBoundingClientRect();
+    var spaceBelow = window.innerHeight - r.bottom;
+    portal.style.left   = r.left + 'px';
+    portal.style.width  = r.width + 'px';
+    portal.style.right  = 'auto';
+    // Flip upward if not enough space below
+    if (spaceBelow < 220 && r.top > spaceBelow) {
+      portal.style.bottom = (window.innerHeight - r.top + 2) + 'px';
+      portal.style.top    = 'auto';
+      portal.style.maxHeight = Math.min(r.top - 8, 260) + 'px';
+    } else {
+      portal.style.top    = (r.bottom + 2) + 'px';
+      portal.style.bottom = 'auto';
+      portal.style.maxHeight = Math.min(spaceBelow - 8, 260) + 'px';
+    }
+  }
+
+  /* generic autocomplete — ddSel kept for API compat but portal is used */
   function setupAc(wrap, inputSel, ddSel, url, onPick) {
     var input = wrap.querySelector(inputSel);
-    var dd    = wrap.querySelector(ddSel);
-    if (!input || !dd) return;
+    if (!input) return;
     var timer;
     input.addEventListener('input', function () {
       clearTimeout(timer);
       var sq = this.value.trim();
-      if (sq.length < 2) { dd.style.display = 'none'; return; }
+      if (sq.length < 2) {
+        if (_acActiveInput === input) acPortal().style.display = 'none';
+        return;
+      }
+      _acActiveInput = input;
+      positionPortal(input);
       timer = setTimeout(function () {
         fetch(url + encodeURIComponent(sq), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
           .then(function (r) { return r.json(); })
-          .then(function (results) { renderDd(dd, results, onPick, input); })
-          .catch(function () { dd.style.display = 'none'; });
+          .then(function (results) {
+            if (_acActiveInput !== input) return;
+            positionPortal(input); // re-position in case of scroll
+            renderDd(acPortal(), results, onPick, input);
+          })
+          .catch(function () { if (_acActiveInput === input) acPortal().style.display = 'none'; });
       }, 220);
     });
     input.addEventListener('blur', function () {
-      setTimeout(function () { dd.style.display = 'none'; }, 200);
+      setTimeout(function () {
+        if (_acActiveInput === input) {
+          acPortal().style.display = 'none';
+          _acActiveInput = null;
+        }
+      }, 200);
     });
   }
 
@@ -741,7 +796,10 @@
         '<div class="ac-label">'  + esc(label) + '</div>' +
         (meta.length ? '<div class="ac-meta">' + esc(meta.join('  .  ')) + '</div>' : '');
       el.addEventListener('mousedown', function (e) {
-        e.preventDefault(); onPick(item, input); dd.style.display = 'none';
+        e.preventDefault();
+        onPick(item, input);
+        dd.style.display = 'none';
+        _acActiveInput = null;
       });
       dd.appendChild(el);
     });
@@ -849,21 +907,28 @@
   /* customer autocomplete */
   var custTimer;
   var custInput = document.getElementById('customer-search-input');
-  var custDd    = document.getElementById('customer-ac-dropdown');
-  if (custInput && custDd) {
+  if (custInput) {
     custInput.addEventListener('input', function () {
       clearTimeout(custTimer);
       document.getElementById('customer_id_field').value = '';
       document.getElementById('customer-info-strip').textContent = '';
       var sq = this.value.trim();
-      if (sq.length < 2) { custDd.style.display = 'none'; return; }
+      if (sq.length < 2) {
+        if (_acActiveInput === custInput) acPortal().style.display = 'none';
+        return;
+      }
+      _acActiveInput = custInput;
+      positionPortal(custInput);
       custTimer = setTimeout(function () {
         fetch('/customers/search?q=' + encodeURIComponent(sq), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
           .then(function (r) { return r.json(); })
           .then(function (list) {
-            custDd.innerHTML = '';
+            if (_acActiveInput !== custInput) return;
+            var dd = acPortal();
+            positionPortal(custInput);
+            dd.innerHTML = '';
             if (!list.length) {
-              custDd.innerHTML = '<div class="ac-dd-item"><span class="ac-label" style="color:var(--text-dim)">No results -- '
+              dd.innerHTML = '<div class="ac-dd-item"><span class="ac-label" style="color:var(--text-dim)">No results — '
                 + '<a href="#" onclick="showCustPanel(event);return false;" style="color:var(--accent)">add inline</a></span></div>';
             } else {
               list.forEach(function (c) {
@@ -871,15 +936,24 @@
                 el.className = 'ac-dd-item';
                 el.innerHTML = '<div class="ac-label">' + esc(c.name) + '</div>'
                   + (c.phone ? '<div class="ac-meta">' + esc(c.phone) + '</div>' : '');
-                el.addEventListener('mousedown', function (e) { e.preventDefault(); pickCustomer(c); custDd.style.display = 'none'; });
-                custDd.appendChild(el);
+                el.addEventListener('mousedown', function (e) {
+                  e.preventDefault(); pickCustomer(c);
+                  dd.style.display = 'none'; _acActiveInput = null;
+                });
+                dd.appendChild(el);
               });
             }
-            custDd.style.display = 'block';
+            dd.style.display = 'block';
           });
       }, 220);
     });
-    custInput.addEventListener('blur', function () { setTimeout(function () { custDd.style.display = 'none'; }, 200); });
+    custInput.addEventListener('blur', function () {
+      setTimeout(function () {
+        if (_acActiveInput === custInput) {
+          acPortal().style.display = 'none'; _acActiveInput = null;
+        }
+      }, 200);
+    });
   }
 
   function pickCustomer(c) {
@@ -1042,32 +1116,43 @@
   (function() {
     const input  = document.getElementById('referrer-search-input');
     const hidden = document.getElementById('referrer_id_field');
-    const dd     = document.getElementById('referrer-ac-dropdown');
     if (!input) return;
 
     input.addEventListener('input', function() {
       const q = this.value.trim();
-      if (q.length < 1) { dd.innerHTML=''; dd.style.display='none'; return; }
+      if (q.length < 1) {
+        if (_acActiveInput === input) { acPortal().style.display = 'none'; _acActiveInput = null; }
+        return;
+      }
+      _acActiveInput = input;
+      positionPortal(input);
       fetch(`<%= search_sales_referrers_path %>?q=${encodeURIComponent(q)}`)
         .then(r => r.json())
         .then(results => {
-          if (!results.length) { dd.style.display='none'; return; }
+          if (_acActiveInput !== input) return;
+          const dd = acPortal();
+          positionPortal(input);
+          if (!results.length) { dd.style.display = 'none'; return; }
           dd.innerHTML = results.map(r =>
-            `<div class="ac-item" data-id="${r.id}" data-label="${r.label}">${r.label}</div>`
+            `<div class="ac-dd-item ac-label" data-id="${r.id}" data-label="${esc(r.label)}">${esc(r.label)}</div>`
           ).join('');
           dd.style.display = 'block';
-          dd.querySelectorAll('.ac-item').forEach(item => {
-            item.addEventListener('click', () => {
-              hidden.value  = item.dataset.id;
-              input.value   = item.dataset.label;
+          dd.querySelectorAll('.ac-dd-item').forEach(item => {
+            item.addEventListener('mousedown', e => {
+              e.preventDefault();
+              hidden.value = item.dataset.id;
+              input.value  = item.dataset.label;
               dd.style.display = 'none';
+              _acActiveInput = null;
             });
           });
         });
     });
 
-    document.addEventListener('click', e => {
-      if (!input.contains(e.target)) dd.style.display = 'none';
+    input.addEventListener('blur', function() {
+      setTimeout(function() {
+        if (_acActiveInput === input) { acPortal().style.display = 'none'; _acActiveInput = null; }
+      }, 200);
     });
   })();
 </script>

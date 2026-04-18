@@ -4,237 +4,610 @@
   <span class="breadcrumb-current">My Profile</span>
 <% end %>
 
-<div class="page-header">
-  <div>
-    <div class="page-title">My Profile</div>
-    <div class="page-subtitle"><%= current_user.email %></div>
-  </div>
-</div>
+<%
+  saved_keys = @user.preferences['shortcuts'].presence || []
+%>
 
-<%= form_with url: update_profile_path, method: :patch, local: true,
-      style: "max-width:640px" do |f| %>
+<style>
+  /* ── PAGE LAYOUT ── */
+  .profile-layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 24px;
+    align-items: start;
+    max-width: 1100px;
+  }
+  .profile-main  { display: flex; flex-direction: column; gap: 20px; }
+  .profile-aside { display: flex; flex-direction: column; gap: 20px; }
 
-  <%# ── Personal details ── %>
-  <div class="detail-card" style="margin-bottom:20px">
-    <div class="detail-section">
-      <div class="detail-section-title">Personal Details</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  /* ── PROFILE BANNER ── */
+  .profile-banner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .profile-banner::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), rgba(79,142,247,0.3));
+  }
+  .profile-avatar {
+    width: 64px; height: 64px; border-radius: 16px;
+    background: var(--accent-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700; color: var(--accent);
+    font-family: var(--mono); flex-shrink: 0;
+    border: 2px solid rgba(79,142,247,0.25);
+  }
+  .profile-banner-info { flex: 1; min-width: 0; }
+  .profile-banner-name {
+    font-size: 18px; font-weight: 600; letter-spacing: -0.02em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .profile-banner-email {
+    font-size: 12px; color: var(--text-dim); margin-top: 3px;
+    font-family: var(--mono);
+  }
+  .profile-banner-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .p-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10.5px; font-weight: 500; padding: 3px 10px;
+    border-radius: 100px; font-family: var(--mono);
+    letter-spacing: 0.05em;
+  }
+  .p-tag-role   { background: rgba(79,142,247,0.1);  color: var(--accent);   border: 1px solid rgba(79,142,247,0.2); }
+  .p-tag-org    { background: rgba(52,217,139,0.08); color: var(--success);  border: 1px solid rgba(52,217,139,0.18); }
+  .p-tag-status { background: rgba(52,217,139,0.08); color: var(--success);  border: 1px solid rgba(52,217,139,0.18); }
 
-        <div class="form-group">
-          <%= f.label :first_name, "First Name" %>
-          <%= f.text_field :first_name, value: @user.first_name,
-                class: 'form-control', placeholder: 'First name' %>
-        </div>
+  /* ── SECTION CARD ── */
+  .p-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .p-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .p-card-title {
+    font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .p-card-title .c-icon {
+    width: 26px; height: 26px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .ci-blue   { background: rgba(79,142,247,0.12); color: var(--accent); }
+  .ci-teal   { background: rgba(52,217,139,0.12); color: var(--success); }
+  .ci-amber  { background: rgba(245,158,11,0.12);  color: var(--warning); }
+  .ci-red    { background: rgba(247,97,79,0.12);   color: var(--danger); }
+  .ci-purple { background: rgba(155,124,247,0.12); color: #9b7cf7; }
+  .ci-gray   { background: rgba(122,131,153,0.12); color: var(--text-dim); }
+  .p-card-body { padding: 20px; }
 
-        <div class="form-group">
-          <%= f.label :last_name, "Last Name" %>
-          <%= f.text_field :last_name, value: @user.last_name,
-                class: 'form-control', placeholder: 'Last name' %>
-        </div>
+  /* ── FORM GRID ── */
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-grid-1 { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .span-2 { grid-column: span 2; }
 
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="text" value="<%= @user.email %>" disabled
-                 class="form-control" style="opacity:0.5;cursor:not-allowed"
-                 title="Email cannot be changed here">
-          <div class="form-hint">Contact super admin to change email</div>
-        </div>
+  /* ── READONLY FIELD ── */
+  .form-control-readonly {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: not-allowed;
+    opacity: 0.7;
+    width: 100%;
+  }
+  .form-hint {
+    font-size: 11px; color: var(--text-dim); margin-top: 4px;
+  }
 
-        <div class="form-group">
-          <%= f.label :phone_number, "Phone" %>
-          <%= f.text_field :phone_number, value: @user.phone_number,
-                class: 'form-control', placeholder: '+91 98765 43210' %>
-        </div>
+  /* ── AI PROVIDER RADIO ── */
+  .ai-option {
+    display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+    padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--bg);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .ai-option:has(input:checked) {
+    border-color: rgba(79,142,247,0.45);
+    background: rgba(79,142,247,0.05);
+  }
+  .ai-option input[type="radio"] { margin-top: 2px; accent-color: var(--accent); flex-shrink: 0; }
+  .ai-opt-title { font-size: 13px; font-weight: 500; }
+  .ai-opt-desc  { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.5; }
+  .badge-free {
+    font-size: 9.5px; padding: 1px 6px; border-radius: 3px;
+    background: rgba(52,217,139,0.1); color: var(--success);
+    font-family: var(--mono); margin-left: 6px; vertical-align: middle;
+  }
 
-        <div class="form-group">
-          <label class="form-label">Role</label>
-          <input type="text" value="<%= @user.role.humanize %>" disabled
-                 class="form-control" style="opacity:0.5;cursor:not-allowed">
-        </div>
+  /* ── API CONFIG GRID ── */
+  .api-field { margin-bottom: 12px; }
+  .api-field:last-child { margin-bottom: 0; }
+  .api-field-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px;
+  }
+  .api-field-val {
+    font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+    padding: 8px 12px; border-radius: 7px;
+    background: var(--bg); border: 1px solid var(--border);
+  }
 
-        <div class="form-group">
-          <label class="form-label">Organisation</label>
-          <input type="text" value="<%= @user.organisation&.name || '—' %>" disabled
-                 class="form-control" style="opacity:0.5;cursor:not-allowed">
-        </div>
-      </div>
-    </div>
-  </div>
+  /* ── SHORTCUTS CATALOG ── */
+  .sc-counter {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--text-dim); font-weight: 500;
+  }
+  .sc-counter span { color: var(--accent); font-weight: 600; }
 
-  <%# ── Change password ── %>
-  <div class="detail-card" style="margin-bottom:20px">
-    <div class="detail-section">
-      <div class="detail-section-title">Change Password</div>
-      <div class="form-hint" style="margin-bottom:12px">Leave blank to keep your current password</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-        <div class="form-group">
-          <%= f.label :password, "New Password" %>
-          <%= f.password_field :password, class: 'form-control',
-                autocomplete: 'new-password', placeholder: 'Min 8 characters' %>
-        </div>
-        <div class="form-group">
-          <%= f.label :password_confirmation, "Confirm Password" %>
-          <%= f.password_field :password_confirmation, class: 'form-control',
-                autocomplete: 'new-password', placeholder: 'Repeat new password' %>
-        </div>
-      </div>
-    </div>
-  </div>
+  .sc-group-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-dim);
+    margin: 14px 0 8px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sc-group-label:first-of-type { margin-top: 0; }
 
-  <%# ── App preferences ── %>
-  <div class="detail-card" style="margin-bottom:20px">
-    <div class="detail-section">
-      <div class="detail-section-title">
-        App Preferences
-        <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
-          These settings apply only to your account
-        </span>
-      </div>
+  .sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
 
-      <%# AI Provider preference %>
-      <div class="form-group" style="margin-bottom:20px">
-        <label class="form-label">
-          AI Provider for Invoice Scanning
-          <% if current_user.super_admin? %>
-            <span style="font-size:10px;color:var(--accent);margin-left:6px">
-              (you set the global default — your preference overrides it for your account)
+  .sc-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 11px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg);
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .sc-item input[type="checkbox"] { display: none; }
+  .sc-item.checked {
+    border-color: rgba(79,142,247,0.45);
+    background: rgba(79,142,247,0.06);
+  }
+  .sc-item.maxed:not(.checked) {
+    opacity: 0.4; cursor: not-allowed;
+  }
+  .sc-check {
+    width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .sc-item.checked .sc-check {
+    background: var(--accent); border-color: var(--accent);
+  }
+  .sc-item.checked .sc-check svg { display: block; }
+  .sc-check svg { display: none; }
+  .sc-label { font-size: 11.5px; font-weight: 500; line-height: 1.3; }
+
+  .sc-color-teal   .sc-check.checked-box { background: var(--success); border-color: var(--success); }
+  .sc-color-amber  .sc-check.checked-box { background: var(--warning); border-color: var(--warning); }
+  .sc-color-red    .sc-check.checked-box { background: var(--danger);  border-color: var(--danger); }
+  .sc-color-purple .sc-check.checked-box { background: #9b7cf7;        border-color: #9b7cf7; }
+
+  .sc-submit-row {
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .sc-hint { font-size: 11px; color: var(--text-dim); }
+
+  @media (max-width: 860px) {
+    .profile-layout { grid-template-columns: 1fr; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .span-2 { grid-column: span 1; }
+    .sc-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="profile-layout">
+
+  <!-- ══════ MAIN COLUMN ══════ -->
+  <div class="profile-main">
+
+    <!-- Profile Banner -->
+    <div class="profile-banner">
+      <div class="profile-avatar"><%= @user.initials %></div>
+      <div class="profile-banner-info">
+        <div class="profile-banner-name"><%= @user.full_name %></div>
+        <div class="profile-banner-email"><%= @user.email %></div>
+        <div class="profile-banner-tags">
+          <span class="p-tag p-tag-role"><%= @user.role.humanize %></span>
+          <% if @user.organisation %>
+            <span class="p-tag p-tag-org">
+              <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              </svg>
+              <%= @user.organisation.name %>
             </span>
           <% end %>
-        </label>
-
-        <% current_pref = @user.preferences&.dig('ai_provider').presence || '' %>
-        <% global_provider = ENV['INVOICE_AI_PROVIDER'] || 'gemini' %>
-
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
-
-          <%# Use global default option %>
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;
-                        padding:12px 14px;border:1px solid var(--border);border-radius:8px;
-                        background:<%= current_pref.blank? ? 'rgba(79,142,247,0.06)' : 'var(--bg)' %>">
-            <input type="radio" name="preferences[ai_provider]" value=""
-                   <%= 'checked' if current_pref.blank? %>
-                   style="margin-top:2px;accent-color:var(--accent)">
-            <div>
-              <div style="font-size:13px;font-weight:500;color:var(--text)">
-                Use global default
-                <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:6px">
-                  (currently: <%= global_provider.upcase %>)
-                </span>
-              </div>
-              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
-                Follows whatever the server is configured to use
-              </div>
-            </div>
-          </label>
-
-          <%# Groq option %>
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;
-                        padding:12px 14px;border:1px solid var(--border);border-radius:8px;
-                        background:<%= current_pref == 'groq' ? 'rgba(79,142,247,0.06)' : 'var(--bg)' %>">
-            <input type="radio" name="preferences[ai_provider]" value="groq"
-                   <%= 'checked' if current_pref == 'groq' %>
-                   style="margin-top:2px;accent-color:var(--accent)">
-            <div>
-              <div style="font-size:13px;font-weight:500;color:var(--text)">
-                Groq — Llama 4 Scout
-                <span style="font-size:10px;padding:1px 6px;margin-left:6px;border-radius:3px;
-                             background:rgba(52,217,139,0.1);color:var(--success);
-                             font-family:var(--mono)">FREE</span>
-              </div>
-              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
-                Fast, free tier up to ~14,400 requests/day. Best for most use cases.
-              </div>
-            </div>
-          </label>
-
-          <%# OpenRouter option — for invoice scanning only, not enrichment %>
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;
-                        padding:12px 14px;border:1px solid var(--border);border-radius:8px;
-                        background:<%= current_pref == 'openrouter' ? 'rgba(79,142,247,0.06)' : 'var(--bg)' %>">
-            <input type="radio" name="preferences[ai_provider]" value="openrouter"
-                   <%= 'checked' if current_pref == 'openrouter' %>
-                   style="margin-top:2px;accent-color:var(--accent)">
-            <div>
-              <div style="font-size:13px;font-weight:500;color:var(--text)">
-                OpenRouter — Llama 3.2 Vision
-                <span style="font-size:10px;padding:1px 6px;margin-left:6px;border-radius:3px;
-                             background:rgba(52,217,139,0.1);color:var(--success);
-                             font-family:var(--mono)">FREE</span>
-              </div>
-              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
-                For invoice scanning only. Product enrichment always uses Groq regardless.
-                Requires <code style="font-family:var(--mono)">OPENROUTER_API_KEY</code> — get free key at <strong>openrouter.ai</strong>
-              </div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <%# Future settings placeholder %>
-      <div style="padding:12px 14px;border:1px dashed var(--border);border-radius:8px;
-                  font-size:12px;color:var(--text-dim)">
-        <div style="font-weight:500;margin-bottom:4px">More settings coming soon</div>
-        <div>Default invoice view, notification preferences, language, and more</div>
-      </div>
-
-    </div>
-  </div>
-
-  <%# ── Super admin: global API config ── %>
-  <% if current_user.super_admin? %>
-    <div class="detail-card" style="margin-bottom:20px">
-      <div class="detail-section">
-        <div class="detail-section-title" style="color:var(--warning)">
-          ⚙ Global API Configuration
-          <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
-            Super admin only
+          <span class="p-tag p-tag-status">
+            <svg width="7" height="7" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4"/></svg>
+            Active
           </span>
         </div>
+      </div>
+    </div>
 
-        <div style="padding:10px 14px;background:rgba(247,195,79,0.06);
-                    border:1px solid rgba(247,195,79,0.2);border-radius:6px;
-                    font-size:12px;color:var(--text-dim);margin-bottom:14px">
-          The global provider is set via the <code style="font-family:var(--mono)">INVOICE_AI_PROVIDER</code>
-          environment variable in <code style="font-family:var(--mono)">config/local_env.yml</code>.
-          Changing it requires a server restart. The values below are read-only — for display only.
+    <!-- ① Personal Details -->
+    <%= form_with url: update_profile_path, method: :patch, local: true do |f| %>
+
+      <div class="p-card">
+        <div class="p-card-header">
+          <div class="p-card-title">
+            <div class="c-icon ci-blue">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+            Personal Details
+          </div>
         </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="detail-field">
-            <label>Active Provider</label>
-            <div class="value">
-              <span style="font-family:var(--mono);font-size:13px;font-weight:600;
-                           color:var(--accent)">
-                <%= (ENV['INVOICE_AI_PROVIDER'] || 'gemini').upcase %>
-              </span>
+        <div class="p-card-body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <%= f.label :first_name, "First Name", class: "form-label" %>
+              <%= f.text_field :first_name, value: @user.first_name,
+                    class: 'form-control', placeholder: 'First name' %>
             </div>
-          </div>
-          <div class="detail-field">
-            <label>Groq API Key</label>
-            <div class="value mono" style="color:<%= ENV['GROQ_API_KEY'].present? ? 'var(--success)' : 'var(--danger)' %>">
-              <%= ENV['GROQ_API_KEY'].present? ? "#{ENV['GROQ_API_KEY'][0..6]}••••••••  ✓ Set" : '✗ Not set — get free key at console.groq.com' %>
+            <div class="form-group">
+              <%= f.label :last_name, "Last Name", class: "form-label" %>
+              <%= f.text_field :last_name, value: @user.last_name,
+                    class: 'form-control', placeholder: 'Last name' %>
             </div>
-          </div>
-          <div class="detail-field">
-            <label>OpenRouter API Key</label>
-            <div class="value mono" style="color:<%= ENV['OPENROUTER_API_KEY'].present? ? 'var(--success)' : 'var(--text-dim)' %>">
-              <%= ENV['OPENROUTER_API_KEY'].present? ? "#{ENV['OPENROUTER_API_KEY'][0..6]}••••••••  ✓ Set" : 'Not set (optional fallback — openrouter.ai)' %>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <div class="form-control-readonly"><%= @user.email %></div>
+              <div class="form-hint">Contact super admin to change email</div>
+            </div>
+            <div class="form-group">
+              <%= f.label :phone_number, "Phone", class: "form-label" %>
+              <%= f.text_field :phone_number, value: @user.phone_number,
+                    class: 'form-control', placeholder: '+91 98765 43210' %>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Role</label>
+              <div class="form-control-readonly"><%= @user.role.humanize %></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Organisation</label>
+              <div class="form-control-readonly"><%= @user.organisation&.name || '—' %></div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- ② Change Password -->
+      <div class="p-card">
+        <div class="p-card-header">
+          <div class="p-card-title">
+            <div class="c-icon ci-purple">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            Security
+          </div>
+          <span style="font-size:11px;color:var(--text-dim)">Leave blank to keep current password</span>
+        </div>
+        <div class="p-card-body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <%= f.label :password, "New Password", class: "form-label" %>
+              <%= f.password_field :password, class: 'form-control',
+                    autocomplete: 'new-password', placeholder: 'Min 8 characters' %>
+            </div>
+            <div class="form-group">
+              <%= f.label :password_confirmation, "Confirm Password", class: "form-label" %>
+              <%= f.password_field :password_confirmation, class: 'form-control',
+                    autocomplete: 'new-password', placeholder: 'Repeat new password' %>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ App Preferences — SUPER ADMIN ONLY (CanCanCan) -->
+      <% if can?(:manage, :api_preferences) %>
+        <div class="p-card">
+          <div class="p-card-header">
+            <div class="p-card-title">
+              <div class="c-icon ci-amber">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+                </svg>
+              </div>
+              App Preferences
+            </div>
+            <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:100px;
+                         background:rgba(245,158,11,0.1);color:var(--warning);
+                         border:1px solid rgba(245,158,11,0.2)">Super Admin</span>
+          </div>
+          <div class="p-card-body">
+            <label class="form-label" style="margin-bottom:10px;display:block">
+              AI Provider for Invoice Scanning
+              <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:6px">
+                (your preference overrides the global default for your account)
+              </span>
+            </label>
+
+            <% current_pref    = @user.preferences&.dig('ai_provider').presence || '' %>
+            <% global_provider = ENV['INVOICE_AI_PROVIDER'] || 'gemini' %>
+
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label class="ai-option">
+                <input type="radio" name="preferences[ai_provider]" value=""
+                       <%= 'checked' if current_pref.blank? %>>
+                <div>
+                  <div class="ai-opt-title">
+                    Use global default
+                    <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:4px">
+                      (currently: <%= global_provider.upcase %>)
+                    </span>
+                  </div>
+                  <div class="ai-opt-desc">Follows whatever the server is configured to use</div>
+                </div>
+              </label>
+
+              <label class="ai-option">
+                <input type="radio" name="preferences[ai_provider]" value="groq"
+                       <%= 'checked' if current_pref == 'groq' %>>
+                <div>
+                  <div class="ai-opt-title">
+                    Groq — Llama 4 Scout
+                    <span class="badge-free">FREE</span>
+                  </div>
+                  <div class="ai-opt-desc">Fast, free tier up to ~14,400 requests/day. Best for most use cases.</div>
+                </div>
+              </label>
+
+              <label class="ai-option">
+                <input type="radio" name="preferences[ai_provider]" value="openrouter"
+                       <%= 'checked' if current_pref == 'openrouter' %>>
+                <div>
+                  <div class="ai-opt-title">
+                    OpenRouter — Llama 3.2 Vision
+                    <span class="badge-free">FREE</span>
+                  </div>
+                  <div class="ai-opt-desc">
+                    Invoice scanning only. Requires
+                    <code style="font-family:var(--mono)">OPENROUTER_API_KEY</code> — get free key at openrouter.ai
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <% if @user.errors.any? %>
+        <div class="flash alert"><%= @user.errors.full_messages.join(', ') %></div>
+      <% end %>
+
+      <div style="display:flex;gap:10px;align-items:center">
+        <%= f.submit 'Save Changes', class: 'btn btn-primary' %>
+        <%= link_to 'Cancel', dashboard_path, class: 'btn btn-secondary' %>
+      </div>
+
+    <% end %>
+  </div><!-- .profile-main -->
+
+
+  <!-- ══════ ASIDE COLUMN ══════ -->
+  <div class="profile-aside">
+
+    <!-- ④ Quick Access Shortcuts — admin + super_admin -->
+    <% if can?(:manage, :favorites) %>
+      <div class="p-card">
+        <div class="p-card-header">
+          <div class="p-card-title">
+            <div class="c-icon ci-teal">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </div>
+            Quick Access
+          </div>
+          <div class="sc-counter" id="sc-counter">
+            <span id="sc-count">0</span> / 10
+          </div>
+        </div>
+        <div class="p-card-body" style="padding-top:16px">
+          <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:14px;line-height:1.6">
+            Select up to <strong style="color:var(--text)">10 modules</strong> to pin as shortcuts on your dashboard.
+          </div>
+
+          <%= form_with url: update_shortcuts_path, method: :patch, local: true, id: "shortcuts-form" do %>
+
+            <%
+              groups = ApplicationHelper::SHORTCUT_CATALOG.group_by { |m| m[:group] }
+            %>
+            <% groups.each do |group_name, modules| %>
+              <div class="sc-group-label"><%= group_name %></div>
+              <div class="sc-grid">
+                <% modules.each do |mod| %>
+                  <%
+                    is_checked = saved_keys.include?(mod[:key])
+                  %>
+                  <label class="sc-item sc-color-<%= mod[:color] %> <%= 'checked' if is_checked %>"
+                         data-key="<%= mod[:key] %>"
+                         onclick="toggleShortcut(this, event)">
+                    <input type="checkbox" name="shortcut_keys[]"
+                           value="<%= mod[:key] %>"
+                           <%= 'checked' if is_checked %>>
+                    <div class="sc-check">
+                      <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2.5">
+                        <polyline points="2 6 5 9 10 3"/>
+                      </svg>
+                    </div>
+                    <span class="sc-label"><%= mod[:label] %></span>
+                  </label>
+                <% end %>
+              </div>
+            <% end %>
+
+            <div class="sc-submit-row">
+              <span class="sc-hint">Changes apply to your dashboard immediately</span>
+              <button type="submit" class="btn btn-primary btn-sm">Save Shortcuts</button>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- ⑤ Global API Config — super_admin only -->
+    <% if can?(:manage, :api_preferences) %>
+      <div class="p-card">
+        <div class="p-card-header">
+          <div class="p-card-title">
+            <div class="c-icon ci-amber">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+            </div>
+            Global API Config
+          </div>
+          <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:100px;
+                       background:rgba(245,158,11,0.1);color:var(--warning);
+                       border:1px solid rgba(245,158,11,0.2)">Read-only</span>
+        </div>
+        <div class="p-card-body">
+          <div style="padding:8px 12px;background:rgba(245,158,11,0.05);
+                      border:1px solid rgba(245,158,11,0.15);border-radius:7px;
+                      font-size:11px;color:var(--text-dim);margin-bottom:14px;line-height:1.55">
+            Set via <code style="font-family:var(--mono)">INVOICE_AI_PROVIDER</code> env var.
+            Changes require a server restart.
+          </div>
+
+          <div class="api-field">
+            <div class="api-field-label">Active Provider</div>
+            <div class="api-field-val" style="color:var(--accent)">
+              <%= (ENV['INVOICE_AI_PROVIDER'] || 'gemini').upcase %>
+            </div>
+          </div>
+
+          <div class="api-field">
+            <div class="api-field-label">Groq API Key</div>
+            <div class="api-field-val"
+                 style="color:<%= ENV['GROQ_API_KEY'].present? ? 'var(--success)' : 'var(--danger)' %>">
+              <% if ENV['GROQ_API_KEY'].present? %>
+                <%= ENV['GROQ_API_KEY'][0..6] %>••••••••&ensp;&#10003; Set
+              <% else %>
+                ✗ Not set
+                <span style="font-size:10px;color:var(--text-dim);font-family:var(--sans)">
+                  — get free key at console.groq.com
+                </span>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="api-field">
+            <div class="api-field-label">OpenRouter API Key</div>
+            <div class="api-field-val"
+                 style="color:<%= ENV['OPENROUTER_API_KEY'].present? ? 'var(--success)' : 'var(--text-dim)' %>">
+              <% if ENV['OPENROUTER_API_KEY'].present? %>
+                <%= ENV['OPENROUTER_API_KEY'][0..6] %>••••••••&ensp;&#10003; Set
+              <% else %>
+                Not set
+                <span style="font-size:10px;opacity:0.7;font-family:var(--sans)">(optional)</span>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Member info card (always visible) -->
+    <div class="p-card">
+      <div class="p-card-header">
+        <div class="p-card-title">
+          <div class="c-icon ci-gray">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          Account Info
+        </div>
+      </div>
+      <div class="p-card-body" style="padding:16px 20px">
+        <div style="display:grid;gap:12px">
+          <div>
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Member Since</div>
+            <div style="font-size:13px;font-weight:500"><%= @user.created_at.strftime('%d %b %Y') %></div>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:1px"><%= (Date.today - @user.created_at.to_date).to_i %> days</div>
+          </div>
+          <% if @user.organisation %>
+            <div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Organisation</div>
+              <div style="font-size:13px;font-weight:500"><%= @user.organisation.name %></div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:1px">
+                <span class="badge <%= @user.organisation.active? ? 'badge-active' : 'badge-inactive' %>" style="font-size:10px">
+                  <%= @user.organisation.status %>
+                </span>
+              </div>
+            </div>
+            <div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Subscription</div>
+              <div style="font-size:13px;font-weight:500;color:var(--warning)">
+                <%= @user.organisation.subscription_plan&.capitalize || 'Basic' %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
     </div>
-  <% end %>
 
-  <% if @user.errors.any? %>
-    <div class="flash alert" style="margin-bottom:16px">
-      <%= @user.errors.full_messages.join(', ') %>
-    </div>
-  <% end %>
+  </div><!-- .profile-aside -->
 
-  <div style="display:flex;gap:10px;align-items:center">
-    <%= f.submit 'Save Changes', class: 'btn btn-primary' %>
-    <%= link_to 'Cancel', dashboard_path, class: 'btn btn-secondary' %>
-  </div>
+</div><!-- .profile-layout -->
 
-<% end %>
+<script>
+(function() {
+  var MAX = 10;
+
+  function getChecked() {
+    return document.querySelectorAll('#shortcuts-form .sc-item.checked').length;
+  }
+
+  function updateCounter() {
+    var n = getChecked();
+    document.getElementById('sc-count').textContent = n;
+    document.querySelectorAll('#shortcuts-form .sc-item').forEach(function(item) {
+      if (!item.classList.contains('checked')) {
+        item.classList.toggle('maxed', n >= MAX);
+      }
+    });
+  }
+
+  window.toggleShortcut = function(label, e) {
+    e.preventDefault();
+    var cb = label.querySelector('input[type="checkbox"]');
+    var isChecked = label.classList.contains('checked');
+
+    if (!isChecked && getChecked() >= MAX) return; // cap at 10
+
+    label.classList.toggle('checked', !isChecked);
+    cb.checked = !isChecked;
+    updateCounter();
+  };
+
+  // Init counter on page load
+  document.addEventListener('DOMContentLoaded', updateCounter);
+})();
+</script>

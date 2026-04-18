@@ -1120,62 +1120,66 @@
 
 <script>
 
-  var THEME_KEY   = 'storeerp_theme';
-  var SECTION_KEY = 'storeerp_sections'; // JSON object of section open states
+  var THEME_KEY = 'storeerp_theme';
 
-  // ── Section accordion ──
-  function getSectionStates() {
-    try { return JSON.parse(localStorage.getItem(SECTION_KEY) || '{}'); }
-    catch(e) { return {}; }
+  // ── Section accordion (exclusive — only one section open at a time) ──
+
+  // Close every section except the one with the given id (pass null to close all)
+  function closeAllSections(exceptId) {
+    document.querySelectorAll('.nav-section').forEach(function(sec) {
+      if (sec.dataset.section !== exceptId) {
+        sec.classList.remove('open');
+      }
+    });
   }
-  function saveSectionStates(states) {
-    localStorage.setItem(SECTION_KEY, JSON.stringify(states));
+
+  function openSection(id) {
+    var el = document.getElementById('ns-' + id);
+    if (el) el.classList.add('open');
   }
 
   function toggleSection(id) {
     var el = document.getElementById('ns-' + id);
     if (!el) return;
     var isOpen = el.classList.contains('open');
-    el.classList.toggle('open', !isOpen);
-    var states = getSectionStates();
-    states[id] = !isOpen;
-    saveSectionStates(states);
+    if (isOpen) {
+      // Clicking an open section closes it (and everything else is already closed)
+      el.classList.remove('open');
+    } else {
+      // Close all others, then open this one
+      closeAllSections(id);
+      el.classList.add('open');
+    }
   }
 
   // Called when clicking section headers — if sidebar is collapsed, expand it first then open section
   function expandAndToggle(event, id) {
     var sidebar = document.getElementById('mainSidebar');
     if (sidebar.classList.contains('collapsed')) {
-      // Expand sidebar first
+      // Expand sidebar first, then open only this section
       localStorage.setItem('storeerp_sidebar', '0');
       applySidebar(false);
-      // Then open the section
-      var el = document.getElementById('ns-' + id);
-      if (el && !el.classList.contains('open')) {
-        el.classList.add('open');
-        var states = getSectionStates();
-        states[id] = true;
-        saveSectionStates(states);
-      }
+      closeAllSections(id);
+      openSection(id);
     } else {
       toggleSection(id);
     }
   }
 
-  // On load: restore section open states, and always open sections with active links
+  // On load: open ONLY the section that contains an active link; collapse everything else
   (function() {
-    var saved = getSectionStates();
+    var activeId = null;
     document.querySelectorAll('.nav-section').forEach(function(sec) {
-      var id      = sec.dataset.section;
-      var isActive = sec.dataset.active === 'true';
-      var wasOpen  = saved[id] === true;
-      if (isActive || wasOpen) {
-        sec.classList.add('open');
-        // Persist the active one as open
-        if (isActive) { saved[id] = true; }
+      if (sec.dataset.active === 'true') {
+        activeId = sec.dataset.section;
       }
     });
-    saveSectionStates(saved);
+    if (activeId) {
+      closeAllSections(activeId);
+      openSection(activeId);
+    } else {
+      closeAllSections(null); // no active page — collapse all
+    }
   })();
 
   // ── Sidebar collapse ──

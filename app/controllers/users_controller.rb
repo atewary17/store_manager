@@ -1,8 +1,8 @@
 # app/controllers/users_controller.rb
 class UsersController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_organisation, except: [:profile, :update_profile]
-  before_action :authorize_access!, except: [:profile, :update_profile]
+  before_action :set_organisation, except: [:profile, :update_profile, :update_shortcuts]
+  before_action :authorize_access!, except: [:profile, :update_profile, :update_shortcuts]
   before_action :set_user, only: [:show, :edit, :update]
 
   # GET /profile — any logged-in user can view/edit their own profile
@@ -15,12 +15,13 @@ class UsersController < ApplicationController
     @user = current_user
     prefs = params[:preferences] || {}
 
-    # Only super_admin can change the global AI provider
-    # Any user can set their own preferred provider (used as override when present)
-    pref_update = {
-      'ai_provider'  => prefs[:ai_provider].to_s.presence,
-      'theme'        => prefs[:theme].to_s.presence,
-    }.compact
+    pref_update = { 'theme' => prefs[:theme].to_s.presence }.compact
+
+    # AI provider pref — only super_admin via CanCanCan
+    if can?(:manage, :api_preferences)
+      pref_update['ai_provider'] = prefs[:ai_provider].to_s.presence
+      pref_update.compact!
+    end
 
     user_attrs = profile_params
 
@@ -35,6 +36,20 @@ class UsersController < ApplicationController
       redirect_to profile_path, notice: 'Profile updated.'
     else
       render :profile, status: :unprocessable_entity
+    end
+  end
+
+  # PATCH /profile/shortcuts — save dashboard shortcut keys (admin + super_admin)
+  def update_shortcuts
+    @user = current_user
+    authorize! :manage, :favorites
+
+    selected_keys = Array(params[:shortcut_keys]).reject(&:blank?).uniq.first(10)
+
+    if @user.update(preferences: @user.preferences.merge('shortcuts' => selected_keys))
+      redirect_to profile_path, notice: 'Quick access shortcuts updated.'
+    else
+      redirect_to profile_path, alert: 'Failed to update shortcuts.'
     end
   end
 

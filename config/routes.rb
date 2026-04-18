@@ -3,9 +3,10 @@ Rails.application.routes.draw do
   devise_for :users
 
   # User profile — any logged-in user
-  get   '/profile', to: 'users#profile',       as: :profile
-  patch '/profile', to: 'users#update_profile', as: :update_profile
-  put   '/profile', to: 'users#update_profile'
+  get   '/profile',           to: 'users#profile',           as: :profile
+  patch '/profile',           to: 'users#update_profile',    as: :update_profile
+  put   '/profile',           to: 'users#update_profile'
+  patch '/profile/shortcuts', to: 'users#update_shortcuts',  as: :update_shortcuts
 
   # Organisations & Users
   resources :organisations, only: [:index, :show, :new, :create, :edit, :update] do
@@ -80,7 +81,7 @@ Rails.application.routes.draw do
       collection { get :search }
     end
     resources :purchase_invoices do
-      member { post :confirm }
+      member     { post :confirm; patch :update_due_date }
       collection { get :product_search }
       resources :supplier_payments, only: [:create, :destroy],
                                     controller: 'supplier_payments'
@@ -116,7 +117,7 @@ Rails.application.routes.draw do
     end
 
     resources :sales_invoices do
-      member     { post :confirm; get :preview; post :void; post :mark_as_paid }
+      member     { post :confirm; get :preview; post :void; post :mark_as_paid; patch :update_due_date }
       collection { get :product_search; get :shade_search; get :base_search }
       resources :sale_payments, only: [:create, :show, :destroy]
     end

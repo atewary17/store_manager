@@ -36,10 +36,12 @@ RUN SECRET_KEY_BASE=placeholder \
 FROM ruby:3.3.5-slim AS runtime
 
 # Runtime-only system deps
+# poppler-utils provides pdftoppm — required for AI invoice digitisation (PDF → image)
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     libpq-dev \
     libvips-dev \
     curl \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security

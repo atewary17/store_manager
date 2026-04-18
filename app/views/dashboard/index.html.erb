@@ -3,250 +3,177 @@
   <span class="breadcrumb-current">Dashboard</span>
 <% end %>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+
 <style>
+  /* ── WELCOME BAR ── */
   .welcome-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 36px;
-    padding-bottom: 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px; padding-bottom: 24px;
     border-bottom: 1px solid var(--border);
   }
-  .welcome-greeting {
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-  }
+  .welcome-greeting { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
   .welcome-greeting span { color: var(--accent); }
   .welcome-meta {
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-top: 5px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .welcome-meta-sep { color: var(--border-2, #2a3050); }
-  .org-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--accent-dim);
-    color: var(--accent);
-    border: 1px solid rgba(79,142,247,0.2);
-    border-radius: 100px;
-    padding: 3px 10px;
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 12px; color: var(--text-dim); margin-top: 5px;
+    display: flex; align-items: center; gap: 10px;
   }
 
-  /* ── MODULE GRID ── */
-  .modules-label {
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 16px;
-  }
-
-  .modules-grid {
+  /* ── LAYOUT GRID ── */
+  .dash-layout {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-    margin-bottom: 40px;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    align-items: start;
   }
+  .dash-main { display: flex; flex-direction: column; gap: 20px; }
+  .dash-side  { display: flex; flex-direction: column; gap: 20px; }
 
-  .module-card {
+  /* ── SHARED CARD ── */
+  .d-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    position: relative;
+    border-radius: 14px;
     overflow: hidden;
-    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
-    cursor: default;
   }
-
-  /* Active module */
-  .module-card.active {
-    cursor: pointer;
-    border-color: rgba(79,142,247,0.3);
+  .d-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px 0;
   }
-  .module-card.active:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(79,142,247,0.12);
+  .d-card-title {
+    font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 8px;
   }
-  .module-card.active::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--accent), rgba(79,142,247,0.3));
-  }
-
-  /* Inactive/locked module */
-  .module-card.inactive {
-    opacity: 0.55;
-  }
-  .module-card.inactive::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    background: repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 6px,
-      rgba(255,255,255,0.015) 6px,
-      rgba(255,255,255,0.015) 7px
-    );
-    pointer-events: none;
-  }
-
-  .module-icon {
-    width: 44px; height: 44px;
-    border-radius: 10px;
+  .d-card-title .icon {
+    width: 28px; height: 28px; border-radius: 7px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .module-icon.blue   { background: rgba(79,142,247,0.12); color: var(--accent); }
-  .module-icon.green  { background: rgba(52,217,139,0.10); color: var(--success); }
-  .module-icon.yellow { background: rgba(247,195,79,0.10); color: var(--warning); }
-  .module-icon.purple { background: rgba(167,112,247,0.10); color: #a770f7; }
-  .module-icon.red    { background: rgba(247,97,79,0.10);  color: var(--danger); }
+  .icon-blue   { background: rgba(79,142,247,0.12); color: var(--accent); }
+  .icon-teal   { background: rgba(52,217,139,0.12); color: var(--success); }
+  .icon-amber  { background: rgba(245,158,11,0.12);  color: var(--warning); }
+  .icon-red    { background: rgba(247,97,79,0.12);   color: var(--danger); }
+  .icon-purple { background: rgba(155,124,247,0.12); color: #9b7cf7; }
+  .icon-gray   { background: rgba(122,131,153,0.12); color: var(--text-dim); }
 
-  .module-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
+  .d-card-badge {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+    padding: 3px 9px; border-radius: 100px;
+    background: rgba(79,142,247,0.08); color: var(--accent);
+    border: 1px solid rgba(79,142,247,0.18);
   }
+  .d-card-body { padding: 16px 20px 20px; }
 
-  .module-body { flex: 1; }
-  .module-name {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    margin-bottom: 6px;
-  }
-  .module-desc {
-    font-size: 12.5px;
-    color: var(--text-dim);
-    line-height: 1.6;
-  }
-
-  .module-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    border-radius: 100px;
-    font-family: var(--mono);
-    font-size: 10px;
-    font-weight: 500;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .module-status.live {
-    background: rgba(52,217,139,0.1);
-    color: var(--success);
-    border: 1px solid rgba(52,217,139,0.2);
-  }
-  .module-status.live::before {
-    content: '';
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--success);
-    animation: pulse 1.8s ease infinite;
-  }
-  .module-status.coming-soon {
-    background: rgba(122,131,153,0.1);
-    color: var(--text-dim);
-    border: 1px solid var(--border);
-  }
-  .module-status.coming-soon::before {
-    content: '';
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--text-dim);
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.4; }
-  }
-
-  .module-features {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
-  }
-  .feature-tag {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-dim);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 3px 7px;
-  }
-  .module-card.active .feature-tag {
-    border-color: rgba(79,142,247,0.2);
-    color: var(--text-dim);
-  }
-
-  .module-arrow {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--accent);
-    font-weight: 500;
-    margin-top: auto;
-    padding-top: 12px;
-  }
-
-  /* ── QUICK STATS ── */
-  .quick-stats {
+  /* ── SHORTCUTS CARD ── */
+  .shortcuts-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-    margin-bottom: 36px;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
   }
-  .qs-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
+  .sc-link {
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: 10px; padding: 14px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg); text-decoration: none; color: var(--text);
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  }
+  .sc-link:hover {
+    border-color: rgba(79,142,247,0.4);
+    background: rgba(79,142,247,0.04);
+    transform: translateY(-1px);
+  }
+  .sc-link-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .sc-link-label { font-size: 12px; font-weight: 500; line-height: 1.35; }
+  .sc-link-group { font-size: 10px; color: var(--text-dim); font-family: var(--mono); margin-top: auto; }
+
+  .dot-teal   { background: var(--success); box-shadow: 0 0 6px rgba(52,217,139,0.5); }
+  .dot-amber  { background: var(--warning); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+  .dot-red    { background: var(--danger);  box-shadow: 0 0 6px rgba(247,97,79,0.4); }
+  .dot-purple { background: #9b7cf7;        box-shadow: 0 0 6px rgba(155,124,247,0.4); }
+  .dot-blue   { background: var(--accent);  box-shadow: 0 0 6px rgba(79,142,247,0.4); }
+
+  .shortcuts-empty {
+    min-height: 140px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px; color: var(--text-dim);
+    border: 2px dashed var(--border);
     border-radius: 10px;
-    padding: 18px 20px;
   }
-  .qs-label {
+  .shortcuts-empty-label { font-size: 13px; font-weight: 500; }
+  .shortcuts-empty-sub   { font-size: 11px; opacity: 0.7; }
+
+  /* ── CHART CARDS ── */
+  .charts-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  }
+  .chart-total {
+    font-family: var(--mono); font-size: 22px; font-weight: 600;
+    letter-spacing: -0.02em; margin: 4px 0 2px;
+  }
+  .chart-sub { font-size: 11px; color: var(--text-dim); }
+  .chart-area { height: 150px; margin-top: 12px; }
+
+  /* ── ORG CARD ── */
+  .org-logo {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: var(--accent-dim); display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700; color: var(--accent); flex-shrink: 0;
     font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 8px;
   }
-  .qs-value {
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+  .org-name  { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .org-sub   { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .org-divider { margin: 16px 0; border: none; border-top: 1px solid var(--border); }
+  .org-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .org-stat-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px; }
+  .org-stat-val   { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .org-stat-val.accent  { color: var(--accent); }
+  .org-stat-val.teal    { color: var(--success); }
+  .org-stat-val.amber   { color: var(--warning); }
+
+  /* ── NOTIFICATIONS CARD ── */
+  .notif-empty {
+    min-height: 110px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; color: var(--text-dim);
   }
-  .qs-value.accent  { color: var(--accent); }
-  .qs-value.success { color: var(--success); }
-  .qs-value.warning { color: var(--warning); }
-  .qs-sub {
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-top: 3px;
+  .notif-empty-label { font-size: 12px; }
+
+  /* ── PAYABLES CARD ── */
+  .payables-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .payables-table th {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-dim);
+    padding: 0 10px 10px; text-align: left; font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .payables-table td {
+    padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle;
+  }
+  .payables-table tr:last-child td { border-bottom: none; }
+  .payables-table tr:hover td { background: rgba(79,142,247,0.03); }
+  .sup-name { font-weight: 500; }
+  .sup-inv  { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
+  .due-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 500; padding: 2px 8px;
+    border-radius: 100px; white-space: nowrap;
+  }
+  .due-overdue  { background: rgba(247,97,79,0.12);  color: var(--danger);  border: 1px solid rgba(247,97,79,0.2); }
+  .due-today    { background: rgba(245,158,11,0.12); color: var(--warning); border: 1px solid rgba(245,158,11,0.25); }
+  .due-soon     { background: rgba(52,217,139,0.10); color: var(--success); border: 1px solid rgba(52,217,139,0.2); }
+  .due-later    { background: rgba(122,131,153,0.1); color: var(--text-dim); border: 1px solid var(--border); }
+  .amount-val   { font-family: var(--mono); font-size: 12.5px; font-weight: 600; text-align: right; color: var(--danger); }
+  .payables-empty {
+    padding: 32px; text-align: center; color: var(--text-dim); font-size: 13px;
+  }
+
+  @media (max-width: 900px) {
+    .dash-layout { grid-template-columns: 1fr; }
+    .charts-row  { grid-template-columns: 1fr; }
   }
 </style>
 
@@ -258,21 +185,10 @@
     </div>
     <div class="welcome-meta">
       <span class="badge badge-role"><%= current_user.role.humanize %></span>
-      <% if @organisation %>
-        <span class="org-badge">
-          <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          </svg>
-          <%= @organisation.name %>
-        </span>
-      <% end %>
-      <span style="color:var(--text-muted, #3d4a6a)">·</span>
-      <span style="font-family:var(--mono);font-size:11px">
-        <%= Time.now.strftime('%A, %d %b %Y') %>
-      </span>
+      <span style="color:var(--border)">·</span>
+      <span style="font-family:var(--mono);font-size:11px"><%= Time.now.strftime('%A, %d %b %Y') %></span>
     </div>
   </div>
-
   <% if current_user.super_admin? %>
     <%= link_to organisations_path, class: 'btn btn-secondary btn-sm' do %>
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -283,192 +199,352 @@
   <% end %>
 </div>
 
-<!-- Quick Stats -->
 <% if @organisation %>
-<div class="quick-stats">
-  <div class="qs-card">
-    <div class="qs-label">Organisation</div>
-    <div class="qs-value accent" style="font-size:16px;margin-top:4px"><%= @organisation.name.truncate(20) %></div>
-    <div class="qs-sub">
-      <span class="badge <%= @organisation.active? ? 'badge-active' : 'badge-inactive' %>" style="font-size:10px">
-        <%= @organisation.status %>
-      </span>
-    </div>
-  </div>
-  <div class="qs-card">
-    <div class="qs-label">Total Users</div>
-    <div class="qs-value accent"><%= @organisation.users.count %></div>
-    <div class="qs-sub"><%= @organisation.users.active.count %> active</div>
-  </div>
-  <div class="qs-card">
-    <div class="qs-label">Plan</div>
-    <div class="qs-value warning" style="font-size:16px;margin-top:4px">
-      <%= @organisation.subscription_plan&.capitalize || 'Basic' %>
-    </div>
-    <div class="qs-sub">Current subscription</div>
-  </div>
-  <div class="qs-card">
-    <div class="qs-label">Member Since</div>
-    <div class="qs-value" style="font-size:15px;color:var(--text);margin-top:4px">
-      <%= @organisation.created_at.strftime('%b %Y') %>
-    </div>
-    <div class="qs-sub"><%= (Date.today - @organisation.created_at.to_date).to_i %> days ago</div>
-  </div>
-</div>
-<% end %>
+<div class="dash-layout">
 
-<!-- Modules -->
-<div class="modules-label">Modules</div>
-<div class="modules-grid">
+  <!-- ══════════ LEFT MAIN ══════════ -->
+  <div class="dash-main">
 
-  <!-- ① Setup — active -->
-  <% if current_user&.super_admin? %>
-    <%= link_to organisations_path, style: 'text-decoration:none;display:contents' do %>
-    <div class="module-card active">
-      <div class="module-header">
-        <div style="display:flex;align-items:center;gap:14px">
-          <div class="module-icon blue">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M19.07 4.93l-2.83 2.83M6.34 17.66l-1.41 1.41"/>
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+    <!-- ① BIG SHORTCUTS CARD -->
+    <%
+      saved_keys     = current_user.preferences['shortcuts'].presence || []
+      pinned_modules = saved_keys.map { |k| ApplicationHelper::SHORTCUT_CATALOG_BY_KEY[k] }.compact
+    %>
+    <div class="d-card shortcuts-card">
+      <div class="d-card-head">
+        <div class="d-card-title">
+          <div class="icon icon-blue">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
           </div>
-          <div class="module-body">
-            <div class="module-name">Setup</div>
-            <div class="module-desc">Organisations, users, roles and master data configuration</div>
+          Quick Access
+        </div>
+        <% if pinned_modules.any? %>
+          <span class="d-card-badge"><%= pinned_modules.size %> pinned</span>
+        <% else %>
+          <span class="d-card-badge">Shortcuts</span>
+        <% end %>
+      </div>
+      <div class="d-card-body">
+        <% if pinned_modules.any? %>
+          <div class="shortcuts-grid">
+            <% pinned_modules.each do |mod| %>
+              <%= link_to mod[:path], class: "sc-link" do %>
+                <div class="sc-link-dot dot-<%= mod[:color] %>"></div>
+                <span class="sc-link-label"><%= mod[:label] %></span>
+                <span class="sc-link-group"><%= mod[:group] %></span>
+              <% end %>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="shortcuts-empty">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="opacity:0.35">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            <div class="shortcuts-empty-label">No shortcuts yet</div>
+            <% if can?(:manage, :favorites) %>
+              <div class="shortcuts-empty-sub">
+                <%= link_to 'Set up shortcuts', profile_path, style: 'color:var(--accent)' %> in your profile
+              </div>
+            <% else %>
+              <div class="shortcuts-empty-sub">Ask your admin to configure shortcuts</div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- ② CHARTS ROW -->
+    <div class="charts-row">
+
+      <!-- Sales This Month -->
+      <div class="d-card">
+        <div class="d-card-head">
+          <div class="d-card-title">
+            <div class="icon icon-teal">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                <polyline points="17 6 23 6 23 12"/>
+              </svg>
+            </div>
+            Sales
+          </div>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+            <%= Date.today.strftime('%b %Y') %>
+          </span>
+        </div>
+        <div class="d-card-body">
+          <div class="chart-total" style="color:var(--success)">
+            &#8377;<%= number_with_delimiter(@sales_month_total.round(0).to_i) %>
+          </div>
+          <div class="chart-sub">Total confirmed sales this month</div>
+          <div class="chart-area" id="salesChart"></div>
+        </div>
+      </div>
+
+      <!-- Purchases This Month -->
+      <div class="d-card">
+        <div class="d-card-head">
+          <div class="d-card-title">
+            <div class="icon icon-amber">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+                <polyline points="17 18 23 18 23 12"/>
+              </svg>
+            </div>
+            Purchases
+          </div>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+            <%= Date.today.strftime('%b %Y') %>
+          </span>
+        </div>
+        <div class="d-card-body">
+          <div class="chart-total" style="color:var(--warning)">
+            &#8377;<%= number_with_delimiter(@purchase_month_total.round(0).to_i) %>
+          </div>
+          <div class="chart-sub">Total confirmed purchases this month</div>
+          <div class="chart-area" id="purchaseChart"></div>
+        </div>
+      </div>
+
+    </div><!-- .charts-row -->
+
+    <!-- ③ PAYABLES DUE -->
+    <div class="d-card">
+      <div class="d-card-head">
+        <div class="d-card-title">
+          <div class="icon icon-red">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          Payables Due
+        </div>
+        <span class="d-card-badge" style="background:rgba(247,97,79,0.08);color:var(--danger);border-color:rgba(247,97,79,0.2)">
+          Supplier Payments
+        </span>
+      </div>
+      <div class="d-card-body" style="padding-top:14px">
+        <% if @payables_due.any? %>
+          <table class="payables-table">
+            <thead>
+              <tr>
+                <th>Supplier / Invoice</th>
+                <th>Due Date</th>
+                <th style="text-align:right">Outstanding</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @payables_due.each do |inv| %>
+                <% days_until = inv.payment_due_date ? (inv.payment_due_date - Date.today).to_i : nil %>
+                <tr>
+                  <td>
+                    <div class="sup-name"><%= inv.supplier&.name || '—' %></div>
+                    <div class="sup-inv"><%= inv.display_number %></div>
+                  </td>
+                  <td>
+                    <% if inv.payment_due_date.nil? %>
+                      <span class="due-badge due-later">No due date</span>
+                    <% elsif days_until < 0 %>
+                      <span class="due-badge due-overdue">
+                        <svg width="9" height="9" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                        <%= days_until.abs %> day<%= days_until.abs == 1 ? '' : 's' %> overdue
+                      </span>
+                    <% elsif days_until == 0 %>
+                      <span class="due-badge due-today">Due today</span>
+                    <% elsif days_until <= 7 %>
+                      <span class="due-badge due-soon">Due in <%= days_until %> day<%= days_until == 1 ? '' : 's' %></span>
+                    <% else %>
+                      <span class="due-badge due-later"><%= inv.payment_due_date.strftime('%d %b') %></span>
+                    <% end %>
+                  </td>
+                  <td class="amount-val">&#8377;<%= number_with_delimiter(inv.outstanding_amount.round(0).to_i) %></td>
+                  <td style="text-align:right">
+                    <%= link_to 'View', purchasing_purchase_invoice_path(inv),
+                          style: "font-family:var(--mono);font-size:10px;color:var(--accent);
+                                  text-decoration:none;padding:3px 9px;
+                                  border:1px solid var(--accent-dim);border-radius:4px;
+                                  white-space:nowrap" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        <% else %>
+          <div class="payables-empty">
+            <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="opacity:0.3;margin-bottom:8px">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <div>No outstanding payables</div>
+            <div style="font-size:11px;margin-top:4px;opacity:0.7">All supplier invoices are settled</div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+  </div><!-- .dash-main -->
+
+  <!-- ══════════ RIGHT SIDEBAR ══════════ -->
+  <div class="dash-side">
+
+    <!-- ④ ORGANISATION CARD -->
+    <div class="d-card">
+      <div class="d-card-head">
+        <div class="d-card-title">
+          <div class="icon icon-blue">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            </svg>
+          </div>
+          Organisation
+        </div>
+        <span class="badge <%= @organisation.active? ? 'badge-active' : 'badge-inactive' %>" style="font-size:10px">
+          <%= @organisation.status %>
+        </span>
+      </div>
+      <div class="d-card-body">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+          <div class="org-logo"><%= @organisation.name.first.upcase %></div>
+          <div>
+            <div class="org-name"><%= @organisation.name %></div>
+            <div class="org-sub">Active workspace</div>
           </div>
         </div>
-        <span class="module-status live">Live</span>
-      </div>
-      <div class="module-features">
-        <span class="feature-tag">Organisations</span>
-        <span class="feature-tag">Users & Roles</span>
-        <span class="feature-tag">Master Data</span>
-        <span class="feature-tag">Permissions</span>
-      </div>
-      <div class="module-arrow">
-        Open Setup
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
+        <hr class="org-divider">
+        <div class="org-stats">
+          <div>
+            <div class="org-stat-label">Users</div>
+            <div class="org-stat-val accent"><%= @organisation.users.count %></div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:1px"><%= @organisation.users.active.count %> active</div>
+          </div>
+          <div>
+            <div class="org-stat-label">Plan</div>
+            <div class="org-stat-val amber"><%= @organisation.subscription_plan&.capitalize || 'Basic' %></div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:1px">Current subscription</div>
+          </div>
+          <div style="grid-column:span 2;margin-top:4px">
+            <div class="org-stat-label">Member Since</div>
+            <div class="org-stat-val teal" style="font-size:13px">
+              <%= @organisation.created_at.strftime('%d %b %Y') %>
+            </div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:1px">
+              <%= (Date.today - @organisation.created_at.to_date).to_i %> days with us
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <% end %>
-  <% end %>
 
-  <!-- ② Inventory Management — active -->
-  <%= link_to '#', style: 'text-decoration:none;display:contents' do %>
-  <div class="module-card active">
-    <div class="module-header">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div class="module-icon green">
-          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-            <line x1="12" y1="22.08" x2="12" y2="12"/>
+    <!-- ⑤ NOTIFICATIONS CARD -->
+    <div class="d-card">
+      <div class="d-card-head">
+        <div class="d-card-title">
+          <div class="icon icon-purple">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          </div>
+          Notifications
+        </div>
+        <span class="d-card-badge" style="background:rgba(155,124,247,0.08);color:#9b7cf7;border-color:rgba(155,124,247,0.2)">0 new</span>
+      </div>
+      <div class="d-card-body">
+        <div class="notif-empty">
+          <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="opacity:0.3">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
           </svg>
-        </div>
-        <div class="module-body">
-          <div class="module-name">Inventory Management</div>
-          <div class="module-desc">Products, variants, stock levels, UOMs and purchase orders</div>
+          <div class="notif-empty-label" style="font-size:12px;opacity:0.6">No notifications yet</div>
         </div>
       </div>
-      <span class="module-status live">Live</span>
     </div>
-    <div class="module-features">
-      <span class="feature-tag">Products</span>
-      <span class="feature-tag">Variants & SKUs</span>
-      <span class="feature-tag">Stock Levels</span>
-      <span class="feature-tag">UOM</span>
-      <span class="feature-tag">HSN & GST</span>
-    </div>
-    <div class="module-arrow">
-      Open Inventory
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </div>
-  </div>
-  <% end %>
 
-  <!-- ③ Accounting Management — coming soon -->
-  <div class="module-card inactive">
-    <div class="module-header">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div class="module-icon yellow">
-          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <line x1="12" y1="1" x2="12" y2="23"/>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-          </svg>
-        </div>
-        <div class="module-body">
-          <div class="module-name">Accounting</div>
-          <div class="module-desc">Invoices, expenses, GST returns, profit & loss and balance sheet</div>
-        </div>
-      </div>
-      <span class="module-status coming-soon">Coming Soon</span>
-    </div>
-    <div class="module-features">
-      <span class="feature-tag">Invoicing</span>
-      <span class="feature-tag">GST Returns</span>
-      <span class="feature-tag">P&L</span>
-      <span class="feature-tag">Ledger</span>
-    </div>
-  </div>
+  </div><!-- .dash-side -->
 
-  <!-- ④ Customer Management — coming soon -->
-  <div class="module-card inactive">
-    <div class="module-header">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div class="module-icon purple">
-          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-        </div>
-        <div class="module-body">
-          <div class="module-name">Customer Management</div>
-          <div class="module-desc">Customer profiles, purchase history, credit limits and loyalty</div>
-        </div>
-      </div>
-      <span class="module-status coming-soon">Coming Soon</span>
-    </div>
-    <div class="module-features">
-      <span class="feature-tag">Profiles</span>
-      <span class="feature-tag">Purchase History</span>
-      <span class="feature-tag">Credit Limits</span>
-      <span class="feature-tag">Loyalty</span>
-    </div>
-  </div>
+</div><!-- .dash-layout -->
 
-  <!-- ⑤ Reports — coming soon -->
-  <div class="module-card inactive">
-    <div class="module-header">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div class="module-icon red">
-          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <line x1="18" y1="20" x2="18" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="6"  y1="20" x2="6"  y2="14"/>
-            <line x1="2"  y1="20" x2="22" y2="20"/>
-          </svg>
-        </div>
-        <div class="module-body">
-          <div class="module-name">Reports</div>
-          <div class="module-desc">Sales analytics, stock reports, tax summaries and custom dashboards</div>
-        </div>
-      </div>
-      <span class="module-status coming-soon">Coming Soon</span>
-    </div>
-    <div class="module-features">
-      <span class="feature-tag">Sales Analytics</span>
-      <span class="feature-tag">Stock Reports</span>
-      <span class="feature-tag">Tax Summary</span>
-      <span class="feature-tag">Export</span>
-    </div>
-  </div>
+<script>
+(function() {
+  var ACCENT  = '#4f8ef7';
+  var SUCCESS = '#34d98b';
+  var WARNING = '#f59e0b';
+  var DIM     = 'rgba(122,131,153,0.4)';
+  var TEXT_DIM= '#6b7799';
+  var GRID_C  = 'rgba(79,142,247,0.06)';
 
-</div>
+  function mkChart(el) {
+    return echarts.init(el, null, { renderer: 'canvas' });
+  }
+
+  function baseOption(labels, values, color, gradientColor) {
+    return {
+      grid: { top: 8, right: 8, bottom: 24, left: 44 },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        axisLine:  { lineStyle: { color: DIM } },
+        axisTick:  { show: false },
+        axisLabel: { color: TEXT_DIM, fontSize: 10, interval: Math.floor(labels.length / 5) }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: {
+          color: TEXT_DIM, fontSize: 10,
+          formatter: function(v) {
+            if (v >= 100000) return '₹' + (v/100000).toFixed(0) + 'L';
+            if (v >= 1000)   return '₹' + (v/1000).toFixed(0) + 'k';
+            return v === 0 ? '' : '₹' + v;
+          }
+        },
+        splitLine: { lineStyle: { color: GRID_C } },
+        axisLine:  { show: false },
+        axisTick:  { show: false }
+      },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#181c27',
+        borderColor: '#252a38',
+        textStyle: { color: '#dde3f4', fontSize: 12 },
+        formatter: function(params) {
+          return 'Day ' + params[0].name + '<br/>₹' + Number(params[0].value).toLocaleString('en-IN');
+        }
+      },
+      series: [{
+        type: 'bar',
+        data: values,
+        barMaxWidth: 18,
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: color },
+            { offset: 1, color: gradientColor }
+          ]),
+          borderRadius: [4, 4, 0, 0]
+        },
+        emphasis: { itemStyle: { color: color } }
+      }]
+    };
+  }
+
+  // Sales chart
+  var salesData   = <%= raw @sales_chart_data.to_json %>;
+  var salesLabels = salesData.map(function(d) { return d[0]; });
+  var salesVals   = salesData.map(function(d) { return d[1]; });
+  var sc = mkChart(document.getElementById('salesChart'));
+  sc.setOption(baseOption(salesLabels, salesVals, SUCCESS, 'rgba(52,217,139,0.15)'));
+
+  // Purchase chart
+  var purchaseData   = <%= raw @purchase_chart_data.to_json %>;
+  var purchaseLabels = purchaseData.map(function(d) { return d[0]; });
+  var purchaseVals   = purchaseData.map(function(d) { return d[1]; });
+  var pc = mkChart(document.getElementById('purchaseChart'));
+  pc.setOption(baseOption(purchaseLabels, purchaseVals, WARNING, 'rgba(245,158,11,0.15)'));
+
+  window.addEventListener('resize', function() { sc.resize(); pc.resize(); });
+})();
+</script>
+<% end %>
