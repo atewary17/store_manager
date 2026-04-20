@@ -1,0 +1,140 @@
+<%# Turbo Streams replacement target — id must match "inbox_item_#{item.id}" %>
+<tr id="inbox_item_<%= item.id %>">
+  <td>
+    <div style="font-weight:500;color:var(--text)"><%= item.raw_invoice_text %></div>
+    <% if item.material_code_hint.present? %>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px">
+        Code: <%= item.material_code_hint %>
+      </div>
+    <% end %>
+  </td>
+  <td style="color:var(--text-dim);font-size:12px"><%= item.supplier_name_hint.presence || '—' %></td>
+  <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+    <%= item.hsn_code_hint.presence || '—' %>
+  </td>
+  <td>
+    <% enrichment = item.ai_enrichment || {} %>
+    <% if enrichment['description'].present? %>
+      <div style="font-size:12px;color:var(--text)"><%= enrichment['description'] %></div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+        <%= [enrichment['brand_guess'], enrichment['category_guess']].compact_blank.join(' · ') %>
+        <% if enrichment['confidence'].present? %>
+          <span style="color:var(--accent);font-family:var(--mono)">
+            <%= (enrichment['confidence'].to_f * 100).round %>%
+          </span>
+        <% end %>
+      </div>
+    <% elsif enrichment['error'].present? %>
+      <span style="color:var(--danger);font-size:12px">AI error — needs manual review</span>
+    <% else %>
+      <span style="color:var(--text-muted);font-size:12px">Waiting for AI…</span>
+    <% end %>
+  </td>
+  <td>
+    <% badge_style = case item.status
+       when 'pending'       then 'background:rgba(247,195,79,0.15);color:var(--warning);'
+       when 'ai_processing' then 'background:rgba(79,142,247,0.15);color:var(--accent);'
+       when 'needs_review'  then 'background:rgba(247,97,79,0.15);color:var(--danger);'
+       when 'approved'      then 'background:rgba(52,217,139,0.15);color:var(--success);'
+       when 'mapped'        then 'background:rgba(52,217,200,0.15);color:#34d9c8;'
+       when 'ignored'       then 'background:rgba(122,131,153,0.12);color:var(--text-dim);'
+       else 'background:var(--border);color:var(--text-dim);'
+       end %>
+    <span style="<%= badge_style %> padding:2px 8px;border-radius:4px;font-size:11px;
+                  font-family:var(--mono);font-weight:500;
+                  <%= item.status == 'ai_processing' ? 'animation:pulse 1.5s ease-in-out infinite;' : '' %>">
+      <%= item.status.tr('_', ' ') %>
+    </span>
+  </td>
+  <td style="text-align:right;white-space:nowrap">
+    <% unless %w[approved mapped ignored].include?(item.status) %>
+      <%# Approve — opens inline form %>
+      <details style="display:inline-block;position:relative">
+        <summary style="list-style:none;cursor:pointer;padding:4px 10px;border-radius:5px;
+                        font-size:12px;font-weight:500;background:rgba(52,217,139,0.12);
+                        color:var(--success);border:1px solid rgba(52,217,139,0.25)">
+          Approve
+        </summary>
+        <div style="position:absolute;right:0;top:calc(100% + 4px);z-index:50;
+                    background:var(--surface);border:1px solid var(--border);
+                    border-radius:8px;padding:14px;min-width:280px;box-shadow:var(--shadow-lg)">
+          <%= form_with url: approve_setup_product_inbox_path(item), method: :post,
+                        style: 'display:flex;flex-direction:column;gap:10px' do |f| %>
+            <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">
+              Create &amp; Approve Product
+            </div>
+            <% enrichment = item.ai_enrichment || {} %>
+            <input name="description" placeholder="Description*" required
+                   value="<%= enrichment['description'] %>"
+                   style="background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                          padding:6px 9px;color:var(--text);font-size:12px;width:100%">
+            <input name="material_code" placeholder="Material code"
+                   value="<%= enrichment['material_code'] || item.material_code_hint %>"
+                   style="background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                          padding:6px 9px;color:var(--text);font-size:12px;width:100%">
+            <input name="hsn_code" placeholder="HSN code"
+                   value="<%= enrichment['hsn_code'] || item.hsn_code_hint %>"
+                   style="background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                          padding:6px 9px;color:var(--text);font-size:12px;width:100%">
+            <input name="brand_name" placeholder="Brand name"
+                   value="<%= enrichment['brand_guess'] %>"
+                   style="background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                          padding:6px 9px;color:var(--text);font-size:12px;width:100%">
+            <input name="category_name" placeholder="Category name"
+                   value="<%= enrichment['category_guess'] %>"
+                   style="background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                          padding:6px 9px;color:var(--text);font-size:12px;width:100%">
+            <input name="gst_rate" placeholder="GST rate %" type="number" step="0.01"
+                   value="<%= enrichment['gst_rate'] || 18 %>"
+                   style="background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                          padding:6px 9px;color:var(--text);font-size:12px;width:100%">
+            <button type="submit"
+                    style="background:var(--success);color:#fff;border:none;border-radius:5px;
+                           padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer">
+              Save &amp; Approve
+            </button>
+          <% end %>
+        </div>
+      </details>
+
+      <%# Map to existing — opens inline form %>
+      <details style="display:inline-block;position:relative;margin-left:6px">
+        <summary style="list-style:none;cursor:pointer;padding:4px 10px;border-radius:5px;
+                        font-size:12px;font-weight:500;background:rgba(79,142,247,0.12);
+                        color:var(--accent);border:1px solid rgba(79,142,247,0.25)">
+          Map
+        </summary>
+        <div style="position:absolute;right:0;top:calc(100% + 4px);z-index:50;
+                    background:var(--surface);border:1px solid var(--border);
+                    border-radius:8px;padding:14px;min-width:240px;box-shadow:var(--shadow-lg)">
+          <%= form_with url: map_setup_product_inbox_path(item), method: :post,
+                        style: 'display:flex;flex-direction:column;gap:10px' do |f| %>
+            <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">
+              Map to Existing Product
+            </div>
+            <input name="product_id" placeholder="Product ID" required type="number"
+                   style="background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                          padding:6px 9px;color:var(--text);font-size:12px;width:100%">
+            <button type="submit"
+                    style="background:var(--accent);color:#fff;border:none;border-radius:5px;
+                           padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer">
+              Map Product
+            </button>
+          <% end %>
+        </div>
+      </details>
+
+      <%# Ignore %>
+      <%= button_to ignore_setup_product_inbox_path(item), method: :post,
+            params: { note: 'admin ignored' },
+            style: "margin-left:6px;background:rgba(247,97,79,0.1);color:var(--danger);
+                    border:1px solid rgba(247,97,79,0.2);border-radius:5px;
+                    padding:4px 10px;font-size:12px;font-weight:500;cursor:pointer",
+            data: { confirm: "Ignore this inbox item? This cannot be undone." } do %>
+        Ignore
+      <% end %>
+    <% else %>
+      <span style="color:var(--text-muted);font-size:12px">—</span>
+    <% end %>
+  </td>
+</tr>

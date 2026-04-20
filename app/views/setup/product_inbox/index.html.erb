@@ -1,0 +1,122 @@
+<%# app/views/setup/product_inbox/index.html.erb %>
+<% content_for :title, "Product Inbox" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Product Inbox</span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
+  .inbox-tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .inbox-tab:hover { background: var(--border); color: var(--text); }
+  .inbox-tab.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: rgba(79,142,247,0.25);
+  }
+  .inbox-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .inbox-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    font-size: 13px;
+  }
+  .inbox-table tr:last-child td { border-bottom: none; }
+  .inbox-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+  details summary::-webkit-details-marker { display: none; }
+  details[open] summary { outline: none; }
+</style>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Product Inbox</div>
+    <div class="page-subtitle">
+      <%= @stats[:pending] + @stats[:needs_review] %> item<%= @stats[:pending] + @stats[:needs_review] == 1 ? '' : 's' %> pending review
+    </div>
+  </div>
+</div>
+
+<%# ── Stat cards ── %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" style="color:var(--warning)"><%= @stats[:pending] %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">AI Processing</div>
+    <div class="stat-value" style="color:var(--accent)"><%= @stats[:ai_processing] %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Needs Review</div>
+    <div class="stat-value" style="color:var(--danger)"><%= @stats[:needs_review] %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Resolved Today</div>
+    <div class="stat-value" style="color:var(--success)"><%= @stats[:resolved_today] %></div>
+  </div>
+</div>
+
+<%# ── Tab filter bar ── %>
+<div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
+  <%= link_to 'All', setup_product_inbox_index_path,
+        class: "inbox-tab #{params[:status].blank? ? 'active' : ''}" %>
+  <%= link_to 'Pending', setup_product_inbox_index_path(status: 'pending'),
+        class: "inbox-tab #{params[:status] == 'pending' ? 'active' : ''}" %>
+  <%= link_to 'AI Processing', setup_product_inbox_index_path(status: 'ai_processing'),
+        class: "inbox-tab #{params[:status] == 'ai_processing' ? 'active' : ''}" %>
+  <%= link_to 'Needs Review', setup_product_inbox_index_path(status: 'needs_review'),
+        class: "inbox-tab #{params[:status] == 'needs_review' ? 'active' : ''}" %>
+  <%= link_to 'Resolved', setup_product_inbox_index_path(status: 'approved'),
+        class: "inbox-tab #{%w[approved mapped ignored].include?(params[:status]) ? 'active' : ''}" %>
+</div>
+
+<%# ── Table ── %>
+<div class="table-wrap">
+  <% if @items.empty? %>
+    <div style="padding:48px;text-align:center;color:var(--text-dim)">
+      No items pending review.
+    </div>
+  <% else %>
+    <table class="inbox-table" style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr>
+          <th>Raw Invoice Text</th>
+          <th>Supplier</th>
+          <th>HSN Hint</th>
+          <th>AI Suggestion</th>
+          <th>Status</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @items.each do |item| %>
+          <%= render 'inbox_item', item: item %>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>
