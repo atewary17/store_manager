@@ -31,6 +31,11 @@ class Product < ApplicationRecord
     )
   }
 
+  # Only approved catalogue products are visible to sales users.
+  # Products in the Product Inbox (catalogue_status: pending_review) are
+  # invisible until a superadmin approves them from Setup > Product Inbox.
+  scope :available_for_sale, -> { active.where(catalogue_status: 'approved') }
+
   # ── Org-scoped scope ─────────────────────────────────────────
   # Returns only products that have been enrolled in the given org's catalogue.
   # All product lookups in org-facing features must go through this scope.

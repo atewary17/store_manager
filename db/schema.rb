@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_20_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -140,6 +140,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
     t.index ["gst_number"], name: "index_organisations_on_gst_number", unique: true
   end
 
+  create_table "product_aliases", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "product_id", null: false
+    t.string "raw_text", null: false
+    t.string "normalised_text", null: false
+    t.integer "supplier_id"
+    t.string "source", default: "exact", null: false
+    t.float "confidence", default: 1.0, null: false
+    t.integer "hit_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organisation_id", "normalised_text"], name: "index_product_aliases_on_organisation_id_and_normalised_text", unique: true
+    t.index ["organisation_id", "product_id"], name: "index_product_aliases_on_organisation_id_and_product_id"
+    t.index ["organisation_id"], name: "index_product_aliases_on_organisation_id"
+    t.index ["product_id"], name: "index_product_aliases_on_product_id"
+  end
+
   create_table "product_categories", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -174,6 +191,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
     t.index ["user_id"], name: "index_product_imports_on_user_id"
   end
 
+  create_table "product_inbox_items", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "purchase_invoice_item_id"
+    t.string "raw_invoice_text", null: false
+    t.string "material_code_hint"
+    t.string "hsn_code_hint"
+    t.jsonb "ai_enrichment", default: {}, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "resolved_product_id"
+    t.integer "resolved_by_id"
+    t.datetime "resolved_at"
+    t.string "supplier_name_hint"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organisation_id", "raw_invoice_text"], name: "idx_on_organisation_id_raw_invoice_text_04c40062b2"
+    t.index ["organisation_id", "status"], name: "index_product_inbox_items_on_organisation_id_and_status"
+    t.index ["organisation_id"], name: "index_product_inbox_items_on_organisation_id"
+    t.index ["purchase_invoice_item_id"], name: "index_product_inbox_items_on_purchase_invoice_item_id"
+  end
+
   create_table "products", force: :cascade do |t|
     t.bigint "product_category_id", null: false
     t.bigint "base_uom_id", null: false
@@ -189,9 +226,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
     t.decimal "mrp", precision: 10, scale: 2
     t.jsonb "metadata", default: {}
     t.bigint "brand_id"
+    t.string "catalogue_status", default: "approved", null: false
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"
+    t.index ["catalogue_status"], name: "index_products_on_catalogue_status"
     t.index ["hsn_code"], name: "index_products_on_hsn_code"
     t.index ["material_code"], name: "index_products_on_material_code", unique: true, where: "(material_code IS NOT NULL)"
     t.index ["metadata"], name: "index_products_on_metadata", using: :gin
@@ -218,6 +257,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
     t.decimal "cgst_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "sgst_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "igst_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "catalogue_status", default: "matched"
+    t.integer "product_inbox_item_id"
+    t.boolean "stock_held", default: false, null: false
+    t.index ["catalogue_status"], name: "index_purchase_invoice_items_on_catalogue_status"
     t.index ["gst_rate"], name: "index_purchase_invoice_items_on_gst_rate"
     t.index ["metadata"], name: "index_purchase_invoice_items_on_metadata", using: :gin
     t.index ["product_id"], name: "index_purchase_invoice_items_on_product_id"
@@ -555,8 +598,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
   add_foreign_key "organisation_product_categories", "product_categories"
   add_foreign_key "organisation_products", "organisations"
   add_foreign_key "organisation_products", "products"
+  add_foreign_key "product_aliases", "organisations"
+  add_foreign_key "product_aliases", "products"
   add_foreign_key "product_imports", "organisations"
   add_foreign_key "product_imports", "users"
+  add_foreign_key "product_inbox_items", "organisations"
+  add_foreign_key "product_inbox_items", "products", column: "resolved_product_id"
+  add_foreign_key "product_inbox_items", "purchase_invoice_items"
+  add_foreign_key "product_inbox_items", "users", column: "resolved_by_id"
   add_foreign_key "products", "brands"
   add_foreign_key "products", "product_categories"
   add_foreign_key "products", "uoms", column: "base_uom_id"

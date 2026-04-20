@@ -148,7 +148,7 @@ class Sales::SalesInvoicesController < Sales::BaseController
       .pluck(:product_id)
 
     products = Product.for_org(@organisation)
-      .active
+      .available_for_sale
       .where(id: in_stock_ids)
       .includes(:brand, :base_uom, :product_category)
       .where('LOWER(products.description) LIKE :q OR LOWER(products.material_code) LIKE :q
@@ -187,7 +187,7 @@ class Sales::SalesInvoicesController < Sales::BaseController
       .pluck(:product_id)
 
     products = Product.for_org(@organisation)
-      .active
+      .available_for_sale
       .where(id: in_stock_ids)
       .where(product_category_id: paint_cat_ids)
       .includes(:brand, :base_uom)

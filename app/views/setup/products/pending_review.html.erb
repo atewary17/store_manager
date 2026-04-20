@@ -1,0 +1,203 @@
+<%# app/views/setup/products/pending_review.html.erb %>
+<% content_for :title, "Pending Products" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Products', setup_products_path, style: "color:var(--text-dim)" %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Pending Review</span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+
+<style>
+  .pr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pr-table th {
+    background: var(--bg);
+    padding: 10px 16px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .pr-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .pr-table tr:last-child td { border-bottom: none; }
+  .pr-table tbody tr:hover td { background: rgba(79,142,247,0.02); }
+  .ai-field { display: flex; gap: 8px; margin-bottom: 3px; font-size: 12px; }
+  .ai-field-label { color: var(--text-dim); min-width: 100px; flex-shrink: 0; font-family: var(--mono); font-size: 11px; }
+  .ai-field-val { color: var(--text); font-weight: 500; }
+  .conf-badge {
+    display: inline-block;
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 10px;
+  }
+</style>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Pending Products</div>
+    <div class="page-subtitle">
+      <%= @pending_count %> product<%= @pending_count == 1 ? '' : 's' %> awaiting approval
+    </div>
+  </div>
+  <div class="actions">
+    <%= link_to product_register_setup_products_path, class: 'btn btn-secondary' do %>
+      Product Register
+    <% end %>
+  </div>
+</div>
+
+<%# ── Stat card ── %>
+<div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Pending Approval</div>
+    <div class="stat-value" style="color:var(--warning)"><%= @pending_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">High Confidence</div>
+    <div class="stat-value" style="color:var(--success)">
+      <%= @pending_products.select { |p| p.metadata&.dig('ai_confidence').to_f >= 0.8 }.count %>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Needs Manual Review</div>
+    <div class="stat-value" style="color:var(--danger)">
+      <%= @pending_products.select { |p| p.metadata&.dig('ai_confidence').to_f < 0.5 }.count %>
+    </div>
+  </div>
+</div>
+
+<% if @pending_products.empty? %>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;
+              padding:60px;text-align:center;color:var(--text-dim)">
+    <div style="font-size:32px;margin-bottom:12px">✓</div>
+    <div style="font-size:15px;font-weight:600;color:var(--text)">All caught up</div>
+    <div style="font-size:13px;margin-top:6px">No products pending review.</div>
+  </div>
+<% else %>
+  <div class="table-wrap">
+    <table class="pr-table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>AI Enrichment Data</th>
+          <th>Organisation</th>
+          <th>Confidence</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @pending_products.each do |product| %>
+          <% meta = product.metadata || {} %>
+          <% conf = meta['ai_confidence'].to_f %>
+          <% conf_color = conf >= 0.8 ? 'var(--success)' : conf >= 0.5 ? 'var(--warning)' : 'var(--danger)' %>
+          <tr>
+            <td>
+              <div style="font-weight:600;font-size:13px;color:var(--text)">
+                <%= product.description %>
+              </div>
+              <% if meta['original_name'].present? && meta['original_name'] != product.description %>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:3px">
+                  Original: <%= meta['original_name'] %>
+                </div>
+              <% end %>
+              <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:4px">
+                <% if product.material_code.present? %>
+                  M: <%= product.material_code %>
+                <% end %>
+                <% if product.hsn_code.present? %>
+                  &nbsp;·&nbsp; HSN: <%= product.hsn_code %>
+                <% end %>
+                <% if product.gst_rate.to_f > 0 %>
+                  &nbsp;·&nbsp; GST: <%= product.gst_rate.to_i %>%
+                <% end %>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:4px">
+                <%= [product.brand&.name, product.product_category&.name, product.base_uom&.short_name].compact_blank.join(' · ') %>
+              </div>
+              <div style="font-size:10px;font-family:var(--mono);color:var(--text-muted);margin-top:4px">
+                #<%= product.id %> · added <%= time_ago_in_words(product.created_at) %> ago
+              </div>
+            </td>
+            <td style="max-width:240px">
+              <% if meta['ai_brand_guess'].present? %>
+                <div class="ai-field">
+                  <span class="ai-field-label">Brand guess</span>
+                  <span class="ai-field-val"><%= meta['ai_brand_guess'] %></span>
+                </div>
+              <% end %>
+              <% if meta['ai_category_guess'].present? %>
+                <div class="ai-field">
+                  <span class="ai-field-label">Category</span>
+                  <span class="ai-field-val"><%= meta['ai_category_guess'] %></span>
+                </div>
+              <% end %>
+              <% if meta['ai_pack_size_guess'].present? %>
+                <div class="ai-field">
+                  <span class="ai-field-label">Pack size</span>
+                  <span class="ai-field-val"><%= meta['ai_pack_size_guess'] %></span>
+                </div>
+              <% end %>
+              <% if meta['ai_notes'].present? %>
+                <div class="ai-field">
+                  <span class="ai-field-label">Notes</span>
+                  <span class="ai-field-val" style="color:var(--text-dim)"><%= meta['ai_notes'] %></span>
+                </div>
+              <% end %>
+            </td>
+            <td>
+              <% orgs = product.organisation_products.map(&:organisation).compact %>
+              <% if orgs.any? %>
+                <% orgs.each do |org| %>
+                  <div style="font-size:12px;color:var(--text)"><%= org.name %></div>
+                <% end %>
+              <% else %>
+                <span style="color:var(--text-muted);font-size:12px">—</span>
+              <% end %>
+            </td>
+            <td>
+              <span class="conf-badge"
+                    style="background:<%= conf >= 0.8 ? 'rgba(52,217,139,0.12)' : conf >= 0.5 ? 'rgba(247,195,79,0.12)' : 'rgba(247,97,79,0.12)' %>;
+                           color:<%= conf_color %>;
+                           border:1px solid <%= conf >= 0.8 ? 'rgba(52,217,139,0.25)' : conf >= 0.5 ? 'rgba(247,195,79,0.25)' : 'rgba(247,97,79,0.25)' %>">
+                <%= conf > 0 ? "#{(conf * 100).round}%" : '—' %>
+              </span>
+            </td>
+            <td style="text-align:right;white-space:nowrap">
+              <%= button_to 'Approve',
+                    approve_pending_setup_products_path(id: product.id),
+                    method: :post,
+                    style: "background:rgba(52,217,139,0.1);color:var(--success);
+                            border:1px solid rgba(52,217,139,0.25);border-radius:6px;
+                            padding:5px 12px;font-size:12px;font-weight:500;cursor:pointer" %>
+
+              <%= link_to 'Edit',
+                    edit_setup_product_path(product),
+                    style: "display:inline-block;margin-left:6px;
+                            background:rgba(79,142,247,0.1);color:var(--accent);
+                            border:1px solid rgba(79,142,247,0.25);border-radius:6px;
+                            padding:5px 12px;font-size:12px;font-weight:500;
+                            text-decoration:none" %>
+
+              <%= button_to '✕',
+                    reject_pending_setup_products_path(id: product.id),
+                    method: :delete,
+                    style: "margin-left:6px;background:rgba(247,97,79,0.08);color:var(--danger);
+                            border:1px solid rgba(247,97,79,0.2);border-radius:6px;
+                            padding:5px 10px;font-size:12px;cursor:pointer",
+                    data: { confirm: "Delete '#{product.description}'? This cannot be undone." } %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

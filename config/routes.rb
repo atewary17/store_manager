@@ -25,6 +25,7 @@ Rails.application.routes.draw do
         get  :export
         get  :product_register
         get  :product_register_export
+        get  :pending_review
         post :approve_pending,  path: ':id/approve'
         delete :reject_pending, path: ':id/reject_pending'
       end
@@ -43,6 +44,15 @@ Rails.application.routes.draw do
       member     { get :download_errors }
       collection { get :template }
     end
+
+    resources :product_inbox, only: [:index] do
+      member do
+        post :approve
+        post :map
+        post :ignore
+      end
+    end
+
     root 'uoms#index'
   end
 
@@ -86,9 +96,6 @@ Rails.application.routes.draw do
       resources :supplier_payments, only: [:create, :destroy],
                                     controller: 'supplier_payments'
     end
-    # Product enrichment endpoints
-    post 'enrich_product',       to: 'enrich#enrich_product'
-    post 'save_enriched_product', to: 'enrich#save_enriched_product'
     # Accounting — Purchasing side
     resources :accounts_payable, only: [:index, :show],
                                   controller: 'accounts_payable'

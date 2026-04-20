@@ -33,6 +33,22 @@ class Setup::ProductsController < Setup::BaseController
     @inactive_count    = base.inactive.count
   end
 
+  # GET /setup/products/pending_review  (superadmin only)
+  # Focused screen: all products awaiting approval
+  def pending_review
+    unless current_user.super_admin?
+      redirect_to setup_products_path, alert: 'Access denied.'
+      return
+    end
+
+    @pending_products = Product
+      .where(active: false)
+      .includes(:product_category, :base_uom, :brand, organisation_products: :organisation)
+      .order('products.created_at DESC')
+
+    @pending_count = @pending_products.count
+  end
+
   # GET /setup/product_register  (superadmin only)
   # Global register: all products in the master catalogue with org usage
   def product_register
@@ -62,10 +78,8 @@ class Setup::ProductsController < Setup::BaseController
     @unenrolled_count   = @total_count - @enrolled_count
     @orgs               = Organisation.order(:name)
 
-    # AI-enriched pending products — for the "Unmatched" review tab
     @pending_products = Product
       .where(active: false)
-      .where("metadata->>'source' = 'ai_enrichment'")
       .includes(:product_category, :base_uom, :brand, organisation_products: :organisation)
       .order('products.created_at DESC')
     @pending_count = @pending_products.count
@@ -86,14 +100,15 @@ class Setup::ProductsController < Setup::BaseController
       return
     end
     @product.update!(
-      active:   true,
+      active:           true,
+      catalogue_status: 'approved',
       metadata: @product.metadata.merge(
         'validation_status' => 'approved',
         'approved_by'       => current_user.id,
         'approved_at'       => Time.current.iso8601
       )
     )
-    redirect_to product_register_setup_products_path,
+    redirect_to pending_review_setup_products_path,
       notice: "#{@product.description} approved and is now active."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to edit_setup_product_path(@product),
@@ -110,13 +125,13 @@ class Setup::ProductsController < Setup::BaseController
     @product = Product.find(params[:id])
     stock_qty = StockLevel.where(product_id: @product.id).sum(:quantity).to_f
     if stock_qty > 0
-      redirect_to product_register_setup_products_path,
+      redirect_to pending_review_setup_products_path,
         alert: "Cannot delete — #{@product.description} has #{stock_qty} units in stock. Edit and approve instead."
       return
     end
     name = @product.description
     @product.destroy!
-    redirect_to product_register_setup_products_path,
+    redirect_to pending_review_setup_products_path,
       notice: "#{name} removed from pending products."
   end
 

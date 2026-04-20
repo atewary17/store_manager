@@ -118,6 +118,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   end
 
   # GET /purchasing/purchase_invoices/product_search
+  # TODO Step 7 — sales filter will be tightened to catalogue_status: approved
   def product_search
     q = params[:q].to_s.strip
     return render json: [] if q.length < 2
