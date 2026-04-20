@@ -14,10 +14,6 @@
   overdue  = @invoice.overdue?
   can_edit_due = !is_paid
 
-  # Unmatched item counts for warnings
-  items_without_product = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.blank? }
-  items_pending         = @invoice.purchase_invoice_items.select { |i| i.unmatched? && i.product_id.present? }
-
   # Totals
   if @invoice.confirmed?
     show_grand   = @invoice.total_amount.to_f
@@ -243,22 +239,6 @@
   }
 </style>
 
-<%# ── Unmatched item warnings ── %>
-<% if items_without_product.any? %>
-  <div class="inv-alert inv-alert-danger">
-    <strong>&#9888; <%= items_without_product.count %> item(s) must be resolved before confirming.</strong><br>
-    These items have no product record — the Confirm button is disabled until resolved.<br>
-    <%= link_to '→ Edit invoice and use the ! button to enrich each item with AI',
-          edit_purchasing_purchase_invoice_path(@invoice),
-          style: 'color:var(--danger);font-weight:600' %>
-  </div>
-<% elsif items_pending.any? %>
-  <div class="inv-alert inv-alert-warning">
-    <strong>&#8987; <%= items_pending.count %> item(s) are pending admin review.</strong><br>
-    Stock will be tracked on confirmation. These products need approval before appearing in sales.
-  </div>
-<% end %>
-
 <%# ── Status Strip ── %>
 <div class="inv-status-strip <%= overdue ? 'strip-overdue' : @invoice.confirmed? ? 'strip-confirmed' : 'strip-draft' %>">
   <div>
@@ -280,19 +260,11 @@
   <div class="inv-actions">
     <% if @invoice.draft? %>
       <%= link_to '← Edit', edit_purchasing_purchase_invoice_path(@invoice), class: 'btn btn-secondary btn-sm' %>
-      <% if items_without_product.any? %>
-        <button type="button" disabled
-                title="<%= items_without_product.count %> item(s) unresolved — use AI enrichment (!) to fix them"
-                style="opacity:0.4;cursor:not-allowed" class="btn btn-primary btn-sm">
-          Confirm &amp; Update Stock
-        </button>
-      <% else %>
-        <%= button_to 'Confirm &amp; Update Stock',
-              confirm_purchasing_purchase_invoice_path(@invoice),
-              method: :post,
-              data: { confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' },
-              class: 'btn btn-primary btn-sm' %>
-      <% end %>
+      <%= button_to 'Confirm &amp; Update Stock',
+            confirm_purchasing_purchase_invoice_path(@invoice),
+            method: :post,
+            data: { confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' },
+            class: 'btn btn-primary btn-sm' %>
     <% end %>
     <% if @invoice.confirmed? %>
       <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
@@ -373,7 +345,6 @@
             <th class="tr">Taxable</th>
             <th class="tr">GST</th>
             <th class="tr">Total (&#8377;)</th>
-            <th>Match</th>
           </tr>
         </thead>
         <tbody>
@@ -396,7 +367,7 @@
                     <% if item.product.material_code.present? %>· <%= item.product.material_code %><% end %>
                   </div>
                 <% else %>
-                  <div style="color:var(--warning);font-size:13px">&#9888; Unmatched product</div>
+                  <div style="color:var(--text-dim);font-size:13px"><%= item.metadata['raw_description'].presence || 'Pending inbox review' %></div>
                 <% end %>
               </td>
               <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
@@ -421,17 +392,6 @@
               </td>
               <td class="tr" style="font-family:var(--mono);font-weight:600;color:var(--accent)">
                 <%= number_with_precision(item.total_amount, precision: 2) %>
-              </td>
-              <td>
-                <% if item.unmatched? && item.product_id.present? %>
-                  <span class="s-badge s-badge-pending" style="font-size:9px;padding:2px 8px"
-                        title="Pending admin approval">Pending</span>
-                <% elsif item.unmatched? %>
-                  <span class="s-badge s-badge-unresolved" style="font-size:9px;padding:2px 8px"
-                        title="No product record">No Product</span>
-                <% else %>
-                  <span class="s-badge s-badge-matched" style="font-size:9px;padding:2px 8px">Matched &#10003;</span>
-                <% end %>
               </td>
             </tr>
           <% end %>

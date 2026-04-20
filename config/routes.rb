@@ -86,9 +86,6 @@ Rails.application.routes.draw do
       resources :supplier_payments, only: [:create, :destroy],
                                     controller: 'supplier_payments'
     end
-    # Product enrichment endpoints
-    post 'enrich_product',       to: 'enrich#enrich_product'
-    post 'save_enriched_product', to: 'enrich#save_enriched_product'
     # Accounting — Purchasing side
     resources :accounts_payable, only: [:index, :show],
                                   controller: 'accounts_payable'

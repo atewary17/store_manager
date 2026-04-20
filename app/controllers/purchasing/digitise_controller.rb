@@ -244,10 +244,8 @@ class Purchasing::DigitiseController < Purchasing::BaseController
                       raw_code.gsub(/\AHSN[-\s]*/i, '').gsub(/\D/, '').presence
                     end
       effective_hsn = item['hsn_code'].presence || rescued_hsn
-      product = match_product(clean_material_code, item['description'])
-
-      # Auto-enrol matched product in this org's catalogue (idempotent)
-      product.enrol_in!(@organisation) if product
+      # TODO Step 4 — replaced by InvoiceProductResolver
+      product = nil
 
       # Use UOM from product table when matched; fall back to AI-extracted unit
       effective_unit = product&.base_uom&.name.presence || item['unit'].presence
@@ -356,18 +354,6 @@ class Purchasing::DigitiseController < Purchasing::BaseController
     # Pure numeric, 4–8 digits → likely an HSN code, not a material code
     return nil if code.match?(/\A\d{4,8}\z/)
     code
-  end
-
-  def match_product(material_code, description)
-    clean_code = sanitise_material_code(material_code)
-    return nil if clean_code.blank? && description.blank?
-
-    if clean_code.present?
-      p = Product.find_by(material_code: clean_code)
-      return p if p
-    end
-
-    nil  # description-based fuzzy match is too risky; leave as unmatched for user to resolve
   end
 
   def parse_date(val)
