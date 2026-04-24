@@ -117,6 +117,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       notice: new_date ? 'Due date updated.' : 'Due date cleared.'
   end
 
+  # TODO Step 7 — sales filter will be tightened to catalogue_status: approved
   # GET /purchasing/purchase_invoices/product_search
   def product_search
     q = params[:q].to_s.strip
