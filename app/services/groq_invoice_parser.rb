@@ -1,26 +1,20 @@
 # app/services/groq_invoice_parser.rb
 #
-# Sends a purchase invoice IMAGE to Groq (Llama 4 Scout vision model) and
-# returns a structured Ruby hash matching the same shape as GeminiInvoiceParser.
+# Sends purchase invoice pages to Groq (Llama 4 Scout vision) and returns a
+# structured Ruby hash.
 #
-# FREE TIER: ~14,400 req/day, no credit card needed.
-# Get key: https://console.groq.com → API Keys
+# PDF FLOW  : all pages converted to JPEG via pdftoppm, one Groq call per page,
+#             results merged — header + supplier from page 1, items from all pages.
+# IMAGE FLOW: single image sent directly; supports JPG, PNG, WEBP.
 #
-# LIMITATION: Groq vision only accepts images (JPG/PNG/WEBP), NOT PDFs.
-# PDFs are auto-converted to a JPEG of page 1 using pdftoppm (no extra gems).
-# Install: brew install poppler  (Mac) / apt install poppler-utils (Linux)
-#
-# Usage:
-#   result = GroqInvoiceParser.call(base64_data: "...", mime_type: "image/jpeg")
-#   result[:success]   # true/false
-#   result[:data]      # parsed hash
-#   result[:error]     # error string on failure
+# FREE TIER : ~14,400 req/day (no credit card).
+# Install   : brew install poppler  (Mac) / apt install poppler-utils (Linux)
 #
 class GroqInvoiceParser
   GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'.freeze
   GROQ_MODEL   = 'meta-llama/llama-4-scout-17b-16e-instruct'.freeze
 
-  # Same prompt as Gemini — just JSON output requested
+  # ── Prompt injected for every page ────────────────────────────────────────
   PROMPT = <<~PROMPT.freeze
     You are an expert at reading Indian B2B purchase invoices for paint/hardware distributors.
 
@@ -57,7 +51,9 @@ class GroqInvoiceParser
         "cash_discount_amount": 0.00,
         "cash_discount_percent": 0.00,
         "total_amount": 0.00,
-        "amount_in_words": "..."
+        "amount_in_words": "...",
+        "page_number": 1,
+        "total_pages": 1
       },
       "items": [
         {
@@ -89,6 +85,8 @@ class GroqInvoiceParser
     Rules:
     - Dates must be YYYY-MM-DD. If a date is missing, use null.
     - All numeric fields must be numbers (not strings). If missing, use 0.
+    - page_number: the current page number as printed on this page (e.g. "Page 1 of 3" → 1).
+    - total_pages: the total number of pages as printed (e.g. "Page 1 of 3" → 3). If not visible, use 1.
     - material_code: the supplier's internal product/material code.
       IMPORTANT: Many invoices (especially Asian Paints) have a combined "Material / HSN" column
       where a single cell contains TWO values stacked vertically:
@@ -105,10 +103,24 @@ class GroqInvoiceParser
     - quantity: total volume/weight (num_packs × pack_size volume)
     - unit_rate: rate per unit of volume. If not shown, calculate it.
     - hsn_code: digits only, no slashes or "HSN" prefix. e.g. "320890" not "HSN - 320890"
+    - If this page contains no line items (e.g. it is a terms/signature/acknowledgement page),
+      return an empty items array [].
     - If a field is genuinely absent, use null for strings and 0 for numbers.
     - Do not invent data. Extract only what is visible.
   PROMPT
 
+  # ── Public entry point ─────────────────────────────────────────────────────
+  #
+  # Returns:
+  #   {
+  #     success: true/false,
+  #     data:    { supplier:, header:, items:, _meta: { pages_scanned:, page_count:, pages_data: } },
+  #     error:   "...",
+  #     raw_response: "...",
+  #     provider: 'groq',
+  #     preview_image: "<base64 jpeg of page 1>"   # nil for plain images
+  #   }
+  #
   def self.call(base64_data:, mime_type:)
     new(base64_data: base64_data, mime_type: mime_type).call
   end
@@ -122,36 +134,39 @@ class GroqInvoiceParser
   def call
     raise 'GROQ_API_KEY not set' unless @api_key.present?
 
-    # Groq vision only supports images — convert PDF to JPEG if needed
-    image_base64, image_mime = prepare_image
+    pages, preview_image = prepare_pages
 
-    body = build_request_body(image_base64, image_mime)
-    response = make_request(body)
-    parse_response(response)
+    page_results = pages.each_with_index.map do |(page_b64, page_mime), idx|
+      parse_single_page(page_b64, page_mime, idx + 1)
+    end
+
+    merged = merge_page_results(page_results)
+    merged.merge(preview_image: preview_image, provider: 'groq')
 
   rescue => e
-    { success: false, error: e.message, data: nil, raw_response: nil, provider: 'groq' }
+    { success: false, error: e.message, data: nil, raw_response: nil,
+      preview_image: nil, provider: 'groq' }
   end
 
   private
 
-  # ── Image preparation ─────────────────────────────────────────────────────
+  # ── Page preparation ───────────────────────────────────────────────────────
 
-  def prepare_image
+  # Returns [ [[base64, mime], ...], preview_base64 ]
+  def prepare_pages
     if @mime_type == 'application/pdf'
-      pdf_to_jpeg
+      pages = pdf_to_all_jpegs
+      preview = pages.first&.first
+      [pages, preview]
     else
-      # Already an image — pass through
-      [@base64_data, @mime_type]
+      [[ [@base64_data, @mime_type] ], nil]
     end
   end
 
-  def pdf_to_jpeg
-    # Uses pdftoppm from poppler — no extra gems, no ImageMagick.
-    # Mac:   brew install poppler
-    # Linux: apt install poppler-utils  (already on Render)
+  # Convert every PDF page to a JPEG.  Returns [[base64, 'image/jpeg'], ...]
+  def pdf_to_all_jpegs
     pdftoppm_bin = `which pdftoppm`.strip
-    raise "pdftoppm not found. Install with: brew install poppler" if pdftoppm_bin.empty?
+    raise 'pdftoppm not found. Install: brew install poppler (Mac) / apt install poppler-utils (Linux)' if pdftoppm_bin.empty?
 
     tmp_pdf = Tempfile.new(['invoice', '.pdf'])
     tmp_dir = Dir.mktmpdir('invoice_pages')
@@ -161,16 +176,14 @@ class GroqInvoiceParser
       tmp_pdf.write(Base64.decode64(@base64_data))
       tmp_pdf.flush
 
-      # Convert first page only at 200 DPI → JPEG
       out_prefix = File.join(tmp_dir, 'page')
-      system(pdftoppm_bin, '-jpeg', '-r', '200', '-f', '1', '-l', '1',
-             tmp_pdf.path, out_prefix)
+      # Convert all pages at 200 DPI
+      system(pdftoppm_bin, '-jpeg', '-r', '200', tmp_pdf.path, out_prefix)
 
       pages = Dir.glob("#{tmp_dir}/*.jpg").sort
-      raise 'PDF conversion produced no pages — is the file a valid PDF?' if pages.empty?
+      raise 'PDF conversion produced no pages — is this a valid PDF?' if pages.empty?
 
-      jpeg_data = Base64.strict_encode64(File.binread(pages.first))
-      [jpeg_data, 'image/jpeg']
+      pages.map { |path| [Base64.strict_encode64(File.binread(path)), 'image/jpeg'] }
     ensure
       tmp_pdf.close
       tmp_pdf.unlink
@@ -178,7 +191,66 @@ class GroqInvoiceParser
     end
   end
 
-  # ── Request ───────────────────────────────────────────────────────────────
+  # ── Single-page AI call ────────────────────────────────────────────────────
+
+  def parse_single_page(base64, mime, page_num)
+    body     = build_request_body(base64, mime)
+    response = make_request(body)
+    result   = parse_response(response)
+    result.merge(page_num: page_num)
+  rescue => e
+    { success: false, error: "Page #{page_num}: #{e.message}", data: nil,
+      raw_response: nil, page_num: page_num }
+  end
+
+  # ── Merge results from all pages ───────────────────────────────────────────
+
+  def merge_page_results(results)
+    successful = results.select { |r| r[:success] && r[:data].present? }
+
+    if successful.empty?
+      first_error = results.first
+      return {
+        success:      false,
+        error:        results.map { |r| r[:error] }.compact.join(' | '),
+        data:         nil,
+        raw_response: first_error&.dig(:raw_response)
+      }
+    end
+
+    # Header + supplier from page 1 (most complete)
+    base       = successful.first[:data]
+    all_items  = successful.flat_map { |r| r[:data]['items'] || [] }
+
+    # Determine true page_count from AI — take the max total_pages seen
+    ai_total_pages = successful.map { |r| r[:data].dig('header', 'total_pages').to_i }.max
+    pages_scanned  = successful.size
+
+    merged_data = base.merge(
+      'items'  => all_items,
+      '_meta'  => {
+        'pages_scanned' => pages_scanned,
+        'page_count'    => [ai_total_pages, pages_scanned].max,
+        'pages_data'    => successful.map { |r|
+          {
+            'page_num'   => r[:page_num],
+            'item_count' => (r[:data]['items'] || []).size,
+            'page_number'  => r[:data].dig('header', 'page_number'),
+            'total_pages'  => r[:data].dig('header', 'total_pages')
+          }
+        }
+      }
+    )
+
+    {
+      success:      true,
+      data:         merged_data,
+      raw_response: successful.map { |r| r[:raw_response] }.join("\n---page---\n"),
+      error:        nil
+    }
+  end
+
+  # ── HTTP request ───────────────────────────────────────────────────────────
 
   def build_request_body(image_base64, image_mime)
     {
@@ -192,9 +264,7 @@ class GroqInvoiceParser
             { type: 'text', text: PROMPT },
             {
               type: 'image_url',
-              image_url: {
-                url: "data:#{image_mime};base64,#{image_base64}"
-              }
+              image_url: { url: "data:#{image_mime};base64,#{image_base64}" }
             }
           ]
         }
@@ -207,7 +277,7 @@ class GroqInvoiceParser
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl      = true
     http.read_timeout = 120
-    http.verify_mode  = OpenSSL::SSL::VERIFY_NONE  # Mac/Windows CRL issue
+    http.verify_mode  = OpenSSL::SSL::VERIFY_NONE
 
     req = Net::HTTP::Post.new(uri.request_uri)
     req['Content-Type']  = 'application/json'
@@ -217,42 +287,25 @@ class GroqInvoiceParser
     http.request(req)
   end
 
-  # ── Response ──────────────────────────────────────────────────────────────
-
   def parse_response(response)
     unless response.code.to_i == 200
       return {
         success:      false,
         error:        "Groq API returned HTTP #{response.code}: #{response.body}",
         data:         nil,
-        raw_response: response.body,
-        provider:     'groq'
+        raw_response: response.body
       }
     end
 
     outer = JSON.parse(response.body)
     text  = outer.dig('choices', 0, 'message', 'content').to_s.strip
-
-    # Strip markdown fences if model wraps output
-    text = text.gsub(/\A```(?:json)?\s*/i, '').gsub(/\s*```\z/, '').strip
+    text  = text.gsub(/\A```(?:json)?\s*/i, '').gsub(/\s*```\z/, '').strip
 
     data = JSON.parse(text)
 
-    {
-      success:      true,
-      data:         data,
-      raw_response: text,
-      error:        nil,
-      provider:     'groq'
-    }
+    { success: true, data: data, raw_response: text, error: nil }
 
   rescue JSON::ParserError => e
-    {
-      success:      false,
-      error:        "JSON parse failed: #{e.message}",
-      data:         nil,
-      raw_response: text,
-      provider:     'groq'
-    }
+    { success: false, error: "JSON parse failed: #{e.message}", data: nil, raw_response: text }
   end
 end

@@ -260,7 +260,7 @@
   <div class="inv-actions">
     <% if @invoice.draft? %>
       <%= link_to '← Edit', edit_purchasing_purchase_invoice_path(@invoice), class: 'btn btn-secondary btn-sm' %>
-      <%= button_to 'Confirm &amp; Update Stock',
+      <%= button_to 'Confirm & Update Stock',
             confirm_purchasing_purchase_invoice_path(@invoice),
             method: :post,
             data: { confirm: 'Confirm this invoice? This will update stock levels and cannot be undone.' },
