@@ -7,15 +7,20 @@
 #   openrouter  → OpenRouter (FALLBACK — $1 free credit, many models)
 #   mock        → Returns fake data (local dev, no API calls)
 #
-# REMOVED: gemini — quota errors on free tier, unreliable
+# ADDING A NEW PROVIDER:
+#   1. Create app/services/<name>_invoice_parser.rb implementing:
+#        MyParser.call(base64_data:, mime_type:) → { success:, data:, error:,
+#                                                     raw_response:, provider:,
+#                                                     preview_image: }
+#      The data hash must include a '_meta' key:
+#        '_meta' => { 'pages_scanned' => n, 'page_count' => n, 'pages_data' => [...] }
+#   2. Register it in the PROVIDERS map below.
+#   3. Set INVOICE_AI_PROVIDER=<name> in env or user preferences.
 #
 # SETUP (config/local_env.yml):
 #   INVOICE_AI_PROVIDER: "groq"
 #   GROQ_API_KEY: "gsk_your_key_here"
 #   OPENROUTER_API_KEY: "sk-or-your_key_here"   # optional fallback
-#
-# Get Groq key free:       https://console.groq.com
-# Get OpenRouter key free: https://openrouter.ai  ($1 free credit on signup)
 #
 require 'net/http'
 require 'uri'
@@ -25,29 +30,64 @@ require 'openssl'
 
 class InvoiceAiService
 
+  # ── Provider registry — add new parsers here ──────────────────────────────
+  PROVIDERS = {
+    'groq'       => -> (b64, mime) { GroqInvoiceParser.call(base64_data: b64, mime_type: mime) },
+    'openrouter' => -> (b64, mime) { OpenRouterInvoiceParser.call(base64_data: b64, mime_type: mime) },
+    'mock'       => -> (_b64, _mime) { mock_response }
+  }.freeze
+
+  # ── Primary call ───────────────────────────────────────────────────────────
+  #
+  # Returns the provider result hash, always including:
+  #   :success        Boolean
+  #   :data           Hash  (nil on failure)
+  #   :error          String (nil on success)
+  #   :raw_response   String
+  #   :provider       String
+  #   :preview_image  String|nil  (base64 JPEG, set by parsers that generate it)
+  #
   def self.call(base64_data:, mime_type:, user_pref: nil)
-    # Priority: user preference → env var → groq (default)
-    provider = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase
+    provider_key = resolve_provider(user_pref)
+    handler      = PROVIDERS[provider_key] || PROVIDERS['groq']
 
-    result = case provider
-             when 'groq'       then GroqInvoiceParser.new(base64_data:, mime_type:).call
-             when 'openrouter' then OpenRouterInvoiceParser.new(base64_data:, mime_type:).call
-             when 'mock'       then mock_response
-             else
-               Rails.logger.warn "[InvoiceAiService] Unknown provider '#{provider}', falling back to groq"
-               GroqInvoiceParser.new(base64_data:, mime_type:).call
-             end
-
-    result.merge(provider: provider)
+    result = handler.call(base64_data, mime_type)
+    result.merge(provider: provider_key)
   end
+
+  # ── Page-level abstraction (for providers that process one page at a time) ─
+  #
+  # Future providers that want per-page control can override this.
+  # Currently Groq handles multi-page internally in GroqInvoiceParser.
+  #
+  def self.parse_page(base64_image:, mime_type:, page_num: 1, provider: nil)
+    provider_key = resolve_provider(provider)
+    handler      = PROVIDERS[provider_key] || PROVIDERS['groq']
+
+    result = handler.call(base64_image, mime_type)
+    result.merge(provider: provider_key, page_num: page_num)
+  end
+
+  # ── Helpers ────────────────────────────────────────────────────────────────
+
+  def self.resolve_provider(user_pref)
+    key = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase.strip
+    unless PROVIDERS.key?(key)
+      Rails.logger.warn "[InvoiceAiService] Unknown provider '#{key}', falling back to groq"
+      key = 'groq'
+    end
+    key
+  end
+  private_class_method :resolve_provider
 
   def self.mock_response
     Rails.logger.info '[InvoiceAiService] MOCK MODE'
     {
-      success:      true,
-      raw_response: '(mock)',
-      error:        nil,
-      provider:     'mock',
+      success:       true,
+      raw_response:  '(mock)',
+      error:         nil,
+      provider:      'mock',
+      preview_image: nil,
       data: {
         'supplier' => {
           'name'    => 'Mock Supplier Pvt Ltd',
@@ -63,7 +103,14 @@ class InvoiceAiService
           'total_igst'            => 0.0,
           'total_amount'          => 11800.0,
           'cash_discount_amount'  => 0.0,
-          'cash_discount_percent' => 0.0
+          'cash_discount_percent' => 0.0,
+          'page_number'           => 1,
+          'total_pages'           => 1
+        },
+        '_meta' => {
+          'pages_scanned' => 1,
+          'page_count'    => 1,
+          'pages_data'    => [{ 'page_num' => 1, 'item_count' => 2, 'page_number' => 1, 'total_pages' => 1 }]
         },
         'items' => [
           {
@@ -104,4 +151,5 @@ class InvoiceAiService
       }
     }
   end
+  private_class_method :mock_response
 end

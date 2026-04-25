@@ -8,16 +8,12 @@
   <span class="breadcrumb-current"><%= @import.file_name %></span>
 <% end %>
 
-<% hdr  = @import.parsed_header %>
-<% sup  = @import.parsed_supplier %>
-<% items = @import.parsed_items %>
-
-<%# ── PROCESSING STATE ── %>
+<%# ─────────────────────────────────────────────────────────────────────────
+    PROCESSING STATE
+────────────────────────────────────────────────────────────────────────── %>
 <% if %w[pending processing retrying].include?(@import.status) %>
 
   <div style="max-width:560px;margin:48px auto">
-
-    <%# Spinner + status %>
     <div style="text-align:center;margin-bottom:32px">
       <div id="spinner" style="width:56px;height:56px;border-radius:50%;border:3px solid var(--border);
                   border-top-color:var(--accent);animation:spin 0.9s linear infinite;
@@ -42,18 +38,15 @@
       </div>
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:20px">
         Provider: <span style="font-family:var(--mono);color:var(--accent)">
-          <%= ENV['INVOICE_AI_PROVIDER']&.upcase || 'GEMINI' %>
+          <%= ENV['INVOICE_AI_PROVIDER']&.upcase || 'GROQ' %>
         </span>
       </div>
-
-      <%# Stop button %>
       <%= button_to 'Stop', stop_purchasing_digitise_path(@import), method: :post,
             id: 'stop-btn',
             style: 'background:transparent;border:1px solid var(--border);color:var(--text-dim);
                     font-size:12px;padding:6px 18px;border-radius:6px;cursor:pointer' %>
     </div>
 
-    <%# Attempt log (live-updated) %>
     <div id="attempt-log">
       <% if @import.attempt_log.any? %>
         <div style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
@@ -62,9 +55,7 @@
           <div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden">
             <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
                         background:var(--surface);border-bottom:1px solid var(--border)">
-              <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">
-                #<%= entry['attempt'] %>
-              </span>
+              <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">#<%= entry['attempt'] %></span>
               <% if entry['success'] %>
                 <span style="font-size:11px;color:var(--success);font-weight:600">✓ Success</span>
               <% else %>
@@ -76,55 +67,36 @@
             </div>
             <% if entry['error'].present? %>
               <div style="padding:10px 14px">
-                <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Error</div>
                 <pre style="margin:0;font-size:11px;font-family:var(--mono);color:var(--danger);
                             white-space:pre-wrap;word-break:break-all"><%= entry['error'] %></pre>
-              </div>
-            <% end %>
-            <% if entry['response'].present? %>
-              <div style="padding:0 14px 10px">
-                <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Raw Response</div>
-                <pre style="margin:0;padding:8px 10px;background:var(--bg);border:1px solid var(--border);
-                            border-radius:6px;font-size:10px;font-family:var(--mono);color:var(--text-dim);
-                            max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"><%= entry['response'] %></pre>
               </div>
             <% end %>
           </div>
         <% end %>
       <% end %>
     </div>
-
   </div>
 
-  <style>
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
   <script>
-    var MAX_POLL = 60;   // stop polling after 60 × 3s = 3 minutes
+    var MAX_POLL = 60;
     var polls    = 0;
     var pollUrl  = '<%= purchasing_digitise_path(@import, format: :json) %>';
 
     function renderLog(entries) {
       if (!entries || !entries.length) return;
-      var html = '<div style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Attempt Log</div>';
+      var html = '';
       entries.forEach(function(e) {
-        var successColor = e.success ? 'var(--success)' : 'var(--danger)';
-        var successLabel = e.success ? '✓ Success' : '✗ Failed';
-        var time = e.at ? new Date(e.at).toLocaleTimeString() : '';
+        var sc = e.success ? 'var(--success)' : 'var(--danger)';
+        var sl = e.success ? '✓ Success' : '✗ Failed';
+        var t  = e.at ? new Date(e.at).toLocaleTimeString() : '';
         html += '<div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden">';
         html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border)">';
         html += '<span style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">#' + e.attempt + '</span>';
-        html += '<span style="font-size:11px;color:' + successColor + ';font-weight:600">' + successLabel + '</span>';
-        html += '<span style="font-size:11px;color:var(--text-dim);margin-left:auto">' + time + '</span>';
+        html += '<span style="font-size:11px;color:' + sc + ';font-weight:600">' + sl + '</span>';
+        html += '<span style="font-size:11px;color:var(--text-dim);margin-left:auto">' + t + '</span>';
         html += '</div>';
-        if (e.error) {
-          html += '<div style="padding:10px 14px"><div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Error</div>';
-          html += '<pre style="margin:0;font-size:11px;font-family:var(--mono);color:var(--danger);white-space:pre-wrap;word-break:break-all">' + e.error + '</pre></div>';
-        }
-        if (e.response) {
-          html += '<div style="padding:0 14px 10px"><div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Raw Response</div>';
-          html += '<pre style="margin:0;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:10px;font-family:var(--mono);color:var(--text-dim);max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">' + e.response + '</pre></div>';
-        }
+        if (e.error) html += '<div style="padding:10px 14px"><pre style="margin:0;font-size:11px;font-family:var(--mono);color:var(--danger);white-space:pre-wrap;word-break:break-all">' + e.error + '</pre></div>';
         html += '</div>';
       });
       document.getElementById('attempt-log').innerHTML = html;
@@ -138,38 +110,27 @@
         document.getElementById('status-label').style.color = 'var(--warning)';
         return;
       }
-
       setTimeout(function() {
         fetch(pollUrl, { headers: { 'Accept': 'application/json' } })
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            // Update attempt number
-            if (data.attempt) {
-              document.getElementById('attempt-num').textContent = data.attempt;
-            }
-            // Update log live
-            if (data.attempt_log) {
-              renderLog(data.attempt_log);
-            }
-            // retrying = waiting between attempts, update UI but keep polling
+            if (data.attempt) document.getElementById('attempt-num').textContent = data.attempt;
+            if (data.attempt_log) renderLog(data.attempt_log);
             if (data.status === 'retrying') {
               var lbl = document.getElementById('status-label');
               if (lbl) { lbl.textContent = 'Rate limited — waiting to retry…'; lbl.style.color = 'var(--warning)'; }
             }
-            if (data.terminal) {
-              location.reload();
-            } else {
-              poll();
-            }
+            if (data.terminal) { location.reload(); } else { poll(); }
           })
           .catch(function() { poll(); });
       }, 3000);
     })();
   </script>
 
-<%# ── STOPPED STATE ── %>
+<%# ─────────────────────────────────────────────────────────────────────────
+    STOPPED STATE
+────────────────────────────────────────────────────────────────────────── %>
 <% elsif @import.status == 'stopped' %>
-
   <div style="max-width:560px">
     <div class="flash notice" style="margin-bottom:20px">
       <strong>Processing stopped</strong>
@@ -181,9 +142,10 @@
     </div>
   </div>
 
-<%# ── FAILED STATE ── %>
+<%# ─────────────────────────────────────────────────────────────────────────
+    FAILED STATE
+────────────────────────────────────────────────────────────────────────── %>
 <% elsif @import.status == 'failed' %>
-
   <div style="max-width:680px">
     <div class="flash alert" style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -192,13 +154,10 @@
           <%= @import.updated_at.strftime('%d %b %Y, %H:%M') %>
         </span>
       </div>
-      <%# Pretty-print if it looks like JSON, otherwise show raw %>
       <% err = @import.error_message.to_s %>
       <% json_match = err.match(/HTTP \d+:\s*(\{.+)/m) %>
       <% if json_match %>
-        <div style="margin-bottom:8px;font-size:12px;color:var(--text)">
-          <%= err.split(':').first(3).join(':') %>
-        </div>
+        <div style="margin-bottom:8px;font-size:12px;color:var(--text)"><%= err.split(':').first(3).join(':') %></div>
         <pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
                     padding:12px 14px;font-size:11px;font-family:var(--mono);color:var(--text-dim);
                     overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0"><%= begin; JSON.pretty_generate(JSON.parse(json_match[1])); rescue; json_match[1]; end %></pre>
@@ -210,188 +169,522 @@
       <% if err.include?('429') %>
         <div style="margin-top:10px;padding:10px 12px;background:rgba(247,195,79,0.08);
                     border:1px solid rgba(247,195,79,0.3);border-radius:6px;font-size:12px;color:var(--warning)">
-          <strong>Rate limit hit.</strong>
-          Free tier allows 15 requests/minute. Wait a minute then click Retry — the job will
-          automatically retry up to 3 times with backoff.
+          <strong>Rate limit hit.</strong> Free tier allows 15 req/min. Wait a minute then click Retry.
         </div>
       <% end %>
     </div>
-    <%# Attempt log %>
-    <% if @import.attempt_log.any? %>
-      <div style="margin-bottom:20px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
-                    letter-spacing:.06em;margin-bottom:8px">Attempt Log</div>
-        <% @import.attempt_log.each do |entry| %>
-          <div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden">
-            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
-                        background:var(--surface);border-bottom:1px solid var(--border)">
-              <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">#<%= entry['attempt'] %></span>
-              <span style="font-size:11px;color:var(--danger);font-weight:600">✗ Failed</span>
-              <span style="font-size:11px;color:var(--text-dim);margin-left:auto">
-                <%= entry['at'] ? Time.parse(entry['at']).strftime('%H:%M:%S') : '' %>
-              </span>
-            </div>
-            <% if entry['error'].present? %>
-              <div style="padding:10px 14px">
-                <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Error</div>
-                <pre style="margin:0;font-size:11px;font-family:var(--mono);color:var(--danger);
-                            white-space:pre-wrap;word-break:break-all"><%= entry['error'] %></pre>
-              </div>
-            <% end %>
-            <% if entry['response'].present? %>
-              <div style="padding:0 14px 10px">
-                <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Raw Response</div>
-                <pre style="margin:0;padding:8px 10px;background:var(--bg);border:1px solid var(--border);
-                            border-radius:6px;font-size:10px;font-family:var(--mono);color:var(--text-dim);
-                            max-height:150px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"><%= entry['response'] %></pre>
-              </div>
-            <% end %>
-          </div>
-        <% end %>
-      </div>
-    <% end %>
-
     <div style="display:flex;gap:10px">
-      <%= button_to 'Retry', retry_purchasing_digitise_path(@import), method: :post,
-            class: 'btn btn-primary' %>
+      <%= button_to 'Retry', retry_purchasing_digitise_path(@import), method: :post, class: 'btn btn-primary' %>
       <%= link_to 'Upload different file', new_purchasing_digitise_path, class: 'btn btn-secondary' %>
     </div>
   </div>
 
-<%# ── CONFIRMED STATE ── %>
+<%# ─────────────────────────────────────────────────────────────────────────
+    CONFIRMED STATE
+────────────────────────────────────────────────────────────────────────── %>
 <% elsif @import.status == 'confirmed' %>
-
   <div style="max-width:520px;text-align:center;padding:48px 0">
     <div style="font-size:32px;margin-bottom:12px">✓</div>
     <div style="font-size:16px;font-weight:600;color:var(--success);margin-bottom:8px">Invoice saved successfully</div>
     <div style="font-size:13px;color:var(--text-dim);margin-bottom:24px">
-      This scan was converted to Purchase Invoice
-      <strong style="color:var(--text)">#<%= @import.purchase_invoice_id %></strong>
+      This scan was saved as Purchase Invoice
+      <strong style="color:var(--text)"><%= @import.purchase_invoice&.display_number %></strong>
     </div>
-    <%= link_to 'View Invoice', purchasing_purchase_invoice_path(@import.purchase_invoice_id),
-          class: 'btn btn-primary' %>
+    <%= link_to 'View Invoice', purchasing_purchase_invoice_path(@import.purchase_invoice_id), class: 'btn btn-primary' %>
     <%= link_to 'Scan Another', new_purchasing_digitise_path, class: 'btn btn-secondary' %>
   </div>
 
-<%# ── REVIEW STATE — main content ── %>
+<%# ─────────────────────────────────────────────────────────────────────────
+    REVIEW STATE — main content
+────────────────────────────────────────────────────────────────────────── %>
 <% elsif @import.status == 'review' %>
 
+  <%
+    hdr   = @import.parsed_header
+    sup   = @import.parsed_supplier
+    items = @merged_items   # items from ALL session imports, not just the primary
+
+    # Override item_count in summary to reflect merged total
+    summary = @import.invoice_summary.merge(item_count: items.size)
+
+    # Colour tokens for the intelligence box severity
+    sev_bg     = { ok: 'rgba(72,199,142,0.08)', warn: 'rgba(247,195,79,0.08)', error: 'rgba(247,92,83,0.08)' }
+    sev_border = { ok: 'rgba(72,199,142,0.3)',  warn: 'rgba(247,195,79,0.3)',  error: 'rgba(247,92,83,0.3)' }
+    sev_colour = { ok: 'var(--success)',         warn: 'var(--warning)',        error: 'var(--danger)' }
+    sev_icon   = { ok: '✓',                      warn: '⚠',                    error: '✗' }
+    severity   = summary[:severity]
+
+    append_mode      = @existing_invoice.present?
+    session_size     = @session_imports.size
+    session_pending  = @session_pending.size
+    session_ready    = session_size - session_pending
+  %>
+
   <style>
-    .pv-wrap  { width: 100%; }
-    .pv-banner {
-      display: flex; align-items: center; gap: 16px;
-      background: rgba(79,142,247,0.07);
-      border: 1px solid rgba(79,142,247,0.25);
-      border-radius: 10px; padding: 14px 20px;
-    }
-    .pv-banner-icon  { font-size: 26px; flex-shrink: 0; }
-    .pv-banner-text  { flex: 1; }
-    .pv-banner-title { font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
-    .pv-banner-sub   { font-size: 12px; color: var(--text-dim); }
-    /* Full width for the review page */
+    /* Full-width layout override */
     .main-content { max-width: 100% !important; }
-    .form-card { max-width: 100% !important; }
+    .form-card    { max-width: 100% !important; }
     .page-content { padding: 20px 24px !important; }
+
+    /* Two-column review layout */
+    .review-layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      overflow: hidden;
+    }
+
+    /* Preview panel */
+    .preview-panel {
+      position: sticky;
+      top: 20px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .preview-panel-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .preview-panel-body {
+      overflow-y: auto;
+      max-height: calc(100vh - 160px);
+    }
+
+    /* Intelligence box */
+    .intel-box {
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 18px;
+    }
+    .intel-box-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .intel-stat { text-align: center; min-width: 60px; }
+    .intel-stat-val { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+    .intel-stat-lbl { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+
+    /* Page bar */
+    .page-bar { display: flex; gap: 4px; align-items: center; margin: 8px 0; }
+    .page-dot {
+      width: 16px; height: 8px; border-radius: 4px;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+    .page-dot.scanned { background: var(--success); }
+    .page-dot.missing { background: var(--danger); }
+    .page-dot.warn    { background: var(--warning); }
+
+    /* Locked item rows */
+    .item-row-locked { background: rgba(255,255,255,0.015); opacity: 0.7; }
+    .item-row-new    { background: rgba(79,142,247,0.04); }
+
+    /* Preview panel — clickable */
+    .preview-panel { cursor: zoom-in; }
+    .preview-panel:hover .preview-zoom-hint { opacity: 1 !important; }
+
+    /* Lightbox overlay */
+    #lb-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.93);
+      align-items: flex-start;
+      justify-content: center;
+      overflow-y: auto;
+      padding: 40px 20px;
+    }
+    #lb-overlay.open { display: flex; }
+    #lb-close {
+      position: fixed;
+      top: 16px;
+      right: 20px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      font-size: 18px;
+      line-height: 1;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    #lb-close:hover { background: rgba(255,255,255,0.22); }
+    .lb-img-wrap { text-align: center; margin-bottom: 24px; }
+    .lb-img-wrap img { max-width: min(860px, 90vw); border-radius: 8px; display: block; margin: 0 auto; }
+    .lb-label { color: rgba(255,255,255,0.45); font-size: 11px; margin-bottom: 10px; font-family: var(--mono); }
+    .lb-counter { color: rgba(255,255,255,0.3); font-size: 11px; margin-top: 6px; }
   </style>
 
   <%= form_with url: confirm_purchasing_digitise_path(@import), method: :post,
         local: true, id: 'confirm-form' do |f| %>
 
-    <%# Review banner %>
-    <div class="pv-wrap" style="margin-bottom:20px">
-      <div class="pv-banner">
-        <div class="pv-banner-icon">🤖</div>
-        <div class="pv-banner-text">
-          <div class="pv-banner-title">Review AI-extracted data before saving</div>
-          <div class="pv-banner-sub">
-            Check every field — especially material codes, quantities and totals.
-            Edit anything the AI got wrong. Unmatched items can be linked to products after saving.
-          </div>
+    <%# ── TOP BANNER ── %>
+    <div style="display:flex;align-items:center;gap:16px;background:rgba(79,142,247,0.07);
+                border:1px solid rgba(79,142,247,0.25);border-radius:10px;padding:14px 20px;
+                margin-bottom:20px">
+      <div style="font-size:26px;flex-shrink:0">🤖</div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:2px">
+          Review AI-extracted data before saving
         </div>
-        <div style="margin-left:auto;display:flex;gap:10px;flex-shrink:0;align-items:center">
-          <%= link_to '← Back', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
-          <button type="submit" class="btn btn-primary" id="save-btn">Save as Draft →</button>
+        <div style="font-size:12px;color:var(--text-dim)">
+          Check every field — especially material codes, quantities and totals.
+          <% if append_mode %>
+            <strong style="color:var(--warning)">Append mode:</strong>
+            confirmed items (grey rows) are locked; new items are highlighted in blue.
+          <% end %>
         </div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:10px;flex-shrink:0;align-items:center">
+        <%= link_to '← Back', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
+        <button type="submit" class="btn btn-primary" id="save-btn">
+          <%= append_mode ? 'Append Items →' : 'Save as Draft →' %>
+        </button>
       </div>
     </div>
 
-    <%# ── SUPPLIER CARD ── %>
-    <div class="form-card" style="margin-bottom:18px">
-      <div class="form-section">
-        <div class="form-section-title">Supplier</div>
-        <div class="form-row" style="grid-template-columns:2fr 1fr 1fr;gap:16px">
-          <div class="form-group" style="margin-bottom:0">
-            <label>Supplier Name</label>
-            <input type="text" name="parsed_data[supplier][name]"
-                   value="<%= sup['name'] %>" class="form-control">
+    <%# ── SESSION PENDING BANNER — shown when sibling images are still processing ── %>
+    <% if session_pending > 0 %>
+      <div id="session-pending-banner"
+           style="display:flex;align-items:center;gap:14px;background:rgba(247,195,79,0.08);
+                  border:1px solid rgba(247,195,79,0.3);border-radius:10px;
+                  padding:12px 18px;margin-bottom:16px">
+        <div style="width:16px;height:16px;border-radius:50%;border:2px solid var(--warning);
+                    border-top-color:transparent;animation:spin 0.8s linear infinite;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--warning)">
+            Processing <%= session_pending %> more
+            <%= session_pending == 1 ? 'image' : 'images' %>…
           </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>GSTIN</label>
-            <input type="text" name="parsed_data[supplier][gstin]"
-                   value="<%= sup['gstin'] %>"
-                   class="form-control" style="font-family:var(--mono)">
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+            <%= session_ready %> of <%= session_size %> files ready.
+            Showing items from completed pages only — this page will update automatically.
           </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>State</label>
-            <input type="text" name="parsed_data[supplier][state]"
-                   value="<%= sup['state'] %>" class="form-control">
+        </div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--text-dim);flex-shrink:0">
+          <%= session_ready %>/<%= session_size %> done
+        </div>
+      </div>
+      <%# Auto-refresh every 3 s until all siblings are processed %>
+      <script>setTimeout(function(){ location.reload(); }, 3000);</script>
+    <% end %>
+
+    <div class="review-layout">
+
+      <%# ═══════════════════════════════════════════════════════════
+          LEFT: PREVIEW PANEL
+      ═══════════════════════════════════════════════════════════ %>
+      <div class="preview-panel" onclick="lbOpen()" title="Click to enlarge">
+        <div class="preview-panel-header">
+          Uploaded Invoice
+          <span style="color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0;
+                       font-size:10px;margin-left:6px"><%= @import.file_name %></span>
+        </div>
+        <div class="preview-panel-body" style="padding:12px;position:relative">
+
+          <% if @import.preview_image.present? %>
+            <img src="data:image/jpeg;base64,<%= @import.preview_image %>"
+                 alt="Invoice page 1 preview"
+                 style="width:100%;border-radius:6px;border:1px solid var(--border);
+                        display:block;margin-bottom:8px">
+            <% if @import.ai_page_count > 1 %>
+              <div style="font-size:10px;color:var(--text-dim);text-align:center;margin-bottom:4px">
+                Page 1 of <%= @import.ai_page_count %> shown
+              </div>
+            <% end %>
+
+          <% elsif @import.image? %>
+            <% safe_mime = @import.file_content_type.in?(%w[image/jpeg image/jpg image/png image/webp]) ? @import.file_content_type : 'image/jpeg' %>
+            <img src="data:<%= safe_mime %>;base64,<%= @import.file_data %>"
+                 alt="Invoice preview"
+                 style="width:100%;border-radius:6px;border:1px solid var(--border);display:block">
+
+          <% else %>
+            <div style="text-align:center;padding:30px 0;color:var(--text-dim);font-size:12px">
+              <div style="font-size:28px;margin-bottom:8px">📄</div>
+              Preview not available
+            </div>
+          <% end %>
+
+          <%# Zoom hint overlay %>
+          <div class="preview-zoom-hint"
+               style="position:absolute;bottom:56px;left:0;right:0;text-align:center;
+                      opacity:0;transition:opacity 0.2s;pointer-events:none">
+            <span style="background:rgba(0,0,0,0.65);color:#fff;font-size:11px;
+                         border-radius:20px;padding:4px 12px">
+              🔍 Click to enlarge
+              <% if session_size > 1 %>· <%= session_size %> pages<% end %>
+            </span>
+          </div>
+
+          <%# File meta %>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">
+              <strong style="color:var(--text)">Type:</strong> <%= @import.file_content_type %>
+            </div>
+            <% if session_size > 1 %>
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">
+                <strong style="color:var(--text)">Files:</strong>
+                <%= session_size %> images
+                <% if session_pending > 0 %>
+                  <span style="color:var(--warning)">(<%= session_pending %> processing)</span>
+                <% end %>
+              </div>
+            <% end %>
+            <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">
+              <strong style="color:var(--text)">Size:</strong> <%= @import.file_size_human %>
+            </div>
+            <div style="font-size:10px;color:var(--text-dim)">
+              <strong style="color:var(--text)">Scanned:</strong>
+              <%= @import.created_at.strftime('%d %b %Y, %H:%M') %>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <%# ── INVOICE HEADER CARD ── %>
-    <div class="form-card" style="margin-bottom:18px">
-      <div class="form-section">
-        <div class="form-section-title">Invoice Details</div>
-        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:16px">
-          <div class="form-group" style="margin-bottom:0">
-            <label>Invoice Number</label>
-            <input type="text" name="parsed_data[header][invoice_number]"
-                   value="<%= hdr['invoice_number'] %>"
-                   class="form-control" style="font-family:var(--mono)">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>Invoice Date</label>
-            <input type="date" name="parsed_data[header][invoice_date]"
-                   value="<%= hdr['invoice_date'] %>" class="form-control">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>Delivery Date</label>
-            <input type="date" name="parsed_data[header][delivery_date]"
-                   value="<%= hdr['delivery_date'] %>" class="form-control">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label style="color:var(--accent)">📅 Payment Due Date</label>
-            <input type="date" name="payment_due_date" class="form-control"
-                   style="border-color:rgba(79,142,247,0.5)">
-            <div class="form-hint">For credit purchases</div>
+      <%# ═══════════════════════════════════════════════════════════
+          RIGHT: FORM + INTELLIGENCE BOX + ITEMS
+      ═══════════════════════════════════════════════════════════ %>
+      <div style="min-width:0;overflow:hidden">
+
+        <%# ── SUPPLIER CARD ── %>
+        <div class="form-card" style="margin-bottom:14px">
+          <div class="form-section">
+            <div class="form-section-title">Supplier</div>
+            <div class="form-row" style="grid-template-columns:2fr 1fr 1fr;gap:14px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Supplier Name</label>
+                <input type="text" name="parsed_data[supplier][name]"
+                       value="<%= sup['name'] %>" class="form-control">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>GSTIN</label>
+                <input type="text" name="parsed_data[supplier][gstin]"
+                       value="<%= sup['gstin'] %>"
+                       class="form-control" style="font-family:var(--mono)">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>State</label>
+                <input type="text" name="parsed_data[supplier][state]"
+                       value="<%= sup['state'] %>" class="form-control">
+              </div>
+            </div>
           </div>
         </div>
-        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:16px">
-          <div class="form-group" style="margin-bottom:0">
-            <label>Delivery / LR No.</label>
-            <input type="text" name="parsed_data[header][delivery_number]"
-                   value="<%= hdr['delivery_number'].presence || hdr['lr_number'] %>"
-                   class="form-control" style="font-family:var(--mono)">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>Place of Supply</label>
-            <input type="text" name="parsed_data[header][place_of_supply]"
-                   value="<%= hdr['place_of_supply'] %>"
-                   class="form-control">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>Grand Total (Rs.)</label>
-            <input type="number" name="parsed_data[header][total_amount]"
-                   value="<%= hdr['total_amount'] %>"
-                   class="form-control" style="font-family:var(--mono);font-weight:600;color:var(--accent)" step="0.01">
+
+        <%# ── INVOICE HEADER CARD ── %>
+        <div class="form-card" style="margin-bottom:14px">
+          <div class="form-section">
+            <div class="form-section-title">Invoice Details</div>
+            <%# Row 1: invoice number + date %>
+            <div class="form-row" style="grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Invoice Number</label>
+                <input type="text" name="parsed_data[header][invoice_number]"
+                       value="<%= hdr['invoice_number'] %>"
+                       class="form-control" style="font-family:var(--mono)">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Invoice Date</label>
+                <input type="date" name="parsed_data[header][invoice_date]"
+                       value="<%= hdr['invoice_date'] %>" class="form-control">
+              </div>
+            </div>
+            <%# Row 2: delivery date + payment due %>
+            <div class="form-row" style="grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Delivery Date</label>
+                <input type="date" name="parsed_data[header][delivery_date]"
+                       value="<%= hdr['delivery_date'] %>" class="form-control">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label style="color:var(--accent)">Payment Due Date</label>
+                <input type="date" name="payment_due_date" class="form-control"
+                       style="border-color:rgba(79,142,247,0.5)">
+                <div class="form-hint">For credit purchases</div>
+              </div>
+            </div>
+            <%# Row 3: delivery/LR + place of supply + grand total %>
+            <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;gap:14px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Delivery / LR No.</label>
+                <input type="text" name="parsed_data[header][delivery_number]"
+                       value="<%= hdr['delivery_number'].presence || hdr['lr_number'] %>"
+                       class="form-control" style="font-family:var(--mono)">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Place of Supply</label>
+                <input type="text" name="parsed_data[header][place_of_supply]"
+                       value="<%= hdr['place_of_supply'] %>" class="form-control">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Grand Total (Rs.)</label>
+                <input type="number" name="parsed_data[header][total_amount]"
+                       value="<%= hdr['total_amount'] %>"
+                       class="form-control"
+                       style="font-family:var(--mono);font-weight:600;color:var(--accent)" step="0.01">
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <%# ── LINE ITEMS CARD ── %>
+        <%# ── INVOICE INTELLIGENCE BOX ── %>
+        <div class="intel-box"
+             style="background:<%= sev_bg[severity] %>;border:1px solid <%= sev_border[severity] %>">
+
+          <%# Header row: invoice identity %>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text)">
+                Invoice <%= summary[:invoice_number] %>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+                <%= summary[:supplier_name] %>
+                <% if summary[:invoice_date] != '—' %>
+                  &nbsp;·&nbsp; <%= summary[:invoice_date] %>
+                <% end %>
+              </div>
+            </div>
+            <% if append_mode %>
+              <div style="background:rgba(247,195,79,0.15);border:1px solid rgba(247,195,79,0.4);
+                          border-radius:6px;padding:4px 10px;font-size:11px;
+                          color:var(--warning);font-weight:600;white-space:nowrap">
+                Append mode — existing draft found
+              </div>
+            <% end %>
+          </div>
+
+          <%# Stats row %>
+          <div class="intel-box-row">
+            <div class="intel-stat">
+              <div class="intel-stat-val" style="color:var(--accent)"><%= summary[:item_count] %></div>
+              <div class="intel-stat-lbl">Items found</div>
+            </div>
+            <% if summary[:page_count] > 0 %>
+              <div class="intel-stat">
+                <div class="intel-stat-val" style="color:var(--text)"><%= summary[:pages_scanned] %></div>
+                <div class="intel-stat-lbl">Pages scanned</div>
+              </div>
+              <div class="intel-stat">
+                <div class="intel-stat-val" style="color:<%= summary[:pages_missing] > 0 ? 'var(--warning)' : 'var(--success)' %>">
+                  <%= summary[:page_count] %>
+                </div>
+                <div class="intel-stat-lbl">Total pages</div>
+              </div>
+            <% end %>
+            <% if summary[:total_amount] > 0 %>
+              <div class="intel-stat" style="margin-left:auto;text-align:right">
+                <div class="intel-stat-val" style="color:var(--accent);font-size:16px">
+                  Rs. <%= number_with_precision(summary[:total_amount], precision: 2, delimiter: ',') %>
+                </div>
+                <div class="intel-stat-lbl">Grand total</div>
+              </div>
+            <% end %>
+          </div>
+
+          <%# Visual page progress bar %>
+          <% if summary[:page_count] > 1 %>
+            <div style="margin-bottom:10px">
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:5px;
+                          text-transform:uppercase;letter-spacing:.06em">Page Coverage</div>
+              <div class="page-bar">
+                <% summary[:page_count].times do |i| %>
+                  <% page_num = i + 1 %>
+                  <% is_last  = page_num == summary[:page_count] %>
+                  <% scanned  = page_num <= summary[:pages_scanned] %>
+                  <%
+                    dot_class = if scanned
+                                  'scanned'
+                                elsif is_last && @import.only_last_pages_missing?
+                                  'warn'
+                                else
+                                  'missing'
+                                end
+                  %>
+                  <div class="page-dot <%= dot_class %>"
+                       title="Page <%= page_num %>: <%= scanned ? 'Scanned' : 'Not uploaded' %>"></div>
+                <% end %>
+                <span style="font-size:10px;color:var(--text-dim);margin-left:6px">
+                  <%= summary[:pages_scanned] %> of <%= summary[:page_count] %>
+                </span>
+              </div>
+              <div style="display:flex;gap:12px;font-size:10px;color:var(--text-dim)">
+                <span><span style="display:inline-block;width:10px;height:5px;border-radius:2px;background:var(--success);margin-right:3px"></span>Scanned</span>
+                <span><span style="display:inline-block;width:10px;height:5px;border-radius:2px;background:var(--warning);margin-right:3px"></span>Likely blank</span>
+                <span><span style="display:inline-block;width:10px;height:5px;border-radius:2px;background:var(--danger);margin-right:3px"></span>Missing</span>
+              </div>
+            </div>
+          <% end %>
+
+          <%# Status message %>
+          <% if summary[:page_status].present? %>
+            <div style="background:rgba(0,0,0,0.15);border-radius:6px;padding:10px 12px;
+                        font-size:12px;color:var(--text);line-height:1.6;margin-bottom:10px">
+              <span style="font-size:14px;margin-right:6px"><%= sev_icon[severity] %></span>
+              <%= summary[:page_status] %>
+            </div>
+          <% end %>
+
+          <%# Duplicate items warning %>
+          <% if @duplicates.present? %>
+            <div style="background:rgba(247,92,83,0.1);border:1px solid rgba(247,92,83,0.3);
+                        border-radius:6px;padding:10px 12px;font-size:12px;margin-bottom:10px">
+              <strong style="color:var(--danger)">Duplicate items detected</strong>
+              <div style="color:var(--text-dim);margin-top:4px">
+                The following items already exist in invoice <%= @existing_invoice.display_number %>
+                and will be skipped:
+                <ul style="margin:6px 0 0 16px;padding:0">
+                  <% @duplicates.each do |d| %>
+                    <li style="color:var(--text)">
+                      <%= d['description'].presence || d['material_code'] %>
+                      <span style="color:var(--text-dim)">(qty: <%= d['quantity'] %>)</span>
+                    </li>
+                  <% end %>
+                </ul>
+              </div>
+            </div>
+          <% end %>
+
+          <%# Action row for missing pages %>
+          <% if @import.pages_missing? %>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <%= link_to 'Upload missing pages', new_purchasing_digitise_path,
+                    style: 'font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;
+                            background:rgba(79,142,247,0.1);border:1px solid rgba(79,142,247,0.3);
+                            border-radius:6px;padding:5px 12px' %>
+              <span style="font-size:11px;color:var(--text-dim)">
+                — or confirm below to proceed with <%= summary[:item_count] %> items as-is
+              </span>
+            </div>
+          <% end %>
+        </div>
+
+      </div><%# end right column %>
+    </div><%# end review-layout %>
+
+    <%# ── LINE ITEMS CARD — full width, outside grid ── %>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
                 margin-bottom:18px;overflow:hidden">
       <div style="padding:13px 18px;border-bottom:1px solid var(--border);
@@ -400,6 +693,12 @@
                      text-transform:uppercase;color:var(--text-dim)">
           Line Items
           <span style="color:var(--accent);margin-left:6px">(<%= items.size %>)</span>
+          <% if append_mode && @confirmed_items.any? %>
+            <span style="color:var(--text-dim);margin-left:10px">+</span>
+            <span style="color:var(--text-dim);margin-left:4px">
+              <%= @confirmed_items.size %> confirmed (locked)
+            </span>
+          <% end %>
         </span>
         <span style="font-size:11px;color:var(--text-dim)">
           ⚠ <span style="color:var(--warning);font-weight:600">UNMATCHED</span>
@@ -412,20 +711,21 @@
           <thead>
             <tr style="background:var(--bg)">
               <% [
-                ['#',            '36px',  'center'],
-                ['Material Code','130px', 'left'],
-                ['Description',  'auto',  'left'],
-                ['HSN',          '72px',  'center'],
-                ['Qty',          '80px',  'right'],
-                ['UOM',          '60px',  'center'],
-                ['Rate/Unit',    '90px',  'right'],
-                ['Disc%',        '70px',  'right'],
-                ['Disc Rs.',     '80px',  'right'],
-                ['Taxable',      '90px',  'right'],
-                ['GST%',         '54px',  'center'],
-                ['Total (Rs.)',  '100px', 'right'],
+                ['#',           '28px',  'center'],
+                ['Material Code','90px', 'left'],
+                ['Description', 'auto',  'left'],
+                ['HSN',         '58px',  'center'],
+                ['Qty',         '62px',  'right'],
+                ['UOM',         '46px',  'center'],
+                ['Rate/Unit',   '72px',  'right'],
+                ['Disc%',       '50px',  'right'],
+                ['Disc Rs.',    '62px',  'right'],
+                ['Taxable',     '72px',  'right'],
+                ['GST%',        '46px',  'center'],
+                ['Total (Rs.)', '82px',  'right'],
+                ['Status',      '56px',  'center'],
               ].each do |lbl, w, align| %>
-                <th style="min-width:<%= w %>;padding:8px 8px;text-align:<%= align %>;
+                <th style="min-width:<%= w %>;padding:7px 6px;text-align:<%= align %>;
                            font-family:var(--mono);font-size:10px;letter-spacing:.07em;
                            text-transform:uppercase;color:var(--text-dim);
                            border-bottom:1px solid var(--border);white-space:nowrap"><%= lbl %></th>
@@ -433,199 +733,320 @@
             </tr>
           </thead>
           <tbody>
-            <% items.each_with_index do |item, idx| %>
-              <%
-                clean_code   = sanitise_material_code(item['material_code'].to_s)
-                matched_prod = clean_code.present? ? @product_by_code&.[](clean_code) : nil
-                matched      = matched_prod.present?
-                prod_uom     = matched_prod&.base_uom&.name.presence
-                display_uom  = prod_uom || item['unit'].presence || '—'
-                disc_pct     = item['discount_percent'].to_f
-                disc_amt     = item['discount_amount'].to_f
-              %>
-              <tr style="border-bottom:1px solid var(--border);
-                         <%= matched ? '' : 'background:rgba(247,195,79,0.03)' %>">
 
-                <%# # %>
-                <td style="padding:8px;text-align:center;font-family:var(--mono);
-                           color:var(--text-dim);font-size:11px;white-space:nowrap">
-                  <%= item['sr_no'] || (idx + 1) %>
-                </td>
-
-                <%# Material Code %>
-                <td style="padding:8px">
-                  <input type="text"
-                         name="parsed_data[items][<%= idx %>][material_code]"
-                         value="<%= clean_code %>"
-                         class="form-control" style="font-family:var(--mono);font-size:11px;width:120px">
-                  <% if matched %>
-                    <div style="font-size:9px;color:var(--success);margin-top:2px;font-family:var(--mono)">
-                      ✓ matched
-                    </div>
-                  <% else %>
-                    <div style="font-size:9px;color:var(--warning);margin-top:2px;font-family:var(--mono);font-weight:700">
-                      UNMATCHED
-                    </div>
+                <%# ── CONFIRMED (LOCKED) ROWS — append mode only ── %>
+                <% if append_mode && @confirmed_items.any? %>
+                  <tr>
+                    <td colspan="13"
+                        style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--text-dim);
+                               text-transform:uppercase;letter-spacing:.07em;
+                               background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border)">
+                      Previously confirmed items (read-only)
+                    </td>
+                  </tr>
+                  <% @confirmed_items.each_with_index do |item, idx| %>
+                    <tr class="item-row-locked">
+                      <td style="padding:8px;text-align:center;font-family:var(--mono);color:var(--text-dim);font-size:11px"><%= idx + 1 %></td>
+                      <td style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= item.metadata['material_code'].presence || '—' %>
+                      </td>
+                      <td style="padding:8px;font-size:12px;color:var(--text-dim)">
+                        <%= item.metadata['description'].presence || item.product&.name || '—' %>
+                        <% if item.metadata['pack_size'].present? %>
+                          <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">
+                            <%= item.metadata['pack_size'] %> × <%= item.metadata['num_packs'] %>
+                          </div>
+                        <% end %>
+                      </td>
+                      <td style="padding:8px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= item.metadata['hsn_code'].presence || '—' %>
+                      </td>
+                      <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= number_with_precision(item.quantity, precision: 3) %>
+                      </td>
+                      <td style="padding:8px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= item.metadata['unit'].presence || item.product&.base_uom&.name || '—' %>
+                      </td>
+                      <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= number_with_precision(item.unit_rate, precision: 2, delimiter: ',') %>
+                      </td>
+                      <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= item.metadata['discount_percent'].to_f > 0 ? "#{item.metadata['discount_percent']}%" : '—' %>
+                      </td>
+                      <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= item.metadata['discount_amount'].to_f > 0 ? number_with_precision(item.metadata['discount_amount'], precision: 2) : '—' %>
+                      </td>
+                      <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= item.taxable_amount.to_f > 0 ? number_with_precision(item.taxable_amount, precision: 2, delimiter: ',') : '—' %>
+                      </td>
+                      <td style="padding:8px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <% gst = item.metadata['cgst_percent'].to_f + item.metadata['sgst_percent'].to_f + item.metadata['igst_percent'].to_f %>
+                        <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
+                      </td>
+                      <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim);font-weight:600">
+                        Rs. <%= number_with_precision(item.total_amount, precision: 2, delimiter: ',') %>
+                      </td>
+                      <td style="padding:8px;text-align:center">
+                        <span style="font-size:10px;color:var(--success);font-family:var(--mono);font-weight:700">CONFIRMED</span>
+                      </td>
+                    </tr>
                   <% end %>
-                </td>
 
-                <%# Description %>
-                <td style="padding:8px">
-                  <input type="text"
-                         name="parsed_data[items][<%= idx %>][description]"
-                         value="<%= item['description'] %>"
-                         class="form-control" style="font-size:12px;min-width:180px">
-                  <% if item['pack_size'].present? %>
-                    <div style="font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--mono)">
-                      <%= item['pack_size'] %> × <%= item['num_packs'] %>
-                    </div>
+                  <% if items.any? %>
+                    <tr>
+                      <td colspan="13"
+                          style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--accent);
+                                 text-transform:uppercase;letter-spacing:.07em;
+                                 background:rgba(79,142,247,0.05);border-bottom:1px solid var(--border)">
+                        New items from this upload — review before saving
+                      </td>
+                    </tr>
                   <% end %>
-                </td>
+                <% end %>
 
-                <%# HSN %>
-                <td style="padding:8px;text-align:center;font-family:var(--mono);font-size:11px;
-                           color:var(--text-dim);white-space:nowrap">
-                  <%= item['hsn_code'].presence || '—' %>
-                </td>
+                <%# ── NEW / EDITABLE ITEM ROWS ── %>
+                <% items.each_with_index do |item, idx| %>
+                  <%
+                    clean_code   = sanitise_material_code(item['material_code'].to_s)
+                    matched_prod = clean_code.present? ? @product_by_code&.[](clean_code) : nil
+                    matched      = matched_prod.present?
+                    prod_uom     = matched_prod&.base_uom&.name.presence
+                    display_uom  = prod_uom || item['unit'].presence || '—'
+                    disc_pct     = item['discount_percent'].to_f
+                    disc_amt     = item['discount_amount'].to_f
+                    is_duplicate = @duplicates&.any? { |d|
+                      d['material_code'].to_s == item['material_code'].to_s &&
+                      (d['quantity'].to_f - item['quantity'].to_f).abs < 0.001
+                    }
+                  %>
+                  <tr class="<%= append_mode ? 'item-row-new' : '' %>"
+                      style="border-bottom:1px solid var(--border);
+                             <%= is_duplicate ? 'opacity:0.4;text-decoration:line-through' : '' %>">
 
-                <%# Qty %>
-                <td style="padding:8px;text-align:right">
-                  <input type="number"
-                         name="parsed_data[items][<%= idx %>][quantity]"
-                         value="<%= item['quantity'] %>"
-                         class="form-control" style="text-align:right;font-family:var(--mono);width:72px"
-                         step="0.001">
-                </td>
+                    <td style="padding:8px;text-align:center;font-family:var(--mono);
+                               color:var(--text-dim);font-size:11px;white-space:nowrap">
+                      <%= item['sr_no'] || (idx + 1) %>
+                      <% if is_duplicate %>
+                        <div style="font-size:9px;color:var(--danger);font-weight:700">DUP</div>
+                      <% end %>
+                    </td>
 
-                <%# UOM — from product table if matched, else AI value %>
-                <td style="padding:8px;text-align:center;font-family:var(--mono);font-size:11px;
-                           white-space:nowrap">
-                  <span style="color:<%= prod_uom ? 'var(--success)' : 'var(--text-dim)' %>"
-                        title="<%= prod_uom ? 'From product table' : 'From invoice' %>">
-                    <%= display_uom %>
-                  </span>
-                  <input type="hidden" name="parsed_data[items][<%= idx %>][unit]"
-                         value="<%= display_uom %>">
-                </td>
+                    <td style="padding:6px">
+                      <input type="text"
+                             name="parsed_data[items][<%= idx %>][material_code]"
+                             value="<%= clean_code %>"
+                             class="form-control" style="font-family:var(--mono);font-size:11px;width:100%">
+                      <div style="font-size:9px;margin-top:2px;font-family:var(--mono);font-weight:700;
+                                  color:<%= matched ? 'var(--success)' : 'var(--warning)' %>">
+                        <%= matched ? '✓ matched' : 'UNMATCHED' %>
+                      </div>
+                    </td>
 
-                <%# Rate/Unit %>
-                <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;
-                           color:var(--text-dim);white-space:nowrap">
-                  <%= item['unit_rate'].to_f > 0 ? number_with_precision(item['unit_rate'], precision: 2, delimiter: ',') : '—' %>
-                </td>
+                    <td style="padding:6px">
+                      <input type="text"
+                             name="parsed_data[items][<%= idx %>][description]"
+                             value="<%= item['description'] %>"
+                             class="form-control" style="font-size:12px;width:100%">
+                      <% if item['pack_size'].present? %>
+                        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--mono)">
+                          <%= item['pack_size'] %> × <%= item['num_packs'] %>
+                        </div>
+                      <% end %>
+                    </td>
 
-                <%# Disc% — editable %>
-                <td style="padding:8px;text-align:right">
-                  <input type="number"
-                         name="parsed_data[items][<%= idx %>][discount_percent]"
-                         value="<%= disc_pct > 0 ? disc_pct : '' %>"
-                         class="form-control disc-pct-input" style="text-align:right;font-family:var(--mono);width:60px;font-size:11px"
-                         step="0.01" min="0" placeholder="0"
-                         data-idx="<%= idx %>">
-                </td>
+                    <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;
+                               color:var(--text-dim);white-space:nowrap">
+                      <%= item['hsn_code'].presence || '—' %>
+                    </td>
 
-                <%# Disc Rs. — editable %>
-                <td style="padding:8px;text-align:right">
-                  <input type="number"
-                         name="parsed_data[items][<%= idx %>][discount_amount]"
-                         value="<%= disc_amt > 0 ? disc_amt : '' %>"
-                         class="form-control disc-amt-input" style="text-align:right;font-family:var(--mono);width:72px;font-size:11px"
-                         step="0.01" min="0" placeholder="0.00"
-                         data-idx="<%= idx %>"
-                         data-value="<%= item['value'].to_f %>">
-                </td>
+                    <td style="padding:6px;text-align:right">
+                      <input type="number"
+                             name="parsed_data[items][<%= idx %>][quantity]"
+                             value="<%= item['quantity'] %>"
+                             class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
+                             step="0.001">
+                    </td>
 
-                <%# Taxable %>
-                <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;
-                           white-space:nowrap">
-                  <%= item['taxable_amount'].to_f > 0 ? number_with_precision(item['taxable_amount'], precision: 2, delimiter: ',') : '—' %>
-                </td>
+                    <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
+                      <span style="color:<%= prod_uom ? 'var(--success)' : 'var(--text-dim)' %>"
+                            title="<%= prod_uom ? 'From product table' : 'From invoice' %>">
+                        <%= display_uom %>
+                      </span>
+                      <input type="hidden" name="parsed_data[items][<%= idx %>][unit]" value="<%= display_uom %>">
+                    </td>
 
-                <%# GST% %>
-                <td style="padding:8px;text-align:center;font-family:var(--mono);font-size:11px;
-                           white-space:nowrap">
-                  <% gst = item['cgst_percent'].to_f + item['sgst_percent'].to_f + item['igst_percent'].to_f %>
-                  <span style="color:<%= gst > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
-                    <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
-                  </span>
-                </td>
+                    <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;
+                               color:var(--text-dim);white-space:nowrap">
+                      <%= item['unit_rate'].to_f > 0 ? number_with_precision(item['unit_rate'], precision: 2, delimiter: ',') : '—' %>
+                    </td>
 
-                <%# Total %>
-                <td style="padding:8px;text-align:right">
-                  <input type="number"
-                         name="parsed_data[items][<%= idx %>][total_amount]"
-                         value="<%= item['total_amount'] %>"
-                         class="form-control" style="text-align:right;font-family:var(--mono);
-                                                     font-weight:600;width:92px;font-size:11px"
-                         step="0.01">
-                </td>
-              </tr>
+                    <td style="padding:6px;text-align:right">
+                      <input type="number"
+                             name="parsed_data[items][<%= idx %>][discount_percent]"
+                             value="<%= disc_pct > 0 ? disc_pct : '' %>"
+                             class="form-control disc-pct-input"
+                             style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
+                             step="0.01" min="0" placeholder="0" data-idx="<%= idx %>">
+                    </td>
+
+                    <td style="padding:6px;text-align:right">
+                      <input type="number"
+                             name="parsed_data[items][<%= idx %>][discount_amount]"
+                             value="<%= disc_amt > 0 ? disc_amt : '' %>"
+                             class="form-control disc-amt-input"
+                             style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
+                             step="0.01" min="0" placeholder="0.00"
+                             data-idx="<%= idx %>" data-value="<%= item['value'].to_f %>">
+                    </td>
+
+                    <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;
+                               white-space:nowrap">
+                      <%= item['taxable_amount'].to_f > 0 ? number_with_precision(item['taxable_amount'], precision: 2, delimiter: ',') : '—' %>
+                    </td>
+
+                    <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
+                      <% gst = item['cgst_percent'].to_f + item['sgst_percent'].to_f + item['igst_percent'].to_f %>
+                      <span style="color:<%= gst > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
+                        <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
+                      </span>
+                    </td>
+
+                    <td style="padding:6px;text-align:right">
+                      <input type="number"
+                             name="parsed_data[items][<%= idx %>][total_amount]"
+                             value="<%= item['total_amount'] %>"
+                             class="form-control"
+                             style="text-align:right;font-family:var(--mono);font-weight:600;width:100%;font-size:11px"
+                             step="0.01">
+                    </td>
+
+                    <td style="padding:8px;text-align:center">
+                      <% if is_duplicate %>
+                        <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
+                      <% else %>
+                        <span style="font-size:10px;color:var(--accent);font-family:var(--mono)">NEW</span>
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <%# Summary footer %>
+          <div style="padding:14px 20px;border-top:1px solid var(--border);
+                      display:flex;justify-content:flex-end;gap:28px;flex-wrap:wrap">
+            <% taxable_total = hdr['total_taxable_amount'].to_f %>
+            <% if taxable_total > 0 %>
+              <div style="text-align:right">
+                <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                            text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Taxable</div>
+                <div style="font-family:var(--mono);font-size:15px;color:var(--text)">
+                  Rs. <%= number_with_precision(taxable_total, precision: 2, delimiter: ',') %>
+                </div>
+              </div>
             <% end %>
-          </tbody>
-        </table>
-      </div>
-
-      <%# Summary footer %>
-      <div style="padding:14px 20px;border-top:1px solid var(--border);
-                  display:flex;justify-content:flex-end;gap:28px;flex-wrap:wrap">
-        <% taxable_total = hdr['total_taxable_amount'].to_f %>
-        <% if taxable_total > 0 %>
-          <div style="text-align:right">
-            <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
-                        text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Taxable</div>
-            <div style="font-family:var(--mono);font-size:15px;color:var(--text)">
-              Rs. <%= number_with_precision(taxable_total, precision: 2, delimiter: ',') %>
+            <% line_disc_total = items.sum { |i| i['discount_amount'].to_f } %>
+            <% if line_disc_total > 0 %>
+              <div style="text-align:right">
+                <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                            text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Total Disc.</div>
+                <div style="font-family:var(--mono);font-size:15px;color:var(--warning)">
+                  — Rs. <%= number_with_precision(line_disc_total, precision: 2, delimiter: ',') %>
+                </div>
+              </div>
+            <% end %>
+            <% cgst_total = hdr['total_cgst'].to_f; sgst_total = hdr['total_sgst'].to_f %>
+            <% if cgst_total + sgst_total > 0 %>
+              <div style="text-align:right">
+                <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                            text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">CGST + SGST</div>
+                <div style="font-family:var(--mono);font-size:15px;color:var(--text)">
+                  Rs. <%= number_with_precision(cgst_total + sgst_total, precision: 2, delimiter: ',') %>
+                </div>
+              </div>
+            <% end %>
+            <div style="text-align:right">
+              <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                          text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Grand Total</div>
+              <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)">
+                Rs. <%= number_with_precision(hdr['total_amount'], precision: 2, delimiter: ',') %>
+              </div>
             </div>
-          </div>
-        <% end %>
-        <% line_disc_total = items.sum { |i| i['discount_amount'].to_f } %>
-        <% if line_disc_total > 0 %>
-          <div style="text-align:right">
-            <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
-                        text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Total Disc.</div>
-            <div style="font-family:var(--mono);font-size:15px;color:var(--warning)">
-              — Rs. <%= number_with_precision(line_disc_total, precision: 2, delimiter: ',') %>
-            </div>
-          </div>
-        <% end %>
-        <% cgst_total = hdr['total_cgst'].to_f; sgst_total = hdr['total_sgst'].to_f %>
-        <% if cgst_total + sgst_total > 0 %>
-          <div style="text-align:right">
-            <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
-                        text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">CGST + SGST</div>
-            <div style="font-family:var(--mono);font-size:15px;color:var(--text)">
-              Rs. <%= number_with_precision(cgst_total + sgst_total, precision: 2, delimiter: ',') %>
-            </div>
-          </div>
-        <% end %>
-        <div style="text-align:right">
-          <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
-                      text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Grand Total</div>
-          <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)">
-            Rs. <%= number_with_precision(hdr['total_amount'], precision: 2, delimiter: ',') %>
           </div>
         </div>
-      </div>
+
+        <% if hdr['amount_in_words'].present? %>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:16px;font-style:italic">
+            In words: <%= hdr['amount_in_words'] %>
+          </div>
+        <% end %>
+
+        <%# Submit bar %>
+        <div style="display:flex;gap:12px;align-items:center;padding:20px 0">
+          <button type="submit" class="btn btn-primary" id="save-btn-bottom">
+            <%= append_mode ? 'Append Items to Invoice →' : 'Save as Draft Invoice →' %>
+          </button>
+          <%= link_to 'Cancel', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
+          <span style="font-size:12px;color:var(--text-dim)">
+            <%= append_mode ? 'New items will be appended to the existing draft invoice.' : 'Saved as draft. Confirm from the invoice detail page to update stock.' %>
+          </span>
+        </div>
+
+  <% end %><%# end form %>
+
+  <%# ── LIGHTBOX OVERLAY ── %>
+  <div id="lb-overlay" onclick="if(event.target===this)lbClose()">
+    <button id="lb-close" onclick="lbClose()" title="Close (Esc)">✕</button>
+    <div style="width:100%;max-width:900px">
+      <div id="lb-images"></div>
     </div>
+  </div>
 
-    <%# Amount in words (read-only info) %>
-    <% if hdr['amount_in_words'].present? %>
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:16px;font-style:italic">
-        In words: <%= hdr['amount_in_words'] %>
-      </div>
-    <% end %>
+  <script>
+    // Images passed from the controller — one entry per session import
+    var LB_IMAGES = <%= raw @lightbox_images.to_json %>;
 
-    <%# Submit bar %>
-    <div style="display:flex;gap:12px;align-items:center;padding:20px 0">
-      <button type="submit" class="btn btn-primary" id="save-btn-bottom">
-        Save as Draft Invoice →
-      </button>
-      <%= link_to 'Cancel', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
-      <span style="font-size:12px;color:var(--text-dim)">
-        Saved as draft. Confirm from the invoice detail page to update stock.
-      </span>
-    </div>
+    (function buildLightbox() {
+      var container = document.getElementById('lb-images');
+      LB_IMAGES.forEach(function(img, i) {
+        var wrap  = document.createElement('div');
+        wrap.className = 'lb-img-wrap';
 
-  <% end %>
+        var label = document.createElement('div');
+        label.className = 'lb-label';
+        label.textContent = img.label +
+          (LB_IMAGES.length > 1 ? '  —  image ' + (i + 1) + ' of ' + LB_IMAGES.length : '');
+
+        var el = document.createElement('img');
+        el.src = img.src;
+        el.alt = img.label;
+
+        var counter = document.createElement('div');
+        counter.className = 'lb-counter';
+        if (LB_IMAGES.length > 1) {
+          counter.textContent = (i + 1) + ' / ' + LB_IMAGES.length;
+        }
+
+        wrap.appendChild(label);
+        wrap.appendChild(el);
+        wrap.appendChild(counter);
+        container.appendChild(wrap);
+      });
+    })();
+
+    function lbOpen() {
+      if (!LB_IMAGES.length) return;
+      document.getElementById('lb-overlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function lbClose() {
+      document.getElementById('lb-overlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') lbClose();
+    });
+  </script>
 
 <% end %>

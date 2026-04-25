@@ -23,6 +23,9 @@ class PurchaseInvoice < ApplicationRecord
   # ── Validations ───────────────────────────────────────────────
   validates :status, inclusion: { in: STATUSES }
   validates :delivery_date, presence: true
+  validates :invoice_number,
+            uniqueness: { scope: :organisation_id, message: 'already exists for this organisation' },
+            allow_blank: true
   validate  :cannot_edit_if_confirmed
 
   # ── Confirm ───────────────────────────────────────────────────
@@ -151,6 +154,40 @@ class PurchaseInvoice < ApplicationRecord
 
   def display_number
     invoice_number.presence || "Draft ##{id}"
+  end
+
+  # ── Duplicate item guard (used in append/session mode) ──────
+  #
+  # Checks whether any of the candidate items already exist in this invoice.
+  # Match criteria: same material_code + same quantity + same total_amount (±0.01).
+  # Returns an array of duplicate item hashes (empty = no duplicates).
+  #
+  def duplicate_items(candidate_items)
+    existing = purchase_invoice_items.map do |i|
+      {
+        material_code: i.metadata['material_code'].to_s.strip,
+        quantity:      i.quantity.to_f,
+        total_amount:  i.total_amount.to_f,
+        description:   i.metadata['description'].to_s
+      }
+    end
+
+    candidate_items.select do |new_item|
+      code  = new_item['material_code'].to_s.strip
+      qty   = new_item['quantity'].to_f
+      total = new_item['total_amount'].to_f
+      next false if code.blank? && qty.zero? && total.zero?
+
+      existing.any? do |e|
+        e[:material_code] == code &&
+        (e[:quantity]     - qty).abs   < 0.001 &&
+        (e[:total_amount] - total).abs < 0.01
+      end
+    end
+  end
+
+  def has_duplicate_items?(candidate_items)
+    duplicate_items(candidate_items).any?
   end
 
   # ── Payment helpers ─────────────────────────────────────────
