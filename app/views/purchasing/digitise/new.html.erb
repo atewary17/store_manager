@@ -11,12 +11,12 @@
 <div class="page-header">
   <div>
     <div class="page-title">Scan a Purchase Invoice</div>
-    <div class="page-subtitle">Upload a PDF or photo — AI will extract all data in ~15 seconds</div>
+    <div class="page-subtitle">Upload a PDF or one/more photos — AI extracts all data in ~15 seconds</div>
   </div>
   <%= link_to '← All Scans', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
 </div>
 
-<div style="max-width:560px">
+<div style="max-width:600px">
   <div class="form-card">
     <div class="form-section">
       <div class="form-section-title">Upload Invoice</div>
@@ -26,8 +26,8 @@
 
         <%# Drop zone %>
         <div id="drop-zone"
-             style="border:2px dashed var(--accent-dim);border-radius:10px;padding:40px 24px;
-                    text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:20px"
+             style="border:2px dashed var(--accent-dim);border-radius:10px;padding:36px 24px;
+                    text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:16px"
              onclick="document.getElementById('file-input').click()"
              ondragover="onDragOver(event)"
              ondragleave="onDragLeave(event)"
@@ -38,30 +38,34 @@
             <polyline points="17 8 12 3 7 8"/>
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
-          <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">
-            Drop invoice here or click to browse
+          <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:4px">
+            Drop files here or click to browse
           </div>
-          <div style="font-size:12px;color:var(--text-dim)">
-            PDF, JPG, PNG, or WEBP — up to 10 MB
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">
+            PDF · JPG · PNG · WEBP — up to 10 MB each
           </div>
-          <div id="file-chosen" style="margin-top:12px;font-family:var(--mono);font-size:12px;
-                                        color:var(--accent);display:none"></div>
+          <div style="font-size:11px;color:var(--accent);font-weight:500">
+            You can select multiple images at once (e.g. 3 scanned pages of the same invoice)
+          </div>
+          <div id="file-chosen" style="margin-top:14px;display:none"></div>
         </div>
 
-        <input type="file" id="file-input" name="file"
+        <input type="file" id="file-input" name="files[]"
                accept=".pdf,.jpg,.jpeg,.png,.webp"
+               multiple
                style="display:none"
                onchange="onFileChosen(this)">
 
-        <%# Supported formats %>
+        <%# File type badges %>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
           <% [
-            ['PDF', 'var(--danger)'],
-            ['JPG', 'var(--warning)'],
-            ['PNG', 'var(--accent)'],
-            ['WEBP', 'var(--success)']
-          ].each do |fmt, colour| %>
-            <span style="font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.05em;
+            ['PDF', 'var(--danger)',  'Multi-page supported'],
+            ['JPG', 'var(--warning)', 'Multi-file supported'],
+            ['PNG', 'var(--accent)',  'Multi-file supported'],
+            ['WEBP','var(--success)', 'Multi-file supported']
+          ].each do |fmt, colour, tip| %>
+            <span title="<%= tip %>"
+                  style="font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.05em;
                          background:rgba(255,255,255,0.04);border:1px solid var(--border);
                          border-radius:4px;padding:3px 8px;color:<%= colour %>">
               <%= fmt %>
@@ -69,7 +73,17 @@
           <% end %>
         </div>
 
-        <div style="display:flex;gap:10px">
+        <%# Multi-page tip %>
+        <div style="background:rgba(79,142,247,0.06);border:1px solid rgba(79,142,247,0.2);
+                    border-radius:8px;padding:12px 14px;margin-bottom:20px;font-size:12px;
+                    color:var(--text-dim);line-height:1.6">
+          <strong style="color:var(--accent)">Multi-page invoices:</strong>
+          For a PDF, just upload the single file — all pages are scanned automatically.
+          For scanned images (JPG/PNG), select all page images at once and they will be
+          merged into one invoice for review.
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center">
           <button type="submit" id="submit-btn" class="btn btn-primary" disabled
                   style="opacity:0.5;transition:opacity 0.2s">
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -79,7 +93,7 @@
           </button>
           <%= link_to 'Cancel', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
           <span id="uploading-msg" style="display:none;font-size:12px;color:var(--text-dim);
-                                          font-family:var(--mono);align-self:center">
+                                          font-family:var(--mono)">
             Uploading…
           </span>
         </div>
@@ -94,10 +108,10 @@
       <div class="form-section-title">How it works</div>
       <div style="display:flex;flex-direction:column;gap:14px">
         <% [
-          ['1', 'Upload', 'Upload a scanned PDF or photo of any supplier invoice', 'var(--accent)'],
-          ['2', 'AI reads it', 'Google Gemini Flash extracts all fields — supplier, invoice no., dates, every line item', 'var(--warning)'],
-          ['3', 'Review & edit', 'You review the extracted data, fix any errors, and set a payment due date', 'var(--success)'],
-          ['4', 'Save', 'One click saves a draft purchase invoice — ready to confirm and update stock', 'var(--text-dim)'],
+          ['1', 'Upload',       'Upload a PDF or photo(s) of any supplier invoice. Multi-page PDFs and multi-image uploads are both supported.', 'var(--accent)'],
+          ['2', 'AI reads it',  'Groq Llama 4 Scout reads every page and extracts supplier, invoice details, and every line item.', 'var(--warning)'],
+          ['3', 'Review & edit','Check the extracted data, fix errors, and set a payment due date. A preview of your scan is shown alongside.', 'var(--success)'],
+          ['4', 'Save',         'Save as a draft purchase invoice. Confirm later to update stock levels.', 'var(--text-dim)'],
         ].each do |num, title, desc, colour| %>
           <div style="display:flex;gap:12px;align-items:flex-start">
             <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.05);
@@ -117,15 +131,35 @@
 
 <script>
   function onFileChosen(input) {
-    var file = input.files[0];
-    if (!file) return;
-    document.getElementById('file-chosen').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
-    document.getElementById('file-chosen').style.display = 'block';
+    var files = Array.from(input.files);
+    if (!files.length) return;
+
+    var chosen = document.getElementById('file-chosen');
+    if (files.length === 1) {
+      chosen.innerHTML =
+        '<span style="font-family:var(--mono);font-size:12px;color:var(--accent)">' +
+        escHtml(files[0].name) + ' (' + (files[0].size / 1024).toFixed(0) + ' KB)</span>';
+    } else {
+      var listItems = files.map(function(f) {
+        return '<li style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:2px">' +
+               escHtml(f.name) + ' <span style="color:var(--text-dim)">(' + (f.size/1024).toFixed(0) + ' KB)</span></li>';
+      }).join('');
+      chosen.innerHTML =
+        '<div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px">' +
+        files.length + ' files selected:</div>' +
+        '<ul style="list-style:none;margin:0;padding:0;text-align:left">' + listItems + '</ul>';
+    }
+    chosen.style.display = 'block';
+
     var btn = document.getElementById('submit-btn');
     btn.disabled = false;
     btn.style.opacity = '1';
     document.getElementById('drop-zone').style.borderColor = 'var(--accent)';
     document.getElementById('drop-zone').style.background   = 'rgba(79,142,247,0.05)';
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   function onDragOver(e) {

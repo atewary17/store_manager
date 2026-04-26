@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -63,8 +63,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
     t.integer "attempt_count", default: 0, null: false
     t.jsonb "attempt_log", default: [], null: false
     t.string "ai_provider"
+    t.string "session_id", comment: "UUID grouping multiple uploads of the same invoice"
+    t.integer "page_count", comment: "Total pages the AI detected in the uploaded file"
+    t.integer "pages_scanned", comment: "Number of pages actually sent to AI"
+    t.text "preview_image", comment: "Base64 JPEG of page 1 for the review preview panel"
     t.index ["organisation_id"], name: "index_digitise_imports_on_organisation_id"
     t.index ["purchase_invoice_id"], name: "index_digitise_imports_on_purchase_invoice_id"
+    t.index ["session_id"], name: "index_digitise_imports_on_session_id"
     t.index ["status"], name: "index_digitise_imports_on_status"
     t.index ["user_id"], name: "index_digitise_imports_on_user_id"
   end
@@ -244,8 +249,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_000002) do
     t.datetime "updated_at", null: false
     t.date "payment_due_date"
     t.index ["invoice_date"], name: "index_purchase_invoices_on_invoice_date"
-    t.index ["invoice_number"], name: "index_purchase_invoices_on_invoice_number"
     t.index ["metadata"], name: "index_purchase_invoices_on_metadata", using: :gin
+    t.index ["organisation_id", "invoice_number"], name: "idx_purchase_invoices_org_invoice_number_unique", unique: true, where: "((invoice_number IS NOT NULL) AND ((invoice_number)::text <> ''::text))"
     t.index ["organisation_id"], name: "index_purchase_invoices_on_organisation_id"
     t.index ["payment_due_date"], name: "index_purchase_invoices_on_payment_due_date"
     t.index ["status"], name: "index_purchase_invoices_on_status"

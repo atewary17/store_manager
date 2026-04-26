@@ -15,7 +15,6 @@ class DigitiseImportJob < ApplicationJob
 
     base64_data = import.file_data.to_s.gsub(/\s+/, '')
 
-    # Respect the uploading user's AI provider preference if set
     user_pref = import.user&.preferences&.dig('ai_provider').presence
 
     result = InvoiceAiService.call(
@@ -24,7 +23,6 @@ class DigitiseImportJob < ApplicationJob
       user_pref:   user_pref
     )
 
-    # Append this attempt to the log
     log_entry = {
       attempt:  attempt_num,
       at:       Time.current.iso8601,
@@ -35,13 +33,18 @@ class DigitiseImportJob < ApplicationJob
     new_log = (import.attempt_log || []) + [log_entry]
 
     if result[:success]
+      meta = result.dig(:data, '_meta') || {}
+
       import.update!(
-        status:        'review',
-        parsed_data:   result[:data],
-        raw_response:  result[:raw_response],
-        error_message: nil,
-        attempt_log:   new_log,
-        ai_provider:   result[:provider] || ENV['INVOICE_AI_PROVIDER'] || 'gemini'
+        status:         'review',
+        parsed_data:    result[:data],
+        raw_response:   result[:raw_response],
+        error_message:  nil,
+        attempt_log:    new_log,
+        ai_provider:    result[:provider] || ENV['INVOICE_AI_PROVIDER'] || 'groq',
+        page_count:     meta['page_count'].presence || 1,
+        pages_scanned:  meta['pages_scanned'].presence || 1,
+        preview_image:  result[:preview_image]   # base64 JPEG of page 1, nil for plain images
       )
     else
       is_rate_limit = result[:error].to_s.include?('429')
@@ -55,7 +58,6 @@ class DigitiseImportJob < ApplicationJob
       )
 
       if can_retry
-        # Mark as retrying (not pending) so the poller knows we're still alive
         import.update!(status: 'retrying')
         DigitiseImportJob.set(wait: 65.seconds).perform_later(import.id)
       end
