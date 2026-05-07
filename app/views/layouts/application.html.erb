@@ -590,7 +590,7 @@
       <% if current_user&.super_admin? || current_user&.admin? %>
         <div class="nav-section" id="ns-setup"
              data-section="setup"
-             data-active="<%= %w[organisations uoms product_categories products brands].include?(controller_name) %>">
+             data-active="<%= %w[organisations uoms product_categories products brands product_reviews system_processes].include?(controller_name) %>">
           <div class="nav-section-header" onclick="expandAndToggle(event,'setup')" data-tooltip="Setup">
             <div class="nav-section-header-left">
               <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="nav-section-icon">
@@ -613,6 +613,31 @@
                   <polyline points="9 22 9 12 15 12 15 22"/>
                 </svg>
                 Organisations
+              <% end %>
+              <%# Product Review queue — super_admin only %>
+              <%= link_to admin_product_reviews_path,
+                    class: "nav-link #{controller_name == 'product_reviews' ? 'active' : ''}", data: { tooltip: 'Product Review' } do %>
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path d="M9 11l3 3L22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                Product Review
+                <% pending = Product.review_pending.count rescue 0 %>
+                <% if pending > 0 %>
+                  <span style="margin-left:auto;background:var(--warning);color:#000;
+                               font-size:10px;font-weight:700;border-radius:10px;
+                               padding:1px 6px;line-height:16px"><%= pending %></span>
+                <% end %>
+              <% end %>
+              <%# System Processes — super_admin only %>
+              <%= link_to admin_system_processes_path,
+                    class: "nav-link #{controller_name == 'system_processes' ? 'active' : ''}", data: { tooltip: 'System Processes' } do %>
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                System Processes
               <% end %>
             <% end %>
             <%# Master Data — super_admin sees all tabs; admin lands on Products tab %>

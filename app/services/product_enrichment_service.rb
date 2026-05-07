@@ -145,13 +145,12 @@ class ProductEnrichmentService
 
     unless response[:success]
       Rails.logger.error "[ProductEnrichmentService] Groq FAILED: #{response[:error]}"
-      return response
+      return response.merge(raw_response: response[:raw_body], http_status: response[:http_status])
     end
 
     text = response[:raw].dig('choices', 0, 'message', 'content').to_s.strip
     Rails.logger.info "[ProductEnrichmentService] Groq response (#{text.length} chars): #{text.truncate(500)}"
 
-    # Detect if model returned conversational text instead of JSON
     if text.strip.start_with?('{')
       Rails.logger.info "[ProductEnrichmentService] Response is JSON — parsing directly"
     else
@@ -159,7 +158,10 @@ class ProductEnrichmentService
       Rails.logger.warn "[ProductEnrichmentService] HINT: Check your local model name. Should be 'meta-llama/llama-4-scout-17b-16e-instruct'"
     end
 
-    parse_enrichment(text)
+    parse_enrichment(text).merge(
+      raw_response: response[:raw_body],
+      http_status:  response[:http_status]
+    )
   end
 
 
@@ -187,7 +189,7 @@ class ProductEnrichmentService
       return error_result("API returned #{res.code}: #{res.body[0..200]}")
     end
 
-    { success: true, raw: JSON.parse(res.body) }
+    { success: true, raw: JSON.parse(res.body), raw_body: res.body, http_status: res.code.to_i }
   rescue JSON::ParserError => e
     error_result("Invalid JSON from API: #{e.message}")
   rescue Net::ReadTimeout, Net::OpenTimeout

@@ -63,7 +63,8 @@ class GroqInvoiceParser
           "hsn_code": "...",
           "pack_size": "...",
           "num_packs": 0,
-          "quantity": 0.000,
+          "quantity": 0,
+          "volume": 0.000,
           "unit": "...",
           "rate_per_pack": 0.00,
           "unit_rate": 0.00,
@@ -99,9 +100,32 @@ class GroqInvoiceParser
       Examples of valid material codes: "12601744", "00010210210", "5057IE24122", "67923558210"
       Examples of what is NOT a material code: "HSN - 320890", "32091090", "321390"
     - description: the full product name exactly as written
-    - pack_size: e.g. "900 ML", "3.6 LT", "1 LTR"
-    - quantity: total volume/weight (num_packs × pack_size volume)
-    - unit_rate: rate per unit of volume. If not shown, calculate it.
+    - pack_size: the size of one individual unit, e.g. "1 LT", "10 LT", "900 ML"
+    - num_packs: the count of cartons/drums/boxes. For Asian Paints invoices this is the numeric
+      part of the "Packs" column (e.g. "1 CAR" → 1, "2 DRM" → 2). If no Packs column, use the
+      Qty column value.
+    - quantity: the INTEGER value from the "Qty" or "Quantity" column — the count of individual
+      units ordered (cans, litres, pieces).
+      CRITICAL — Asian Paints invoice column order: (1) Material/HSN, (2) Description,
+      (3) Qty ← USE THIS FOR quantity, (4) Packs → num_packs, (5) Volume/Kg/Lt/M → volume.
+      NEVER use the Volume column value as quantity. quantity must be an integer.
+    - volume: the value from the "Volume", "Kg/Lt/M", or total weight/volume column.
+      For Asian Paints invoices this is the 5th column (e.g. 6.000, 20.000, 40.000).
+      If no such column exists, use 0.
+    - unit: the unit of measurement for the quantity field.
+      For Asian Paints invoices: always use "UNT" (individual units/pieces — cans, drums, etc.).
+      Do NOT use "LT", "KG" or any volume unit here; those belong in the volume field.
+      For other suppliers: extract the unit exactly as written on the invoice.
+    - discount_amount: the per-line cash discount in rupees. Asian Paints invoices have a
+      "Cash Disc." column (column 9); values appear with a trailing "-" (e.g. "83.70-") —
+      store as a positive number (83.70). Do NOT confuse with "In-Bill Disc." columns which
+      are separate. If no cash discount on the line, use 0.
+    - discount_percent: use only when the invoice states a percentage discount on the line.
+      If only a rupee discount_amount is shown, set discount_percent to 0.
+    - cash_discount_amount (header): the total fast/cash discount shown in the invoice summary
+      section, e.g. "Fast Cash Discount: 2119.50-" → 2119.50. This often appears only on the
+      last page. If not visible on this page, use 0.
+    - unit_rate: rate per individual unit. If not shown, calculate it from value / quantity.
     - hsn_code: digits only, no slashes or "HSN" prefix. e.g. "320890" not "HSN - 320890"
     - If this page contains no line items (e.g. it is a terms/signature/acknowledgement page),
       return an empty items array [].
@@ -177,8 +201,8 @@ class GroqInvoiceParser
       tmp_pdf.flush
 
       out_prefix = File.join(tmp_dir, 'page')
-      # Convert all pages at 200 DPI
-      system(pdftoppm_bin, '-jpeg', '-r', '200', tmp_pdf.path, out_prefix)
+      # 300 DPI gives the AI clearer column separation, reducing Qty/Volume confusion
+      system(pdftoppm_bin, '-jpeg', '-r', '300', tmp_pdf.path, out_prefix)
 
       pages = Dir.glob("#{tmp_dir}/*.jpg").sort
       raise 'PDF conversion produced no pages — is this a valid PDF?' if pages.empty?
@@ -221,6 +245,18 @@ class GroqInvoiceParser
     # Header + supplier from page 1 (most complete)
     base       = successful.first[:data]
     all_items  = successful.flat_map { |r| r[:data]['items'] || [] }
+
+    # Post-parse correction: when quantity == volume the AI read the wrong column.
+    # Substitute num_packs (the integer pack count) as the corrected quantity.
+    all_items.each do |item|
+      qty    = item['quantity'].to_f
+      volume = item['volume'].to_f
+      next unless volume > 0 && (qty - volume).abs < 0.01
+      # num_packs is the carton/drum count — the true ordered unit count
+      np = item['num_packs'].to_i
+      item['quantity']    = np > 0 ? np : item['quantity']
+      item['_qty_fixed']  = true   # flag so UI can still warn if needed
+    end
 
     # Determine true page_count from AI — take the max total_pages seen
     ai_total_pages = successful.map { |r| r[:data].dig('header', 'total_pages').to_i }.max

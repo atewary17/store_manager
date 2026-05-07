@@ -1,0 +1,222 @@
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:620px;margin:0 auto;background:#f8fafc;padding:20px 12px">
+
+  <%# ── HEADER ─────────────────────────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0"
+         style="background:#1e293b;border-radius:10px 10px 0 0">
+    <tr>
+      <td style="padding:24px 28px">
+        <div style="display:inline-block;background:#ef4444;color:#fff;font-size:10px;
+                    font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+                    padding:3px 10px;border-radius:4px;margin-bottom:10px">
+          &#9888;&nbsp; Action Required
+        </div>
+        <div style="font-size:22px;font-weight:700;color:#f8fafc;margin-bottom:4px">
+          New Products Pending Review
+        </div>
+        <div style="font-size:12px;color:#64748b">
+          Store Manager &nbsp;·&nbsp; <%= Time.current.strftime('%d %b %Y, %H:%M %Z') %>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <%# ── BODY ───────────────────────────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0"
+         style="background:#ffffff;padding:0">
+    <tr>
+      <td style="padding:28px 28px 20px">
+
+        <p style="font-size:15px;color:#1e293b;margin:0 0 6px">
+          Hi <strong>Subhasis</strong>,
+        </p>
+        <p style="font-size:14px;color:#334155;margin:0 0 20px;line-height:1.6">
+          We need your attention! &nbsp;&#128680;<br>
+          The system has automatically captured
+          <strong style="color:#dc2626"><%= @count %> new unmatched product<%= 's' if @count != 1 %></strong>
+          from a purchase invoice that <%= @count == 1 ? 'does' : 'do' %> not yet exist in the product catalogue.
+          These products have been placed <strong>under review</strong> and require your approval
+          before they can be used in sales.
+        </p>
+
+        <%# Invoice + Org summary %>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#f1f5f9;border-radius:8px;margin-bottom:24px">
+          <tr>
+            <td style="padding:14px 18px">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:50%;padding-bottom:8px">
+                    <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                                letter-spacing:.08em;color:#64748b;margin-bottom:3px">Organisation</div>
+                    <div style="font-size:13px;font-weight:600;color:#1e293b">
+                      <%= @organisation&.name || '—' %>
+                    </div>
+                  </td>
+                  <td style="width:50%;padding-bottom:8px">
+                    <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                                letter-spacing:.08em;color:#64748b;margin-bottom:3px">Purchase Invoice</div>
+                    <div style="font-size:13px;font-weight:600;color:#1e293b;font-family:monospace">
+                      <%= @purchase_invoice.display_number rescue @purchase_invoice.id %>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                                letter-spacing:.08em;color:#64748b;margin-bottom:3px">Supplier</div>
+                    <div style="font-size:13px;color:#334155">
+                      <%= @purchase_invoice.supplier&.name rescue '—' %>
+                    </div>
+                  </td>
+                  <td>
+                    <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                                letter-spacing:.08em;color:#64748b;margin-bottom:3px">Invoice Date</div>
+                    <div style="font-size:13px;color:#334155">
+                      <%= @purchase_invoice.invoice_date&.strftime('%d %b %Y') rescue '—' %>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <%# Product list %>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                    color:#64748b;margin-bottom:10px">
+          Products to Review (<%= @count %>)
+        </div>
+
+        <% @products.each_with_index do |product, idx| %>
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;overflow:hidden">
+            <tr>
+              <td style="background:#f8fafc;padding:8px 14px;border-bottom:1px solid #e2e8f0">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="font-size:13px;font-weight:600;color:#1e293b">
+                      <%= idx + 1 %>. &nbsp;<%= product.description %>
+                    </td>
+                    <td style="text-align:right">
+                      <span style="font-size:10px;background:#fef9c3;color:#92400e;
+                                   border:1px solid #fde68a;border-radius:4px;padding:2px 7px;
+                                   font-weight:700;text-transform:uppercase;letter-spacing:.05em">
+                        Under Review
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:12px 14px">
+                <table width="100%" cellpadding="0" cellspacing="4">
+                  <tr>
+                    <td style="width:50%;padding-bottom:8px;vertical-align:top">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;
+                                  letter-spacing:.06em;margin-bottom:2px">Material Code</div>
+                      <div style="font-size:12px;color:#334155;font-family:monospace">
+                        <%= product.material_code.presence || '—' %>
+                      </div>
+                    </td>
+                    <td style="width:50%;padding-bottom:8px;vertical-align:top">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;
+                                  letter-spacing:.06em;margin-bottom:2px">HSN Code</div>
+                      <div style="font-size:12px;color:#334155;font-family:monospace">
+                        <%= product.hsn_code.presence || '—' %>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="width:50%;padding-bottom:8px;vertical-align:top">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;
+                                  letter-spacing:.06em;margin-bottom:2px">Brand</div>
+                      <div style="font-size:12px;color:#334155">
+                        <%= product.brand&.name || '—' %>
+                      </div>
+                    </td>
+                    <td style="width:50%;padding-bottom:8px;vertical-align:top">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;
+                                  letter-spacing:.06em;margin-bottom:2px">Category</div>
+                      <div style="font-size:12px;color:#334155">
+                        <%= product.product_category&.name || '—' %>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="width:50%;vertical-align:top">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;
+                                  letter-spacing:.06em;margin-bottom:2px">UOM</div>
+                      <div style="font-size:12px;color:#334155">
+                        <%= product.base_uom&.display || '—' %>
+                      </div>
+                    </td>
+                    <td style="width:50%;vertical-align:top">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;
+                                  letter-spacing:.06em;margin-bottom:2px">GST Rate</div>
+                      <div style="font-size:12px;color:#334155">
+                        <%= product.gst_rate.to_i %>%
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <% if product.metadata.any? %>
+                  <div style="margin-top:8px;padding:8px 10px;background:#f1f5f9;border-radius:5px">
+                    <div style="font-size:10px;color:#64748b;text-transform:uppercase;
+                                letter-spacing:.06em;margin-bottom:4px">Raw Data from Invoice</div>
+                    <% [['Description', product.metadata['raw_description']],
+                        ['Brand hint',  product.metadata['brand_hint']],
+                        ['Pack size',   product.metadata['pack_size']]].each do |label, val| %>
+                      <% next if val.blank? %>
+                      <div style="font-size:11px;color:#475569;font-family:monospace;margin-bottom:2px">
+                        <span style="color:#6366f1;min-width:100px;display:inline-block"><%= label %>:</span>
+                        <%= val %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </td>
+            </tr>
+          </table>
+        <% end %>
+
+        <%# CTA ─────────────────────────────────────────────────── %>
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px">
+          <tr>
+            <td style="text-align:center;padding:20px;background:#f0fdf4;
+                       border:1px solid #bbf7d0;border-radius:8px">
+              <div style="font-size:13px;color:#166534;margin-bottom:14px">
+                Please review, edit details if needed, then <strong>Approve</strong> or <strong>Merge</strong>
+                each product into the active catalogue.
+              </div>
+              <a href="<%= @review_url %>"
+                 style="display:inline-block;background:#16a34a;color:#ffffff;
+                        font-size:13px;font-weight:700;text-decoration:none;
+                        padding:10px 28px;border-radius:6px;letter-spacing:.03em">
+                Open Review Queue &rarr;
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size:12px;color:#94a3b8;margin:24px 0 0;line-height:1.6">
+          This is an automated notification from Store Manager.<br>
+          Sent to <%= ProductReviewMailer::TO %> &nbsp;·&nbsp; CC: <%= ProductReviewMailer::CC %>
+        </p>
+
+      </td>
+    </tr>
+  </table>
+
+  <%# ── FOOTER ─────────────────────────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0"
+         style="background:#1e293b;border-radius:0 0 10px 10px">
+    <tr>
+      <td style="padding:14px 28px;text-align:center">
+        <div style="font-size:11px;color:#475569">Store Manager &nbsp;·&nbsp; Product Review Notification</div>
+      </td>
+    </tr>
+  </table>
+
+</div>

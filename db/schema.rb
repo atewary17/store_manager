@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_26_121029) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
+  enable_extension "pgcrypto"
   enable_extension "plpgsql"
 
   create_table "brands", force: :cascade do |t|
@@ -22,7 +23,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "aliases", default: [], array: true
     t.index ["active"], name: "index_brands_on_active"
+    t.index ["aliases"], name: "idx_brands_aliases_gin", using: :gin
     t.index ["name"], name: "index_brands_on_name", unique: true
   end
 
@@ -72,6 +75,118 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
     t.index ["session_id"], name: "index_digitise_imports_on_session_id"
     t.index ["status"], name: "index_digitise_imports_on_status"
     t.index ["user_id"], name: "index_digitise_imports_on_user_id"
+  end
+
+  create_table "external_api_logs", force: :cascade do |t|
+    t.string "service", null: false
+    t.string "operation", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "http_status"
+    t.float "duration_ms"
+    t.text "request_body"
+    t.text "response_body"
+    t.text "error_message"
+    t.jsonb "metadata", default: {}
+    t.bigint "organisation_id"
+    t.bigint "user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_external_api_logs_on_created_at"
+    t.index ["operation"], name: "index_external_api_logs_on_operation"
+    t.index ["organisation_id"], name: "index_external_api_logs_on_organisation_id"
+    t.index ["service"], name: "index_external_api_logs_on_service"
+    t.index ["status"], name: "index_external_api_logs_on_status"
+  end
+
+  create_table "good_job_batches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "description"
+    t.jsonb "serialized_properties"
+    t.text "on_finish"
+    t.text "on_success"
+    t.text "on_discard"
+    t.text "callback_queue_name"
+    t.integer "callback_priority"
+    t.datetime "enqueued_at"
+    t.datetime "discarded_at"
+    t.datetime "finished_at"
+    t.datetime "jobs_finished_at"
+  end
+
+  create_table "good_job_executions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "active_job_id", null: false
+    t.text "job_class"
+    t.text "queue_name"
+    t.jsonb "serialized_params"
+    t.datetime "scheduled_at"
+    t.datetime "finished_at"
+    t.text "error"
+    t.integer "error_event", limit: 2
+    t.text "error_backtrace", array: true
+    t.uuid "process_id"
+    t.interval "duration"
+    t.index ["active_job_id", "created_at"], name: "index_good_job_executions_on_active_job_id_and_created_at"
+    t.index ["process_id", "created_at"], name: "index_good_job_executions_on_process_id_and_created_at"
+  end
+
+  create_table "good_job_processes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "state"
+    t.integer "lock_type", limit: 2
+  end
+
+  create_table "good_job_settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "key"
+    t.jsonb "value"
+    t.index ["key"], name: "index_good_job_settings_on_key", unique: true
+  end
+
+  create_table "good_jobs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "queue_name"
+    t.integer "priority"
+    t.jsonb "serialized_params"
+    t.datetime "scheduled_at"
+    t.datetime "performed_at"
+    t.datetime "finished_at"
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "active_job_id"
+    t.text "concurrency_key"
+    t.text "cron_key"
+    t.uuid "retried_good_job_id"
+    t.datetime "cron_at"
+    t.uuid "batch_id"
+    t.uuid "batch_callback_id"
+    t.boolean "is_discrete"
+    t.integer "executions_count"
+    t.text "job_class"
+    t.integer "error_event", limit: 2
+    t.text "labels", array: true
+    t.uuid "locked_by_id"
+    t.datetime "locked_at"
+    t.index ["active_job_id", "created_at"], name: "index_good_jobs_on_active_job_id_and_created_at"
+    t.index ["batch_callback_id"], name: "index_good_jobs_on_batch_callback_id", where: "(batch_callback_id IS NOT NULL)"
+    t.index ["batch_id"], name: "index_good_jobs_on_batch_id", where: "(batch_id IS NOT NULL)"
+    t.index ["concurrency_key", "created_at"], name: "index_good_jobs_on_concurrency_key_and_created_at"
+    t.index ["concurrency_key"], name: "index_good_jobs_on_concurrency_key_when_unfinished", where: "(finished_at IS NULL)"
+    t.index ["cron_key", "created_at"], name: "index_good_jobs_on_cron_key_and_created_at_cond", where: "(cron_key IS NOT NULL)"
+    t.index ["cron_key", "cron_at"], name: "index_good_jobs_on_cron_key_and_cron_at_cond", unique: true, where: "(cron_key IS NOT NULL)"
+    t.index ["finished_at"], name: "index_good_jobs_jobs_on_finished_at_only", where: "(finished_at IS NOT NULL)"
+    t.index ["job_class"], name: "index_good_jobs_on_job_class"
+    t.index ["labels"], name: "index_good_jobs_on_labels", where: "(labels IS NOT NULL)", using: :gin
+    t.index ["locked_by_id"], name: "index_good_jobs_on_locked_by_id", where: "(locked_by_id IS NOT NULL)"
+    t.index ["priority", "created_at"], name: "index_good_job_jobs_for_candidate_lookup", where: "(finished_at IS NULL)"
+    t.index ["priority", "created_at"], name: "index_good_jobs_jobs_on_priority_created_at_when_unfinished", order: { priority: "DESC NULLS LAST" }, where: "(finished_at IS NULL)"
+    t.index ["priority", "scheduled_at"], name: "index_good_jobs_on_priority_scheduled_at_unfinished_unlocked", where: "((finished_at IS NULL) AND (locked_by_id IS NULL))"
+    t.index ["queue_name", "scheduled_at"], name: "index_good_jobs_on_queue_name_and_scheduled_at", where: "(finished_at IS NULL)"
+    t.index ["scheduled_at"], name: "index_good_jobs_on_scheduled_at", where: "(finished_at IS NULL)"
   end
 
   create_table "gst_credit_ledger_entries", force: :cascade do |t|
@@ -179,6 +294,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
     t.index ["user_id"], name: "index_product_imports_on_user_id"
   end
 
+  create_table "product_merge_logs", force: :cascade do |t|
+    t.bigint "merged_product_id", null: false
+    t.bigint "target_product_id", null: false
+    t.bigint "performed_by_id", null: false
+    t.decimal "stock_transferred", precision: 12, scale: 4, default: "0.0"
+    t.integer "pi_items_moved", default: 0, null: false
+    t.integer "ledger_entries_moved", default: 0, null: false
+    t.integer "stock_level_rows_merged", default: 0, null: false
+    t.jsonb "snapshot", default: {}, null: false
+    t.datetime "merged_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["merged_at"], name: "idx_product_merge_logs_merged_at"
+    t.index ["merged_product_id"], name: "idx_product_merge_logs_merged"
+    t.index ["performed_by_id"], name: "idx_product_merge_logs_performed_by"
+    t.index ["target_product_id"], name: "idx_product_merge_logs_target"
+  end
+
   create_table "products", force: :cascade do |t|
     t.bigint "product_category_id", null: false
     t.bigint "base_uom_id", null: false
@@ -194,14 +327,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
     t.decimal "mrp", precision: 10, scale: 2
     t.jsonb "metadata", default: {}
     t.bigint "brand_id"
+    t.boolean "under_review", default: false, null: false
+    t.string "catalogue_status", default: "active", null: false
+    t.string "source", default: "manual"
+    t.jsonb "internet_details", default: {}
+    t.datetime "internet_details_fetched_at"
+    t.bigint "merged_into_product_id"
+    t.text "review_notes"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"
+    t.index ["catalogue_status"], name: "idx_products_catalogue_status"
+    t.index ["description"], name: "idx_products_description_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["hsn_code"], name: "index_products_on_hsn_code"
-    t.index ["material_code"], name: "index_products_on_material_code", unique: true, where: "(material_code IS NOT NULL)"
+    t.index ["internet_details"], name: "idx_products_internet_details_gin", using: :gin
+    t.index ["material_code"], name: "idx_products_material_code_trgm", opclass: :gin_trgm_ops, where: "(material_code IS NOT NULL)", using: :gin
+    t.index ["material_code"], name: "idx_products_material_code_unique_confirmed", unique: true, where: "((material_code IS NOT NULL) AND (under_review = false))"
+    t.index ["merged_into_product_id"], name: "idx_products_merged_into_product_id"
     t.index ["metadata"], name: "index_products_on_metadata", using: :gin
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
     t.index ["product_code"], name: "index_products_on_product_code", unique: true, where: "(product_code IS NOT NULL)"
+    t.index ["source"], name: "idx_products_source"
+    t.index ["under_review"], name: "idx_products_under_review", where: "(under_review = true)"
   end
 
   create_table "purchase_invoice_items", force: :cascade do |t|
@@ -527,7 +676,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "aliases", default: [], array: true
     t.index ["active"], name: "index_uoms_on_active"
+    t.index ["aliases"], name: "idx_uoms_aliases_gin", using: :gin
     t.index ["name"], name: "index_uoms_on_name", unique: true
     t.index ["short_name"], name: "index_uoms_on_short_name", unique: true
   end
@@ -564,7 +715,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_000002) do
   add_foreign_key "product_imports", "users"
   add_foreign_key "products", "brands"
   add_foreign_key "products", "product_categories"
+  add_foreign_key "products", "products", column: "merged_into_product_id"
   add_foreign_key "products", "uoms", column: "base_uom_id"
+  add_foreign_key "products", "users", column: "reviewed_by_id"
   add_foreign_key "purchase_invoice_items", "products"
   add_foreign_key "purchase_invoice_items", "purchase_invoices"
   add_foreign_key "purchase_invoices", "organisations"

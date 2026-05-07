@@ -204,8 +204,61 @@
     sup   = @import.parsed_supplier
     items = @merged_items   # items from ALL session imports, not just the primary
 
-    # Override item_count in summary to reflect merged total
-    summary = @import.invoice_summary.merge(item_count: items.size)
+    # Override item_count, page counts, and grand total with session-level values.
+    # For multi-image uploads each DigitiseImport has pages_scanned=1; we aggregate here.
+    # Grand total lives on the summary page (last image), not on page 1.
+    summary = @import.invoice_summary.merge(
+      item_count:    items.size,
+      pages_scanned: @session_pages_scanned,
+      page_count:    @session_page_count,
+      total_amount:  @session_grand_total > 0 ? @session_grand_total : @import.invoice_summary[:total_amount]
+    )
+
+    # ── Invoice reconciliation ────────────────────────────────────────────────
+    # Mirrors the invoice summary breakdown: Gross → Cash Disc → Taxable → GST → Total
+    # "rc_" = computed from line items; "ex_" = extracted from AI-parsed invoice summary
+    all_session_hdrs = @session_imports.select { |i| i.status == 'review' }.map(&:parsed_header)
+
+    rc_gross     = items.sum { |i| i['value'].to_f }.round(2)
+    rc_cash_disc = items.sum { |i| i['discount_amount'].to_f }.round(2)
+    rc_taxable   = items.sum { |i| i['taxable_amount'].to_f }.round(2)
+    rc_cgst      = items.sum { |i| i['cgst_amount'].to_f }.round(2)
+    rc_sgst      = items.sum { |i| i['sgst_amount'].to_f }.round(2)
+    rc_igst      = items.sum { |i| i['igst_amount'].to_f }.round(2)
+    rc_gst       = (rc_cgst + rc_sgst + rc_igst).round(2)
+    rc_total     = items.sum { |i| i['total_amount'].to_f }.round(2)
+
+    ex_cash_disc = all_session_hdrs.map { |h| h['cash_discount_amount'].to_f }.max.to_f
+    ex_taxable   = all_session_hdrs.map { |h| h['total_taxable_amount'].to_f }.max.to_f
+    ex_cgst      = all_session_hdrs.map { |h| h['total_cgst'].to_f }.max.to_f
+    ex_sgst      = all_session_hdrs.map { |h| h['total_sgst'].to_f }.max.to_f
+    ex_igst      = all_session_hdrs.map { |h| h['total_igst'].to_f }.max.to_f
+    ex_gst       = (ex_cgst + ex_sgst + ex_igst).round(2)
+    ex_total     = all_session_hdrs.map { |h| h['total_amount'].to_f }.max.to_f.round(2)
+
+    # Tolerance: Rs 1.50 covers commercial rounding; > Rs 10 is a real error
+    rec_st = ->(computed, extracted) {
+      return :na    if extracted <= 0
+      d = (computed - extracted).abs
+      d <= 1.5 ? :ok : d <= 10.0 ? :warn : :error
+    }
+    rec_icon  = ->(s) { { ok: '✓', warn: '⚠', error: '✗', na: '—' }[s] || '—' }
+    rec_color = ->(s) { { ok: 'var(--success)', warn: 'var(--warning)',
+                          error: 'var(--danger)', na: 'var(--text-dim)' }[s] || 'var(--text-dim)' }
+
+    rec_cash_disc_st = (rc_cash_disc > 0 || ex_cash_disc > 0) ? rec_st.(rc_cash_disc, ex_cash_disc) : :na
+    rec_taxable_st   = rec_st.(rc_taxable, ex_taxable)
+    rec_gst_st       = rec_st.(rc_gst, ex_gst)
+    rec_total_st     = rec_st.(rc_total, ex_total)
+
+    active_sts   = [rec_cash_disc_st, rec_taxable_st, rec_gst_st, rec_total_st].reject { |s| s == :na }
+    rec_all_ok   = active_sts.all? { |s| s == :ok }
+    rec_has_err  = active_sts.any? { |s| s == :error }
+    rec_rounding = ex_total > 0 && rc_total > 0 && (rc_total - ex_total).abs.between?(0.01, 2.0)
+
+    computed_grand_total  = rc_total
+    extracted_grand_total = ex_total
+    total_mismatch        = rec_total_st == :error
 
     # Colour tokens for the intelligence box severity
     sev_bg     = { ok: 'rgba(72,199,142,0.08)', warn: 'rgba(247,195,79,0.08)', error: 'rgba(247,92,83,0.08)' }
@@ -542,7 +595,7 @@
               <div class="form-group" style="margin-bottom:0">
                 <label>Grand Total (Rs.)</label>
                 <input type="number" name="parsed_data[header][total_amount]"
-                       value="<%= hdr['total_amount'] %>"
+                       value="<%= computed_grand_total > 0 ? computed_grand_total : (summary[:total_amount] > 0 ? summary[:total_amount] : hdr['total_amount']) %>"
                        class="form-control"
                        style="font-family:var(--mono);font-weight:600;color:var(--accent)" step="0.01">
               </div>
@@ -667,6 +720,184 @@
             </div>
           <% end %>
 
+          <%# Invoice reconciliation — mirrors the invoice summary breakdown %>
+          <% if rc_total > 0 || ex_total > 0 %>
+            <div style="background:rgba(0,0,0,0.15);border-radius:6px;padding:10px 12px;margin-bottom:10px">
+
+              <%# Header row with overall status %>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span style="font-size:10px;font-weight:700;color:var(--text-dim);
+                             text-transform:uppercase;letter-spacing:.07em">Invoice Reconciliation</span>
+                <span style="font-size:11px;font-weight:700;
+                             color:<%= rec_has_err ? 'var(--danger)' : rec_all_ok ? 'var(--success)' : 'var(--warning)' %>">
+                  <%= rec_has_err ? '✗ Issues found — check highlighted items' :
+                      rec_all_ok  ? '✓ All checks passed' :
+                                    '⚠ Minor differences' %>
+                </span>
+              </div>
+
+              <%# Column headers %>
+              <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                          gap:0;font-size:10px;color:var(--text-dim);
+                          border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:4px;margin-bottom:2px">
+                <span>Component</span>
+                <span style="text-align:right;font-family:var(--mono)">From Items</span>
+                <span style="text-align:right;font-family:var(--mono)">From Invoice</span>
+                <span></span>
+              </div>
+
+              <%# Gross Value row — only if AI returned value per line %>
+              <% if rc_gross > 0 %>
+                <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                            gap:0;font-size:11px;padding:3px 0;color:var(--text)">
+                  <span>Gross Value</span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= number_with_precision(rc_gross, precision: 2, delimiter: ',') %>
+                  </span>
+                  <span style="text-align:right;font-family:var(--mono);color:var(--text-dim)">—</span>
+                  <span></span>
+                </div>
+              <% end %>
+
+              <%# Cash Discount row %>
+              <% if rc_cash_disc > 0 || ex_cash_disc > 0 %>
+                <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                            gap:0;font-size:11px;padding:3px 0;color:var(--text-dim)">
+                  <span>− Cash Discount</span>
+                  <span style="text-align:right;font-family:var(--mono);color:var(--warning)">
+                    <%= rc_cash_disc > 0 ? number_with_precision(rc_cash_disc, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= ex_cash_disc > 0 ? number_with_precision(ex_cash_disc, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span style="text-align:center;font-weight:700;color:<%= rec_color.(rec_cash_disc_st) %>">
+                    <%= rec_icon.(rec_cash_disc_st) %>
+                  </span>
+                </div>
+              <% end %>
+
+              <%# Taxable Amount row %>
+              <% if rc_taxable > 0 || ex_taxable > 0 %>
+                <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                            gap:0;font-size:11px;padding:3px 0;font-weight:600;color:var(--text);
+                            border-top:1px solid rgba(255,255,255,0.06)">
+                  <span>= Taxable Amount</span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= number_with_precision(rc_taxable, precision: 2, delimiter: ',') %>
+                  </span>
+                  <span style="text-align:right;font-family:var(--mono);font-weight:400;color:var(--text-dim)">
+                    <%= ex_taxable > 0 ? number_with_precision(ex_taxable, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span style="text-align:center;font-weight:700;color:<%= rec_color.(rec_taxable_st) %>">
+                    <%= rec_icon.(rec_taxable_st) %>
+                  </span>
+                </div>
+              <% end %>
+
+              <%# CGST row %>
+              <% if rc_cgst > 0 || ex_cgst > 0 %>
+                <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                            gap:0;font-size:11px;padding:3px 0;color:var(--text-dim)">
+                  <span>+ CGST<% if ex_cgst > 0 && ex_taxable > 0 %>
+                    <span style="font-family:var(--mono);font-size:10px">
+                      (<%= (ex_cgst / ex_taxable * 100).round(1) %>%)
+                    </span><% end %></span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= rc_cgst > 0 ? number_with_precision(rc_cgst, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= ex_cgst > 0 ? number_with_precision(ex_cgst, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span></span>
+                </div>
+              <% end %>
+
+              <%# SGST row %>
+              <% if rc_sgst > 0 || ex_sgst > 0 %>
+                <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                            gap:0;font-size:11px;padding:3px 0;color:var(--text-dim)">
+                  <span>+ SGST<% if ex_sgst > 0 && ex_taxable > 0 %>
+                    <span style="font-family:var(--mono);font-size:10px">
+                      (<%= (ex_sgst / ex_taxable * 100).round(1) %>%)
+                    </span><% end %></span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= rc_sgst > 0 ? number_with_precision(rc_sgst, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= ex_sgst > 0 ? number_with_precision(ex_sgst, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span></span>
+                </div>
+              <% end %>
+
+              <%# IGST row (inter-state) %>
+              <% if rc_igst > 0 || ex_igst > 0 %>
+                <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                            gap:0;font-size:11px;padding:3px 0;color:var(--text-dim)">
+                  <span>+ IGST<% if ex_igst > 0 && ex_taxable > 0 %>
+                    <span style="font-family:var(--mono);font-size:10px">
+                      (<%= (ex_igst / ex_taxable * 100).round(1) %>%)
+                    </span><% end %></span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= rc_igst > 0 ? number_with_precision(rc_igst, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= ex_igst > 0 ? number_with_precision(ex_igst, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span></span>
+                </div>
+              <% end %>
+
+              <%# GST sub-total row (only if we have both CGST and SGST) %>
+              <% if (rc_cgst > 0 || rc_sgst > 0) && rc_gst > 0 %>
+                <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                            gap:0;font-size:11px;padding:3px 0;color:var(--text);font-weight:600;
+                            border-top:1px dashed rgba(255,255,255,0.06)">
+                  <span>+ GST Total</span>
+                  <span style="text-align:right;font-family:var(--mono)">
+                    <%= number_with_precision(rc_gst, precision: 2, delimiter: ',') %>
+                  </span>
+                  <span style="text-align:right;font-family:var(--mono);font-weight:400;color:var(--text-dim)">
+                    <%= ex_gst > 0 ? number_with_precision(ex_gst, precision: 2, delimiter: ',') : '—' %>
+                  </span>
+                  <span style="text-align:center;font-weight:700;color:<%= rec_color.(rec_gst_st) %>">
+                    <%= rec_icon.(rec_gst_st) %>
+                  </span>
+                </div>
+              <% end %>
+
+              <%# Grand Total row %>
+              <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
+                          gap:0;font-size:12px;padding:5px 0;font-weight:700;color:var(--accent);
+                          border-top:2px solid rgba(255,255,255,0.1);margin-top:2px">
+                <span style="color:var(--text)">= Grand Total</span>
+                <span style="text-align:right;font-family:var(--mono)">
+                  <%= number_with_precision(rc_total, precision: 2, delimiter: ',') %>
+                </span>
+                <span style="text-align:right;font-family:var(--mono);font-weight:400;
+                             color:<%= ex_total > 0 ? 'var(--text-dim)' : 'var(--text-dim)' %>">
+                  <%= ex_total > 0 ? number_with_precision(ex_total, precision: 2, delimiter: ',') : '—' %>
+                </span>
+                <span style="text-align:center;font-size:13px;color:<%= rec_color.(rec_total_st) %>">
+                  <%= rec_icon.(rec_total_st) %>
+                </span>
+              </div>
+
+              <%# Footnote: commercial rounding or error explanation %>
+              <% if rec_rounding && rec_total_st != :error %>
+                <div style="font-size:10px;color:var(--text-dim);margin-top:4px;font-style:italic">
+                  Difference Rs. <%= number_with_precision((rc_total - ex_total).abs, precision: 2) %> — commercial rounding applied by supplier
+                </div>
+              <% elsif total_mismatch %>
+                <div style="font-size:10px;color:var(--danger);margin-top:4px">
+                  Diff Rs. <%= number_with_precision((rc_total - ex_total).abs, precision: 2, delimiter: ',') %> —
+                  pages may be missing or AI misread a column. Check quantities carefully.
+                </div>
+              <% end %>
+
+            </div>
+          <% end %>
+
           <%# Action row for missing pages %>
           <% if @import.pages_missing? %>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -718,7 +949,6 @@
                 ['Qty',         '62px',  'right'],
                 ['UOM',         '46px',  'center'],
                 ['Rate/Unit',   '72px',  'right'],
-                ['Disc%',       '50px',  'right'],
                 ['Disc Rs.',    '62px',  'right'],
                 ['Taxable',     '72px',  'right'],
                 ['GST%',        '46px',  'center'],
@@ -737,7 +967,7 @@
                 <%# ── CONFIRMED (LOCKED) ROWS — append mode only ── %>
                 <% if append_mode && @confirmed_items.any? %>
                   <tr>
-                    <td colspan="13"
+                    <td colspan="12"
                         style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--text-dim);
                                text-transform:uppercase;letter-spacing:.07em;
                                background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border)">
@@ -771,9 +1001,6 @@
                         <%= number_with_precision(item.unit_rate, precision: 2, delimiter: ',') %>
                       </td>
                       <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-                        <%= item.metadata['discount_percent'].to_f > 0 ? "#{item.metadata['discount_percent']}%" : '—' %>
-                      </td>
-                      <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
                         <%= item.metadata['discount_amount'].to_f > 0 ? number_with_precision(item.metadata['discount_amount'], precision: 2) : '—' %>
                       </td>
                       <td style="padding:8px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
@@ -794,7 +1021,7 @@
 
                   <% if items.any? %>
                     <tr>
-                      <td colspan="13"
+                      <td colspan="12"
                           style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--accent);
                                  text-transform:uppercase;letter-spacing:.07em;
                                  background:rgba(79,142,247,0.05);border-bottom:1px solid var(--border)">
@@ -805,27 +1032,113 @@
                 <% end %>
 
                 <%# ── NEW / EDITABLE ITEM ROWS ── %>
+                <%
+                  # Build a map of flat-index → page number so we can inject
+                  # "Page N" separator rows without duplicating row-rendering logic.
+                  page_boundaries = {}
+                  if @item_pages&.size.to_i > 1
+                    offset = 0
+                    @item_pages.each do |pg|
+                      page_boundaries[offset] = pg[:page]
+                      offset += pg[:items].size
+                    end
+                  end
+                  # Per-page sr counters so the display serial resets each page
+                  page_item_counters = Hash.new(0)
+                  current_page = 1
+                %>
                 <% items.each_with_index do |item, idx| %>
+                  <%
+                    if page_boundaries.key?(idx)
+                      current_page = page_boundaries[idx]
+                    end
+                    page_item_counters[current_page] += 1
+                  %>
                   <%
                     clean_code   = sanitise_material_code(item['material_code'].to_s)
                     matched_prod = clean_code.present? ? @product_by_code&.[](clean_code) : nil
                     matched      = matched_prod.present?
                     prod_uom     = matched_prod&.base_uom&.name.presence
                     display_uom  = prod_uom || item['unit'].presence || '—'
-                    disc_pct     = item['discount_percent'].to_f
                     disc_amt     = item['discount_amount'].to_f
                     is_duplicate = @duplicates&.any? { |d|
                       d['material_code'].to_s == item['material_code'].to_s &&
                       (d['quantity'].to_f - item['quantity'].to_f).abs < 0.001
                     }
+
+                    # ── Per-item validation ───────────────────────────────────
+                    iv_qty      = item['quantity'].to_f
+                    iv_volume   = item['volume'].to_f
+                    iv_value    = item['value'].to_f
+                    iv_disc     = item['discount_amount'].to_f
+                    iv_taxable  = item['taxable_amount'].to_f
+                    iv_cgst_pct = item['cgst_percent'].to_f
+                    iv_sgst_pct = item['sgst_percent'].to_f
+                    iv_igst_pct = item['igst_percent'].to_f
+                    iv_gst_rate = iv_cgst_pct + iv_sgst_pct + iv_igst_pct
+                    iv_cgst_amt = item['cgst_amount'].to_f
+                    iv_sgst_amt = item['sgst_amount'].to_f
+                    iv_igst_amt = item['igst_amount'].to_f
+                    iv_gst_amt  = iv_cgst_amt + iv_sgst_amt + iv_igst_amt
+                    iv_total    = item['total_amount'].to_f
+
+                    item_warnings = []
+
+                    # Qty == Volume → AI likely read the wrong column
+                    if iv_volume > 0 && (iv_qty - iv_volume).abs < 0.01
+                      item_warnings << "Qty (#{iv_qty}) equals Volume (#{iv_volume}) — AI may have confused columns. Correct Qty manually."
+                    end
+
+                    # Taxable = Value − Discount
+                    if iv_value > 0 && iv_taxable > 0
+                      exp_taxable = (iv_value - iv_disc).round(2)
+                      if (exp_taxable - iv_taxable).abs > 1.0
+                        item_warnings << "Taxable ₹#{iv_taxable} ≠ Value(#{iv_value}) − Disc(#{iv_disc}) = ₹#{exp_taxable}"
+                      end
+                    end
+
+                    # GST = Taxable × GST%
+                    if iv_taxable > 0 && iv_gst_rate > 0 && iv_gst_amt > 0
+                      exp_gst = (iv_taxable * iv_gst_rate / 100.0).round(2)
+                      if (exp_gst - iv_gst_amt).abs > 1.0
+                        item_warnings << "GST ₹#{iv_gst_amt} ≠ #{iv_gst_rate}% × #{iv_taxable} = ₹#{exp_gst}"
+                      end
+                    end
+
+                    # Total = Taxable + GST
+                    if iv_taxable > 0 && iv_total > 0
+                      exp_total = (iv_taxable + iv_gst_amt).round(2)
+                      if (exp_total - iv_total).abs > 1.0
+                        item_warnings << "Total ₹#{iv_total} ≠ Taxable(#{iv_taxable}) + GST(#{iv_gst_amt}) = ₹#{exp_total}"
+                      end
+                    end
+
+                    item_qty_suspect = iv_volume > 0 && (iv_qty - iv_volume).abs < 0.01
+                    item_has_issues  = item_warnings.any? && !is_duplicate
                   %>
+                  <% if page_boundaries.key?(idx) %>
+                    <tr>
+                      <td colspan="12"
+                          style="padding:5px 12px;font-size:10px;font-weight:700;
+                                 color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;
+                                 background:var(--bg);border-bottom:1px solid var(--border);
+                                 border-top:<%= idx > 0 ? '2px solid var(--border)' : 'none' %>">
+                        Page <%= page_boundaries[idx] %>
+                        <span style="font-weight:400;text-transform:none;letter-spacing:0;
+                                     font-family:var(--mono);color:var(--text-dim)">
+                          · <%= @item_pages[page_boundaries[idx] - 1][:items].size %> items
+                        </span>
+                      </td>
+                    </tr>
+                  <% end %>
                   <tr class="<%= append_mode ? 'item-row-new' : '' %>"
                       style="border-bottom:1px solid var(--border);
-                             <%= is_duplicate ? 'opacity:0.4;text-decoration:line-through' : '' %>">
+                             <%= is_duplicate ? 'opacity:0.4;text-decoration:line-through;' : '' %>
+                             <%= item_has_issues ? 'background:rgba(247,195,79,0.07);border-left:3px solid var(--warning);' : '' %>">
 
                     <td style="padding:8px;text-align:center;font-family:var(--mono);
                                color:var(--text-dim);font-size:11px;white-space:nowrap">
-                      <%= item['sr_no'] || (idx + 1) %>
+                      <%= item['sr_no'] || page_item_counters[current_page] %>
                       <% if is_duplicate %>
                         <div style="font-size:9px;color:var(--danger);font-weight:700">DUP</div>
                       <% end %>
@@ -863,8 +1176,15 @@
                       <input type="number"
                              name="parsed_data[items][<%= idx %>][quantity]"
                              value="<%= item['quantity'] %>"
-                             class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
+                             class="form-control" style="text-align:right;font-family:var(--mono);width:100%;
+                                    <%= item_qty_suspect ? 'border-color:var(--warning);' : '' %>"
                              step="0.001">
+                      <% if item_qty_suspect %>
+                        <div style="font-size:9px;color:var(--warning);margin-top:2px;
+                                    font-family:var(--mono);font-weight:700">
+                          ⚠ Vol=<%= iv_volume %> — check Qty
+                        </div>
+                      <% end %>
                     </td>
 
                     <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
@@ -878,15 +1198,6 @@
                     <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;
                                color:var(--text-dim);white-space:nowrap">
                       <%= item['unit_rate'].to_f > 0 ? number_with_precision(item['unit_rate'], precision: 2, delimiter: ',') : '—' %>
-                    </td>
-
-                    <td style="padding:6px;text-align:right">
-                      <input type="number"
-                             name="parsed_data[items][<%= idx %>][discount_percent]"
-                             value="<%= disc_pct > 0 ? disc_pct : '' %>"
-                             class="form-control disc-pct-input"
-                             style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
-                             step="0.01" min="0" placeholder="0" data-idx="<%= idx %>">
                     </td>
 
                     <td style="padding:6px;text-align:right">
@@ -923,6 +1234,12 @@
                     <td style="padding:8px;text-align:center">
                       <% if is_duplicate %>
                         <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
+                      <% elsif item_has_issues %>
+                        <span title="<%= h(item_warnings.join(' | ')) %>"
+                              style="font-size:10px;color:var(--warning);font-family:var(--mono);
+                                     font-weight:700;cursor:help;display:block">
+                          ⚠ CHECK
+                        </span>
                       <% else %>
                         <span style="font-size:10px;color:var(--accent);font-family:var(--mono)">NEW</span>
                       <% end %>
@@ -933,45 +1250,62 @@
             </table>
           </div>
 
-          <%# Summary footer %>
+          <%# Summary footer — uses rc_/ex_ variables computed in the reconciliation block above %>
           <div style="padding:14px 20px;border-top:1px solid var(--border);
                       display:flex;justify-content:flex-end;gap:28px;flex-wrap:wrap">
-            <% taxable_total = hdr['total_taxable_amount'].to_f %>
-            <% if taxable_total > 0 %>
+            <% if ex_taxable > 0 %>
               <div style="text-align:right">
                 <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
                             text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Taxable</div>
                 <div style="font-family:var(--mono);font-size:15px;color:var(--text)">
-                  Rs. <%= number_with_precision(taxable_total, precision: 2, delimiter: ',') %>
+                  Rs. <%= number_with_precision(ex_taxable, precision: 2, delimiter: ',') %>
                 </div>
               </div>
             <% end %>
-            <% line_disc_total = items.sum { |i| i['discount_amount'].to_f } %>
-            <% if line_disc_total > 0 %>
+            <% if ex_cash_disc > 0 %>
+              <div style="text-align:right">
+                <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                            text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Cash Disc.</div>
+                <div style="font-family:var(--mono);font-size:15px;color:var(--warning)">
+                  — Rs. <%= number_with_precision(ex_cash_disc, precision: 2, delimiter: ',') %>
+                </div>
+              </div>
+            <% elsif rc_cash_disc > 0 %>
               <div style="text-align:right">
                 <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
                             text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Total Disc.</div>
                 <div style="font-family:var(--mono);font-size:15px;color:var(--warning)">
-                  — Rs. <%= number_with_precision(line_disc_total, precision: 2, delimiter: ',') %>
+                  — Rs. <%= number_with_precision(rc_cash_disc, precision: 2, delimiter: ',') %>
                 </div>
               </div>
             <% end %>
-            <% cgst_total = hdr['total_cgst'].to_f; sgst_total = hdr['total_sgst'].to_f %>
-            <% if cgst_total + sgst_total > 0 %>
+            <% if ex_cgst + ex_sgst > 0 %>
               <div style="text-align:right">
                 <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
                             text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">CGST + SGST</div>
                 <div style="font-family:var(--mono);font-size:15px;color:var(--text)">
-                  Rs. <%= number_with_precision(cgst_total + sgst_total, precision: 2, delimiter: ',') %>
+                  Rs. <%= number_with_precision(ex_cgst + ex_sgst, precision: 2, delimiter: ',') %>
                 </div>
               </div>
             <% end %>
             <div style="text-align:right">
               <div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
-                          text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">Grand Total</div>
-              <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)">
-                Rs. <%= number_with_precision(hdr['total_amount'], precision: 2, delimiter: ',') %>
+                          text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px">
+                Grand Total (computed)
               </div>
+              <%# Primary figure is always the sum of line items — not the AI-extracted header value %>
+              <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)">
+                Rs. <%= number_with_precision(computed_grand_total, precision: 2, delimiter: ',') %>
+              </div>
+              <% if total_mismatch %>
+                <div style="font-size:10px;margin-top:3px;color:var(--warning);font-family:var(--mono)">
+                  ⚠ Invoice says: Rs. <%= number_with_precision(extracted_grand_total, precision: 2, delimiter: ',') %>
+                </div>
+              <% elsif extracted_grand_total > 0 && extracted_grand_total != computed_grand_total %>
+                <div style="font-size:10px;margin-top:3px;color:var(--text-dim);font-family:var(--mono)">
+                  Invoice: Rs. <%= number_with_precision(extracted_grand_total, precision: 2, delimiter: ',') %>
+                </div>
+              <% end %>
             </div>
           </div>
         </div>

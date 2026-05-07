@@ -1,0 +1,621 @@
+<%# app/views/admin/system_processes/index.html.erb %>
+<% content_for :title, "System Processes" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Admin</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">System Processes</span>
+<% end %>
+
+<%
+  tab      = params[:tab] || 'jobs'
+  filter   = params[:filter]
+  op       = params[:operation]
+  api_st   = params[:api_status]
+  tab_url  = ->(t) { admin_system_processes_path(tab: t) }
+  jobs_url = ->(f) { admin_system_processes_path(tab: 'jobs',    filter: f,  page: 1) }
+  api_url  = ->(o, s) { admin_system_processes_path(tab: 'api', operation: o, api_status: s, page: 1) }
+%>
+
+<div class="page-header" style="margin-bottom:20px">
+  <div>
+    <div class="page-title" style="display:flex;align-items:center;gap:10px">
+      System Processes
+      <% if @jobs_queued > 0 || @jobs_running > 0 %>
+        <span style="font-size:10px;font-weight:700;color:var(--success);background:rgba(74,222,128,0.1);
+                     border:1px solid rgba(74,222,128,0.3);border-radius:4px;padding:3px 8px;
+                     letter-spacing:.05em">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;
+                       background:var(--success);margin-right:4px;animation:pulse 1.5s infinite"></span>
+          LIVE
+        </span>
+      <% end %>
+    </div>
+    <div class="page-subtitle">Background jobs (GoodJob) · External API calls · Real-time process visibility</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <%= link_to admin_system_processes_path, class: 'btn btn-secondary btn-sm',
+          style: 'display:flex;align-items:center;gap:6px' do %>
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Refresh
+    <% end %>
+
+    <%= button_to admin_system_processes_send_test_email_path, method: :post,
+          class: 'btn btn-secondary btn-sm',
+          style: 'display:flex;align-items:center;gap:6px;cursor:pointer',
+          data: { confirm: "Send today's system report to #{SystemReportMailer::RECIPIENTS.join(' and ')}?" } do %>
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+      Send Daily Report
+    <% end %>
+  </div>
+</div>
+
+<%# ═══ DATE FILTER ═══════════════════════════════════════════════════════════ %>
+<%= form_with url: admin_system_processes_path, method: :get, local: true,
+      style: 'background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap' do |f| %>
+  <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+               color:var(--text-dim)">Date Range</span>
+  <%= f.date_field :date_from, value: @date_from,
+        style: 'background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                padding:5px 8px;font-size:12px;color:var(--text);font-family:var(--mono)' %>
+  <span style="font-size:11px;color:var(--text-dim)">to</span>
+  <%= f.date_field :date_to, value: @date_to,
+        style: 'background:var(--bg);border:1px solid var(--border);border-radius:5px;
+                padding:5px 8px;font-size:12px;color:var(--text);font-family:var(--mono)' %>
+  <%= f.hidden_field :tab, value: tab %>
+  <%= f.submit 'Apply', class: 'btn btn-primary btn-sm' %>
+  <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
+  <%= link_to 'Today',
+        admin_system_processes_path(date_from: Date.today, date_to: Date.today, tab: tab),
+        class: 'btn btn-secondary btn-sm',
+        style: (@date_from == Date.today && @date_to == Date.today ? 'color:var(--accent)' : '') %>
+  <%= link_to 'Last 7 days',
+        admin_system_processes_path(date_from: 7.days.ago.to_date, date_to: Date.today, tab: tab),
+        class: 'btn btn-secondary btn-sm' %>
+  <%= link_to 'This month',
+        admin_system_processes_path(date_from: Date.today.beginning_of_month, date_to: Date.today, tab: tab),
+        class: 'btn btn-secondary btn-sm' %>
+  <span style="flex:1"></span>
+  <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">
+    Showing: <strong style="color:var(--text)"><%= @date_from.strftime('%d %b') %></strong>
+    <% if @date_from != @date_to %>
+      → <strong style="color:var(--text)"><%= @date_to.strftime('%d %b %Y') %></strong>
+    <% else %>
+      <strong style="color:var(--text)"> <%= @date_from.strftime('%Y') %></strong>
+    <% end %>
+  </span>
+<% end %>
+
+<%# ═══ STAT CARDS ════════════════════════════════════════════════════════════ %>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+  <% [
+    { label: 'Queued',    value: @jobs_queued,    color: 'var(--warning)',  icon: 'M12 2v20M2 12h20', filter: 'queued' },
+    { label: 'Running',   value: @jobs_running,   color: 'var(--accent)',   icon: 'M5 3l14 9-14 9V3z', filter: 'running' },
+    { label: 'Succeeded', value: @jobs_succeeded, color: 'var(--success)',  icon: 'M20 6L9 17l-5-5', filter: 'succeeded' },
+    { label: 'Failed',    value: @jobs_errored + @jobs_discarded, color: 'var(--danger)', icon: 'M18 6L6 18M6 6l12 12', filter: 'failed' },
+  ].each do |s| %>
+    <%= link_to jobs_url.call(s[:filter]),
+          style: "background:var(--surface);border:1px solid #{(filter == s[:filter] || (!filter && s[:filter] == 'all')) ? s[:color] : 'var(--border)'};
+                  border-radius:10px;padding:14px 16px;text-decoration:none;
+                  display:block;transition:border-color .15s" do %>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
+                     letter-spacing:.07em"><%= s[:label] %></span>
+        <svg width="14" height="14" fill="none" stroke="<%= s[:color] %>" stroke-width="2" viewBox="0 0 24 24">
+          <path d="<%= s[:icon] %>"/>
+        </svg>
+      </div>
+      <div style="font-size:26px;font-weight:700;color:<%= s[:color] %>;font-family:var(--mono)">
+        <%= s[:value] %>
+      </div>
+    <% end %>
+  <% end %>
+</div>
+
+<%# API stat cards %>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px">
+  <% [
+    { label: 'Total API Calls', value: @api_total_calls,   color: 'var(--text)',    sub: nil },
+    { label: 'Successful',      value: @api_success_calls, color: 'var(--success)', sub: nil },
+    { label: 'Failed',          value: @api_error_calls,   color: 'var(--danger)',  sub: nil },
+    { label: 'Avg Latency',     value: @api_avg_ms ? "#{@api_avg_ms}ms" : '—',
+      color: 'var(--accent)', sub: nil },
+  ].each do |s| %>
+    <div style="background:rgba(79,142,247,0.04);border:1px solid rgba(79,142,247,0.12);
+                border-radius:10px;padding:14px 16px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
+                  letter-spacing:.07em;margin-bottom:8px"><%= s[:label] %></div>
+      <div style="font-size:26px;font-weight:700;color:<%= s[:color] %>;font-family:var(--mono)">
+        <%= s[:value] %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<%# ═══ TAB BAR ═══════════════════════════════════════════════════════════════ %>
+<div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px">
+  <% [['jobs', 'Background Jobs'], ['api', 'External API Calls'], ['stats', 'Breakdowns']].each do |t, lbl| %>
+    <%= link_to tab_url.call(t),
+          style: "padding:8px 18px;font-size:13px;font-weight:#{tab == t ? '600' : '400'};
+                  color:#{tab == t ? 'var(--accent)' : 'var(--text-dim)'};text-decoration:none;
+                  border-bottom:2px solid #{tab == t ? 'var(--accent)' : 'transparent'};
+                  margin-bottom:-1px;display:inline-block" do %>
+      <%= lbl %>
+    <% end %>
+  <% end %>
+</div>
+
+<%# ═══ JOBS TAB ══════════════════════════════════════════════════════════════ %>
+<% if tab == 'jobs' %>
+
+  <%# Filter pills %>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+    <span style="font-size:11px;color:var(--text-dim);font-weight:600">Filter:</span>
+    <% { nil => 'All', 'queued' => 'Queued', 'running' => 'Running',
+         'succeeded' => 'Succeeded', 'failed' => 'Failed' }.each do |f, lbl| %>
+      <%= link_to lbl, jobs_url.call(f),
+            style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;
+                    font-weight:600;
+                    background:#{filter == f ? 'var(--accent)' : 'var(--surface)'};
+                    color:#{filter == f ? '#fff' : 'var(--text-dim)'};
+                    border:1px solid #{filter == f ? 'var(--accent)' : 'var(--border)'}" %>
+    <% end %>
+    <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">
+      <%= @jobs_total %> job<%= @jobs_total == 1 ? '' : 's' %>
+    </span>
+  </div>
+
+  <div class="table-wrap">
+    <% if @jobs.empty? %>
+      <div class="empty-state">
+        <p style="color:var(--text-dim)">No jobs match this filter.</p>
+      </div>
+    <% else %>
+      <table>
+        <thead>
+          <tr>
+            <th>Job Class</th>
+            <th>Queue</th>
+            <th>Status</th>
+            <th>Executions</th>
+            <th>Queued At</th>
+            <th>Started At</th>
+            <th>Finished At</th>
+            <th>Duration</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @jobs.each do |job| %>
+            <%
+              if job.finished_at.nil? && job.performed_at.nil?
+                job_status = 'queued'
+                status_color = 'var(--warning)'
+              elsif job.performed_at.present? && job.finished_at.nil?
+                job_status = 'running'
+                status_color = 'var(--accent)'
+              elsif job.error.present?
+                job_status = 'failed'
+                status_color = 'var(--danger)'
+              else
+                job_status = 'done'
+                status_color = 'var(--success)'
+              end
+
+              duration_ms = if job.performed_at && job.finished_at
+                (job.finished_at - job.performed_at) * 1000
+              end
+              duration_label = if duration_ms
+                duration_ms >= 1000 ? "#{(duration_ms / 1000.0).round(2)}s" : "#{duration_ms.round}ms"
+              else
+                '—'
+              end
+
+              job_name = job.job_class.to_s.gsub('Job', '').underscore.humanize rescue job.job_class
+            %>
+            <tr>
+              <td>
+                <div style="font-size:12px;font-weight:600;color:var(--text)"><%= job_name %></div>
+                <div style="font-size:10px;font-family:var(--mono);color:var(--text-dim);margin-top:2px">
+                  <%= job.id.to_s.first(12) %>…
+                </div>
+              </td>
+              <td>
+                <span style="font-size:10px;font-family:var(--mono);background:var(--bg);
+                             border:1px solid var(--border);border-radius:4px;padding:2px 6px">
+                  <%= job.queue_name || 'default' %>
+                </span>
+              </td>
+              <td>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+                             color:<%= status_color %>;background:rgba(0,0,0,0.06);
+                             border-radius:4px;padding:3px 7px">
+                  <%= job_status %>
+                  <% if job_status == 'running' %>
+                    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;
+                                 background:var(--accent);margin-left:3px;animation:pulse 1s infinite"></span>
+                  <% end %>
+                </span>
+              </td>
+              <td style="font-family:var(--mono);font-size:11px;text-align:center">
+                <%= job.executions_count || 1 %>
+              </td>
+              <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+                <%= job.created_at.strftime('%d %b %H:%M:%S') %>
+              </td>
+              <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+                <%= job.performed_at ? job.performed_at.strftime('%H:%M:%S') : '—' %>
+              </td>
+              <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+                <%= job.finished_at ? job.finished_at.strftime('%H:%M:%S') : '—' %>
+              </td>
+              <td style="font-family:var(--mono);font-size:11px;
+                         color:<%= duration_ms && duration_ms > 5000 ? 'var(--warning)' : 'var(--text-dim)' %>">
+                <%= duration_label %>
+              </td>
+              <td style="max-width:220px">
+                <% if job.error.present? %>
+                  <div style="font-size:10px;color:var(--danger);font-family:var(--mono);
+                              white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                       title="<%= h(job.error) %>">
+                    <%= job.error.to_s.truncate(80) %>
+                  </div>
+                <% else %>
+                  <span style="color:var(--text-dim)">—</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+
+  <%# Pagination %>
+  <% if @jobs_pages > 1 %>
+    <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px">
+      <% if @page > 1 %>
+        <%= link_to '← Prev', admin_system_processes_path(tab: 'jobs', filter: filter, page: @page - 1),
+              class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+      <span style="font-size:12px;color:var(--text-dim)">Page <%= @page %> of <%= @jobs_pages %></span>
+      <% if @page < @jobs_pages %>
+        <%= link_to 'Next →', admin_system_processes_path(tab: 'jobs', filter: filter, page: @page + 1),
+              class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+    </div>
+  <% end %>
+
+<%# ═══ API CALLS TAB ══════════════════════════════════════════════════════════ %>
+<% elsif tab == 'api' %>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+    <span style="font-size:11px;color:var(--text-dim);font-weight:600">Operation:</span>
+    <% { nil => 'All', 'invoice_parse' => 'Invoice Parse', 'product_enrichment' => 'Enrichment' }.each do |o, lbl| %>
+      <%= link_to lbl, api_url.call(o, api_st),
+            style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;
+                    font-weight:600;
+                    background:#{op == o ? 'var(--accent)' : 'var(--surface)'};
+                    color:#{op == o ? '#fff' : 'var(--text-dim)'};
+                    border:1px solid #{op == o ? 'var(--accent)' : 'var(--border)'}" %>
+    <% end %>
+    <span style="color:var(--border)">|</span>
+    <span style="font-size:11px;color:var(--text-dim);font-weight:600">Status:</span>
+    <% { nil => 'All', 'success' => 'Success', 'error' => 'Error', 'pending' => 'Pending' }.each do |s, lbl| %>
+      <%= link_to lbl, api_url.call(op, s),
+            style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;
+                    font-weight:600;
+                    background:#{api_st == s ? 'var(--accent)' : 'var(--surface)'};
+                    color:#{api_st == s ? '#fff' : 'var(--text-dim)'};
+                    border:1px solid #{api_st == s ? 'var(--accent)' : 'var(--border)'}" %>
+    <% end %>
+    <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">
+      <%= @api_logs_total %> call<%= @api_logs_total == 1 ? '' : 's' %>
+    </span>
+  </div>
+
+  <div class="table-wrap">
+    <% if @api_logs.empty? %>
+      <div class="empty-state">
+        <p style="color:var(--text-dim)">No API calls recorded yet. They appear here after the first invoice scan or product enrichment.</p>
+      </div>
+    <% else %>
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Operation</th>
+            <th>Status</th>
+            <th>HTTP</th>
+            <th>Duration</th>
+            <th>Organisation</th>
+            <th>Ref</th>
+            <th>Called At</th>
+            <th>Response Preview</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @api_logs.each do |log| %>
+            <%
+              st_color = case log.status
+                         when 'success' then 'var(--success)'
+                         when 'error'   then 'var(--danger)'
+                         else                'var(--warning)'
+                         end
+              op_label = log.operation.to_s.humanize
+              ref_link = case log.operation
+                         when 'invoice_parse'      then log.metadata['digitise_import_id']
+                         when 'product_enrichment' then log.metadata['product_id']
+                         end
+            %>
+            <tr>
+              <td>
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+                             font-family:var(--mono);color:var(--accent)">
+                  <%= log.service %>
+                </span>
+              </td>
+              <td>
+                <span style="font-size:11px;color:var(--text)"><%= op_label %></span>
+              </td>
+              <td>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;
+                             color:<%= st_color %>;background:rgba(0,0,0,0.05);
+                             border-radius:4px;padding:3px 7px">
+                  <%= log.status %>
+                </span>
+              </td>
+              <td style="font-family:var(--mono);font-size:11px;
+                         color:<%= log.http_status && log.http_status >= 400 ? 'var(--danger)' : 'var(--text-dim)' %>">
+                <%= log.http_status || '—' %>
+              </td>
+              <td style="font-family:var(--mono);font-size:11px;
+                         color:<%= log.duration_ms && log.duration_ms > 5000 ? 'var(--warning)' : 'var(--text-dim)' %>">
+                <%= log.duration_label %>
+              </td>
+              <td style="font-size:11px;color:var(--text-dim)">
+                <%= log.organisation&.name&.truncate(22) || '—' %>
+              </td>
+              <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+                <% if ref_link.present? %>
+                  <% if log.operation == 'invoice_parse' %>
+                    <%= link_to "DI##{ref_link}", purchasing_digitise_path(ref_link),
+                          style: 'color:var(--accent);text-decoration:none' rescue ref_link %>
+                  <% else %>
+                    <%= link_to "P##{ref_link}", setup_product_path(ref_link),
+                          style: 'color:var(--accent);text-decoration:none' rescue ref_link %>
+                  <% end %>
+                <% else %>
+                  —
+                <% end %>
+              </td>
+              <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim);white-space:nowrap">
+                <%= log.created_at.strftime('%d %b %H:%M:%S') %>
+              </td>
+              <td style="max-width:280px">
+                <% if log.error_message.present? %>
+                  <div style="font-size:10px;color:var(--danger);font-family:var(--mono);
+                              white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                       title="<%= h(log.error_message) %>">
+                    <%= log.error_message.truncate(100) %>
+                  </div>
+                <% elsif log.response_body.present? %>
+                  <details style="cursor:pointer">
+                    <summary style="font-size:10px;color:var(--text-dim);list-style:none;
+                                   display:flex;align-items:center;gap:4px">
+                      <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                      View response
+                    </summary>
+                    <pre style="font-size:9px;font-family:var(--mono);color:var(--text-dim);
+                                background:var(--bg);border-radius:4px;padding:6px;margin-top:6px;
+                                max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
+                                max-width:400px"><%= h(log.response_body.to_s.truncate(1200)) %></pre>
+                  </details>
+                <% else %>
+                  <span style="color:var(--text-dim)">—</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+
+  <% if @api_logs_pages > 1 %>
+    <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px">
+      <% if @page > 1 %>
+        <%= link_to '← Prev', admin_system_processes_path(tab: 'api', operation: op,
+              api_status: api_st, page: @page - 1), class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+      <span style="font-size:12px;color:var(--text-dim)">Page <%= @page %> of <%= @api_logs_pages %></span>
+      <% if @page < @api_logs_pages %>
+        <%= link_to 'Next →', admin_system_processes_path(tab: 'api', operation: op,
+              api_status: api_st, page: @page + 1), class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+    </div>
+  <% end %>
+
+<%# ═══ STATS TAB ══════════════════════════════════════════════════════════════ %>
+<% elsif tab == 'stats' %>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+
+    <%# Job class breakdown %>
+    <div class="form-card">
+      <div class="form-section">
+        <div class="form-section-title">Background Jobs by Class</div>
+        <% if @job_class_stats.empty? %>
+          <p style="font-size:12px;color:var(--text-dim)">No jobs recorded yet.</p>
+        <% else %>
+          <table style="font-size:12px">
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th style="text-align:right">Total</th>
+                <th style="text-align:right">Done</th>
+                <th style="text-align:right">Errors</th>
+                <th style="text-align:right">Avg Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @job_class_stats.each do |row| %>
+                <%
+                  total   = row.total.to_i
+                  success = row.succeeded.to_i
+                  errored = row.errored.to_i
+                  pct     = total > 0 ? (success.to_f / total * 100).round : 0
+                  avg_ms  = row.avg_ms.to_f
+                  avg_lbl = avg_ms > 0 ? (avg_ms >= 1000 ? "#{(avg_ms/1000.0).round(2)}s" : "#{avg_ms.round}ms") : '—'
+                %>
+                <tr>
+                  <td>
+                    <div style="font-size:11px;font-weight:600;color:var(--text)">
+                      <%= row.job_class.to_s.gsub('Job', '') %>
+                    </div>
+                    <div style="background:var(--border);border-radius:99px;height:3px;margin-top:4px;overflow:hidden;width:120px">
+                      <div style="height:3px;border-radius:99px;width:<%= pct %>%;
+                                  background:<%= errored > 0 ? 'var(--warning)' : 'var(--success)' %>"></div>
+                    </div>
+                  </td>
+                  <td style="text-align:right;font-family:var(--mono)"><%= total %></td>
+                  <td style="text-align:right;font-family:var(--mono);color:var(--success)"><%= success %></td>
+                  <td style="text-align:right;font-family:var(--mono);color:<%= errored > 0 ? 'var(--danger)' : 'var(--text-dim)' %>">
+                    <%= errored %>
+                  </td>
+                  <td style="text-align:right;font-family:var(--mono);color:var(--text-dim)"><%= avg_lbl %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        <% end %>
+      </div>
+    </div>
+
+    <%# API service breakdown %>
+    <div class="form-card">
+      <div class="form-section">
+        <div class="form-section-title">External API Calls by Service</div>
+        <% if @api_service_stats.empty? %>
+          <p style="font-size:12px;color:var(--text-dim)">No API calls recorded yet.</p>
+        <% else %>
+          <table style="font-size:12px">
+            <thead>
+              <tr>
+                <th>Service / Operation</th>
+                <th style="text-align:right">Total</th>
+                <th style="text-align:right">OK</th>
+                <th style="text-align:right">Errors</th>
+                <th style="text-align:right">Avg Latency</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @api_service_stats.each do |row| %>
+                <%
+                  total   = row.total.to_i
+                  success = row.succeeded.to_i
+                  errored = row.errored.to_i
+                  pct     = total > 0 ? (success.to_f / total * 100).round : 0
+                  avg_ms  = row.avg_ms.to_f
+                  avg_lbl = avg_ms > 0 ? (avg_ms >= 1000 ? "#{(avg_ms/1000.0).round(2)}s" : "#{avg_ms.round}ms") : '—'
+                %>
+                <tr>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span style="font-size:10px;font-weight:700;text-transform:uppercase;
+                                   font-family:var(--mono);color:var(--accent)"><%= row.service %></span>
+                      <span style="font-size:10px;color:var(--text-dim)"><%= row.operation.humanize %></span>
+                    </div>
+                    <div style="background:var(--border);border-radius:99px;height:3px;margin-top:4px;overflow:hidden;width:120px">
+                      <div style="height:3px;border-radius:99px;width:<%= pct %>%;
+                                  background:<%= errored > 0 ? 'var(--warning)' : 'var(--success)' %>"></div>
+                    </div>
+                  </td>
+                  <td style="text-align:right;font-family:var(--mono)"><%= total %></td>
+                  <td style="text-align:right;font-family:var(--mono);color:var(--success)"><%= success %></td>
+                  <td style="text-align:right;font-family:var(--mono);color:<%= errored > 0 ? 'var(--danger)' : 'var(--text-dim)' %>">
+                    <%= errored %>
+                  </td>
+                  <td style="text-align:right;font-family:var(--mono);
+                             color:<%= avg_ms > 5000 ? 'var(--warning)' : 'var(--text-dim)' %>">
+                    <%= avg_lbl %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        <% end %>
+      </div>
+    </div>
+
+    <%# 24-hour activity chart (simple bar using CSS) %>
+    <div class="form-card" style="grid-column:1/-1">
+      <div class="form-section">
+        <div class="form-section-title">Last 24 Hours — Hourly Activity</div>
+        <%
+          now    = Time.current
+          hours  = 24.times.map { |i| now - (23 - i).hours }
+          job_counts = GoodJob::Job
+                         .where(created_at: (now - 24.hours)..now)
+                         .group("date_trunc('hour', created_at)")
+                         .count
+          api_counts = ExternalApiLog
+                         .where(created_at: (now - 24.hours)..now)
+                         .group("date_trunc('hour', created_at)")
+                         .count
+          max_val = ([job_counts.values.max || 0, api_counts.values.max || 0].max).clamp(1, Float::INFINITY)
+        %>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:80px;padding-bottom:20px;
+                    border-bottom:1px solid var(--border);position:relative">
+          <% hours.each do |h| %>
+            <%
+              bucket = h.beginning_of_hour
+              jobs   = job_counts[bucket] || 0
+              apis   = api_counts[bucket] || 0
+              j_pct  = (jobs.to_f / max_val * 100).round
+              a_pct  = (apis.to_f / max_val * 100).round
+            %>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;position:relative"
+                 title="<%= h.strftime('%H:%M') %> — <%= jobs %> jobs, <%= apis %> API calls">
+              <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:60px;gap:1px">
+                <div style="width:100%;background:var(--accent);opacity:0.7;height:<%= j_pct %>%;
+                             border-radius:2px 2px 0 0;min-height:<%= jobs > 0 ? '2' : '0' %>px"></div>
+                <div style="width:100%;background:#a78bfa;opacity:0.7;height:<%= a_pct %>%;
+                             border-radius:2px 2px 0 0;min-height:<%= apis > 0 ? '2' : '0' %>px"></div>
+              </div>
+              <% if h.hour % 4 == 0 %>
+                <div style="font-size:8px;color:var(--text-dim);position:absolute;bottom:-16px;
+                             white-space:nowrap"><%= h.strftime('%H:00') %></div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:5px">
+            <div style="width:10px;height:10px;background:var(--accent);opacity:0.7;border-radius:2px"></div>
+            <span style="font-size:10px;color:var(--text-dim)">Background Jobs</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <div style="width:10px;height:10px;background:#a78bfa;opacity:0.7;border-radius:2px"></div>
+            <span style="font-size:10px;color:var(--text-dim)">API Calls</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<% end %>
+
+<style>
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+  details summary::-webkit-details-marker { display:none }
+</style>

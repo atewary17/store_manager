@@ -21,6 +21,22 @@ class ProductCategory < ApplicationRecord
   scope :ordered,     -> { order(:name) }
   scope :paint_types, -> { where(is_paint_type: true) }
 
+  # Fuzzy lookup used by UnmatchedProductCreator.
+  # Priority: exact name → trigram similarity (no aliases column on categories).
+  # Returns nil when no match — caller must apply an "Others" fallback.
+  def self.match_fuzzy(raw)
+    return nil if raw.blank?
+    n = raw.to_s.strip.downcase
+
+    find_by('LOWER(name) = ?', n) ||
+      where('similarity(LOWER(name), ?) > 0.40', n).order(Arel.sql("similarity(LOWER(name), #{connection.quote(n)}) DESC")).first
+  end
+
+  def self.others
+    find_by('LOWER(name) = ?', 'others') ||
+      find_or_create_by!(name: 'Others') { |c| c.active = true }
+  end
+
   # ── Validations ───────────────────────────────────────────────
   validates :name, presence: true, uniqueness: { case_sensitive: false }
 

@@ -141,9 +141,21 @@ class Purchasing::DigitiseController < Purchasing::BaseController
 
     if @import.status == 'review'
       # Items merged from every sibling that has finished — not just the primary import
-      @merged_items = @session_imports
-                        .select { |i| i.status == 'review' }
-                        .flat_map(&:parsed_items)
+      review_imports = @session_imports.select { |i| i.status == 'review' }
+      @merged_items  = review_imports.flat_map(&:parsed_items)
+      # Page groups used to render "Page N" separators in the view
+      @item_pages    = review_imports.each_with_index.map { |imp, i| { page: i + 1, items: imp.parsed_items } }
+
+      # Session-level page stats — each uploaded image = 1 DigitiseImport with pages_scanned=1,
+      # so we must aggregate across the session rather than reading from @import alone.
+      @session_pages_scanned = review_imports.size
+      @session_page_count    = [review_imports.map(&:ai_page_count).max.to_i,
+                                @session_pages_scanned].max
+      # Grand total: use the session import that reported the highest total_amount
+      # (the summary/totals page has the real figure; individual pages may show 0).
+      @session_grand_total   = review_imports
+                                 .map { |i| i.parsed_header['total_amount'].to_f }
+                                 .max.to_f
 
       # Build lightbox image list for all session imports
       @lightbox_images = @session_imports.filter_map do |imp|
@@ -367,6 +379,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
           'hsn_code'         => effective_hsn,
           'pack_size'        => item['pack_size'],
           'num_packs'        => item['num_packs'],
+          'volume'           => item['volume'].to_f > 0 ? item['volume'].to_f : nil,
           'unit'             => effective_unit,
           'rate_per_pack'    => item['rate_per_pack'].to_f,
           'discount_percent' => line_disc_pct,
@@ -449,6 +462,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
           'hsn_code'         => effective_hsn,
           'pack_size'        => item['pack_size'],
           'num_packs'        => item['num_packs'],
+          'volume'           => item['volume'].to_f > 0 ? item['volume'].to_f : nil,
           'unit'             => effective_unit,
           'rate_per_pack'    => item['rate_per_pack'].to_f,
           'discount_percent' => line_disc_pct,

@@ -35,6 +35,8 @@ class PurchaseInvoice < ApplicationRecord
       return false
     end
 
+    new_products = []
+
     ActiveRecord::Base.transaction do
       # Compute totals from items
       # Recompute unit_rate = total_amount / quantity for each item
@@ -109,28 +111,49 @@ class PurchaseInvoice < ApplicationRecord
       self.confirmed_at     = Time.current
       save!
 
-      # Create stock ledger entries for ALL items that have a product_id —
-      # including AI-enriched pending products (active: false, source: ai_enrichment).
-      # Stock must be tracked regardless of product active status.
-      # Only sales invoice search excludes inactive products — purchasing and stock do not.
-      #
-      # Items with no product_id at all (truly unmatched, no product record created)
-      # are skipped — there is nothing to track stock against.
-      purchase_invoice_items
-        .select { |i| i.product_id.present? }
-        .each do |item|
-          StockLedger.create!(
-            organisation:   organisation,
-            product_id:     item.product_id,
-            user:           current_user,
-            entry_type:     'purchase',
-            quantity:       item.quantity,
-            unit_cost:      item.unit_rate,
-            notes:          "Purchase Invoice #{invoice_number.presence || id}"                             "#{item.unmatched? ? ' [pending product — awaiting admin review]' : ''}",
-            reference_type: 'PurchaseInvoice',
-            reference_id:   id
-          )
-        end
+      # ── Auto-create products for items still missing a product_id ───────────
+      # Runs after GST loop so all item financials are already saved.
+      # UnmatchedProductCreator creates an under_review product + organisation_product,
+      # then stamps product_id on the item so the stock ledger loop below picks it up.
+      purchase_invoice_items.where(product_id: nil, unmatched: true).each do |item|
+        product = UnmatchedProductCreator.call(item: item, organisation: organisation)
+        new_products << product
+      end
+
+      # Create stock ledger entries for ALL items that have a product_id.
+      # Must use a SQL WHERE (not Ruby select) — the AR association cache still holds
+      # the pre-UnmatchedProductCreator in-memory objects with product_id: nil,
+      # so a Ruby-level filter would silently skip the newly created products.
+      purchase_invoice_items.where.not(product_id: nil).each do |item|
+        StockLedger.create!(
+          organisation:   organisation,
+          product_id:     item.product_id,
+          user:           current_user,
+          entry_type:     'purchase',
+          quantity:       item.quantity,
+          unit_cost:      item.unit_rate,
+          notes:          "Purchase Invoice #{invoice_number.presence || id}" \
+                          "#{item.unmatched? ? ' [pending product — awaiting admin review]' : ''}",
+          reference_type: 'PurchaseInvoice',
+          reference_id:   id
+        )
+      end
+    end
+
+    # Enqueue AI enrichment for each newly created under_review product.
+    # Must run AFTER the transaction commits — jobs must not fire before the
+    # product row is visible to the job worker.
+    new_products.compact.each do |product|
+      EnrichUnmatchedProductJob.perform_later(product.id)
+    end
+
+    # Notify SuperAdmin if any unmatched products were created.
+    if new_products.any?
+      ProductReviewMailer.new_unmatched_products(
+        products:         new_products.compact,
+        organisation:     organisation,
+        purchase_invoice: self
+      ).deliver_later
     end
 
     true

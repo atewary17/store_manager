@@ -1,0 +1,150 @@
+<%# app/views/admin/product_reviews/index.html.erb %>
+<% content_for :title, "Product Review Queue" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Admin</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Product Review</span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Product Review Queue</div>
+    <div class="page-subtitle">Products auto-created from scanned invoices — review, approve, or merge</div>
+  </div>
+  <% if @total_pending > 0 %>
+    <div style="background:rgba(247,195,79,0.12);border:1px solid rgba(247,195,79,0.35);
+                border-radius:8px;padding:10px 18px;display:flex;align-items:center;gap:10px">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--warning);
+                   display:inline-block;animation:pulse 1.5s infinite"></span>
+      <span style="font-size:13px;font-weight:600;color:var(--warning)">
+        <%= @total_pending %> product<%= @total_pending == 1 ? '' : 's' %> awaiting review
+      </span>
+    </div>
+  <% end %>
+</div>
+
+<% if @products.empty? %>
+  <div class="table-wrap">
+    <div class="empty-state">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"
+           style="color:var(--success);margin:0 auto 12px;display:block">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <p>All caught up — no products awaiting review.</p>
+    </div>
+  </div>
+<% else %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Brand</th>
+          <th>Category</th>
+          <th>UOM</th>
+          <th>HSN</th>
+          <th>GST%</th>
+          <th>Source PI</th>
+          <th>Enriched</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @products.each do |product| %>
+          <%
+            pi_item = product.purchase_invoice_items.first
+            pi      = pi_item&.purchase_invoice
+            org     = pi&.organisation
+            enriched = product.internet_details_fetched_at.present? &&
+                       product.internet_details&.dig('groq_enrichment').present?
+          %>
+          <tr>
+            <td>
+              <div style="font-size:13px;font-weight:500;color:var(--text)">
+                <%= product.description.truncate(50) %>
+              </div>
+              <% if product.material_code.present? %>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px">
+                  <%= product.material_code %>
+                </div>
+              <% end %>
+            </td>
+            <td>
+              <% if product.brand&.name == 'Others' || product.brand.nil? %>
+                <span style="font-size:11px;color:var(--warning)">— unresolved</span>
+              <% else %>
+                <span style="font-size:12px;color:var(--text)"><%= product.brand.name %></span>
+              <% end %>
+            </td>
+            <td>
+              <% if product.product_category&.name == 'Others' %>
+                <span style="font-size:11px;color:var(--warning)">— unresolved</span>
+              <% else %>
+                <span style="font-size:12px;color:var(--text)"><%= product.product_category&.name %></span>
+              <% end %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+              <%= product.base_uom&.short_name || '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+              <%= product.hsn_code.presence || '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;text-align:right">
+              <%= product.gst_rate.to_i %>%
+            </td>
+            <td>
+              <% if pi %>
+                <%= link_to purchasing_purchase_invoice_path(pi),
+                      style: 'font-size:11px;font-family:var(--mono);color:var(--accent);text-decoration:none' do %>
+                  <%= pi.display_number %>
+                  <% if org %>
+                    <div style="font-size:10px;color:var(--text-dim)"><%= org.name.truncate(20) %></div>
+                  <% end %>
+                <% end %>
+              <% else %>
+                <span style="color:var(--text-dim)">—</span>
+              <% end %>
+            </td>
+            <td style="text-align:center">
+              <% if enriched %>
+                <span title="AI enrichment complete"
+                      style="font-size:10px;font-weight:700;color:var(--success);
+                             font-family:var(--mono)">✓ AI</span>
+              <% elsif product.internet_details&.dig('error').present? %>
+                <span title="Enrichment failed"
+                      style="font-size:10px;color:var(--danger);font-family:var(--mono)">FAIL</span>
+              <% else %>
+                <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono)">pending</span>
+              <% end %>
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+              <%= product.created_at.strftime('%d %b, %H:%M') %>
+            </td>
+            <td>
+              <%= link_to 'Review', admin_product_review_path(product),
+                    class: 'btn btn-primary btn-sm' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <% if @total_pages > 1 %>
+    <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px">
+      <% if @page > 1 %>
+        <%= link_to '← Prev', admin_product_reviews_path(page: @page - 1), class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+      <span style="font-size:12px;color:var(--text-dim)">Page <%= @page %> of <%= @total_pages %></span>
+      <% if @page < @total_pages %>
+        <%= link_to 'Next →', admin_product_reviews_path(page: @page + 1), class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+
+<style>
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+</style>

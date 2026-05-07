@@ -1,0 +1,237 @@
+<%
+  # Helpers used inline throughout the template
+  pct_bar = ->(pct, color) do
+    safe_pct = [[pct.to_f, 0].max, 100].min
+    "<div style=\"background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;margin-top:4px\">
+       <div style=\"background:#{color};height:8px;width:#{safe_pct}%;border-radius:4px\"></div>
+     </div>".html_safe
+  end
+
+  org_max  = @org_stats.map { |r| r.total.to_i }.max.to_f.nonzero? || 1
+  svc_max  = @service_stats.map { |r| r.total.to_i }.max.to_f.nonzero? || 1
+  job_max  = @job_class_stats.map { |r| r.total.to_i }.max.to_f.nonzero? || 1
+%>
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;background:#f9fafb;padding:24px 16px">
+
+  <%# ── HEADER ──────────────────────────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px 12px 0 0;padding:0;margin-bottom:0">
+    <tr>
+      <td style="padding:28px 32px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">
+          Daily System Report
+        </div>
+        <div style="font-size:26px;font-weight:700;color:#f8fafc;margin-bottom:4px">
+          Store Manager
+        </div>
+        <div style="font-size:13px;color:#64748b">
+          <%= @date_label %> &nbsp;·&nbsp; Generated <%= Time.current.strftime('%H:%M %Z') %>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <%# ── SECTION: BACKGROUND JOBS ───────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;margin-bottom:2px">
+    <tr>
+      <td style="padding:20px 32px 4px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px">
+          Background Jobs &nbsp;·&nbsp; <span style="color:#94a3b8;font-weight:400">GoodJob Queue</span>
+        </div>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <% [
+              { label: 'Queued',    value: @jobs_queued,    bg: '#fff7ed', color: '#ea580c' },
+              { label: 'Running',   value: @jobs_running,   bg: '#eff6ff', color: '#2563eb' },
+              { label: 'Succeeded', value: @jobs_succeeded, bg: '#f0fdf4', color: '#16a34a' },
+              { label: 'Failed',    value: @jobs_errored,   bg: '#fef2f2', color: '#dc2626' },
+              { label: 'Discarded', value: @jobs_discarded, bg: '#faf5ff', color: '#7c3aed' },
+            ].each do |s| %>
+              <td style="width:20%;padding:0 4px 16px;text-align:center;vertical-align:top">
+                <div style="background:<%= s[:bg] %>;border-radius:8px;padding:12px 8px">
+                  <div style="font-size:28px;font-weight:800;color:<%= s[:color] %>;line-height:1">
+                    <%= s[:value] %>
+                  </div>
+                  <div style="font-size:10px;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:.06em">
+                    <%= s[:label] %>
+                  </div>
+                </div>
+              </td>
+            <% end %>
+          </tr>
+        </table>
+
+        <% if @job_class_stats.any? %>
+          <div style="font-size:11px;font-weight:600;color:#475569;margin-bottom:8px">By Job Type</div>
+          <% @job_class_stats.each do |jc| %>
+            <% pct = (jc.total.to_i / job_max * 100).round %>
+            <table width="100%" cellpadding="0" cellspacing="4" style="margin-bottom:6px">
+              <tr>
+                <td style="width:180px;font-size:11px;font-family:monospace;color:#334155">
+                  <%= jc.job_class.to_s.split('::').last %>
+                </td>
+                <td>
+                  <div style="background:#e2e8f0;border-radius:4px;height:14px;overflow:hidden;position:relative">
+                    <div style="background:#3b82f6;height:14px;width:<%= pct %>%"></div>
+                    <span style="position:absolute;left:6px;top:0;line-height:14px;font-size:9px;color:#fff;font-weight:700">
+                      <%= jc.total %> &nbsp;✓<%= jc.succeeded %>&nbsp; ✗<%= jc.errored %>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          <% end %>
+        <% end %>
+      </td>
+    </tr>
+  </table>
+
+  <%# ── SECTION: API CALLS ──────────────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;margin-bottom:2px">
+    <tr>
+      <td style="padding:20px 32px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px">
+          External API Calls &nbsp;·&nbsp; <span style="color:#94a3b8;font-weight:400">Today</span>
+        </div>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px">
+          <tr>
+            <% [
+              { label: 'Total Calls',   value: @api_total,     color: '#1e293b' },
+              { label: 'Succeeded',     value: @api_succeeded,  color: '#16a34a' },
+              { label: 'Failed',        value: @api_errored,    color: '#dc2626' },
+              { label: 'Avg Response',  value: "#{@api_avg_ms}ms", color: '#7c3aed' },
+            ].each do |s| %>
+              <td style="width:25%;padding:0 4px;text-align:center">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 8px">
+                  <div style="font-size:22px;font-weight:800;color:<%= s[:color] %>"><%= s[:value] %></div>
+                  <div style="font-size:10px;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:.05em"><%= s[:label] %></div>
+                </div>
+              </td>
+            <% end %>
+          </tr>
+        </table>
+
+        <%# Success rate bar %>
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:11px;color:#475569">Success Rate</span>
+            <span style="font-size:11px;font-weight:700;color:<%= @api_success_pct >= 90 ? '#16a34a' : @api_success_pct >= 70 ? '#d97706' : '#dc2626' %>">
+              <%= @api_success_pct %>%
+            </span>
+          </div>
+          <div style="background:#e2e8f0;border-radius:99px;height:10px;overflow:hidden">
+            <div style="background:<%= @api_success_pct >= 90 ? '#22c55e' : @api_success_pct >= 70 ? '#f59e0b' : '#ef4444' %>;
+                        height:10px;width:<%= @api_success_pct %>%;border-radius:99px"></div>
+          </div>
+        </div>
+
+        <% if @service_stats.any? %>
+          <div style="font-size:11px;font-weight:600;color:#475569;margin-bottom:8px">By Service / Operation</div>
+          <% @service_stats.each do |svc| %>
+            <% pct = (svc.total.to_i / svc_max * 100).round %>
+            <% ok_pct = svc.total.to_i > 0 ? (svc.succeeded.to_i / svc.total.to_f * 100).round : 0 %>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:6px">
+              <tr>
+                <td style="width:200px;font-size:11px;font-family:monospace;color:#334155">
+                  <%= svc.service %>/<%= svc.operation %>
+                </td>
+                <td>
+                  <div style="background:#e2e8f0;border-radius:4px;height:14px;overflow:hidden;position:relative">
+                    <div style="background:<%= ok_pct >= 90 ? '#22c55e' : ok_pct >= 70 ? '#f59e0b' : '#ef4444' %>;height:14px;width:<%= pct %>%"></div>
+                    <span style="position:absolute;left:6px;top:0;line-height:14px;font-size:9px;color:#fff;font-weight:700">
+                      <%= svc.total %> calls &nbsp;·&nbsp; <%= ok_pct %>% ok
+                      <% if svc.avg_ms.present? %>&nbsp;·&nbsp; <%= svc.avg_ms.round %>ms<% end %>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          <% end %>
+        <% end %>
+      </td>
+    </tr>
+  </table>
+
+  <%# ── SECTION: BY ORGANISATION ────────────────────────────────── %>
+  <% if @org_stats.any? %>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;margin-bottom:2px">
+      <tr>
+        <td style="padding:20px 32px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px">
+            API Usage by Organisation
+          </div>
+          <% @org_stats.each do |org| %>
+            <% pct     = (org.total.to_i / org_max * 100).round %>
+            <% ok_pct  = org.total.to_i > 0 ? (org.succeeded.to_i / org.total.to_f * 100).round : 0 %>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px">
+              <tr>
+                <td style="padding-bottom:4px">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:12px;font-weight:600;color:#1e293b"><%= org.org_name %></td>
+                      <td style="text-align:right;font-size:11px;color:#64748b">
+                        <%= org.total %> calls &nbsp;·&nbsp;
+                        <span style="color:#16a34a">✓ <%= org.succeeded %></span> &nbsp;
+                        <span style="color:#dc2626">✗ <%= org.errored %></span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="background:#e2e8f0;border-radius:99px;height:12px;overflow:hidden">
+                    <div style="background:#6366f1;height:12px;width:<%= pct %>%;border-radius:99px"></div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          <% end %>
+        </td>
+      </tr>
+    </table>
+  <% end %>
+
+  <%# ── SECTION: MONTHLY AVERAGES ───────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;margin-bottom:2px">
+    <tr>
+      <td style="padding:20px 32px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px">
+          30-Day Monthly Averages
+        </div>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <% [
+              { label: 'Jobs / Day',    value: @monthly[:jobs_per_day], color: '#3b82f6' },
+              { label: 'API Calls / Day', value: @monthly[:api_per_day], color: '#8b5cf6' },
+              { label: 'Success Rate',  value: "#{@monthly[:success_rate]}%", color: @monthly[:success_rate] >= 90 ? '#16a34a' : '#d97706' },
+              { label: 'Avg Response',  value: "#{@monthly[:avg_ms]}ms", color: '#0891b2' },
+            ].each do |m| %>
+              <td style="width:25%;padding:0 4px;text-align:center">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 8px">
+                  <div style="font-size:20px;font-weight:800;color:<%= m[:color] %>"><%= m[:value] %></div>
+                  <div style="font-size:10px;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:.05em"><%= m[:label] %></div>
+                </div>
+              </td>
+            <% end %>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <%# ── FOOTER ──────────────────────────────────────────────────── %>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:0 0 12px 12px">
+    <tr>
+      <td style="padding:16px 32px;text-align:center">
+        <div style="font-size:11px;color:#475569">
+          Store Manager &nbsp;·&nbsp; Auto-generated report for <%= @date_label %>
+        </div>
+        <div style="font-size:10px;color:#334155;margin-top:4px">
+          This report was sent to <%= SystemReportMailer::RECIPIENTS.join(' and ') %>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+</div>
