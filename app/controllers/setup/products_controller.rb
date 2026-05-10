@@ -2,7 +2,7 @@
 class Setup::ProductsController < Setup::BaseController
   before_action :set_product, only: [:show, :edit, :update, :destroy]
 
-  PER_PAGE_OPTIONS = [50, 100, 200].freeze
+  PER_PAGE_OPTIONS = [25, 50, 75].freeze
 
   # GET /setup/products
   # Shows products enrolled in the current org's catalogue.
@@ -19,7 +19,7 @@ class Setup::ProductsController < Setup::BaseController
       @products = params[:status] == 'active' ? @products.active : @products.inactive
     end
 
-    @per_page          = PER_PAGE_OPTIONS.include?(params[:per_page].to_i) ? params[:per_page].to_i : 50
+    @per_page          = PER_PAGE_OPTIONS.include?(params[:per_page].to_i) ? params[:per_page].to_i : 25
     @page              = [params[:page].to_i, 1].max
     @total_count       = @products.count
     @total_pages       = (@total_count.to_f / @per_page).ceil
@@ -55,12 +55,22 @@ class Setup::ProductsController < Setup::BaseController
     @selected_category  = ProductCategory.find_by(id: params[:category_id])
     @categories         = ProductCategory.active.ordered
     @brands             = Brand.active.ordered
-    @total_count        = Product.count
-    @active_count       = Product.active.count
-    @inactive_count     = Product.inactive.count
-    @enrolled_count     = OrganisationProduct.select(:product_id).distinct.count
-    @unenrolled_count   = @total_count - @enrolled_count
     @orgs               = Organisation.order(:name)
+
+    # Stats (unfiltered totals for header cards)
+    @total_count      = Product.count
+    @active_count     = Product.active.count
+    @inactive_count   = Product.inactive.count
+    @enrolled_count   = OrganisationProduct.select(:product_id).distinct.count
+    @unenrolled_count = @total_count - @enrolled_count
+
+    # Pagination on the filtered set
+    @filtered_count = @products.count
+    @per_page       = PER_PAGE_OPTIONS.include?(params[:per_page].to_i) ? params[:per_page].to_i : 25
+    @page           = [params[:page].to_i, 1].max
+    @total_pages    = (@filtered_count.to_f / @per_page).ceil
+    @page           = [@page, @total_pages].min if @total_pages > 0
+    @products       = @products.offset((@page - 1) * @per_page).limit(@per_page)
 
     # AI-enriched pending products — for the "Unmatched" review tab
     @pending_products = Product
@@ -71,7 +81,22 @@ class Setup::ProductsController < Setup::BaseController
     @pending_count = @pending_products.count
   end
 
-  def show; end
+  def show
+    @org_products = @product.organisation_products.includes(:organisation).order('organisations.name')
+    @stock_levels = StockLevel.where(product_id: @product.id)
+                              .joins("INNER JOIN organisations ON organisations.id = stock_levels.organisation_id")
+                              .select('stock_levels.*, organisations.name AS org_name')
+                              .order('organisations.name')
+
+    # Origin tracing: load PI items that reference this product (unmatched origin)
+    if @product.source == 'pi_scan' || @product.metadata&.dig('created_from_pi')
+      @origin_items = PurchaseInvoiceItem
+                        .where(product_id: @product.id)
+                        .includes(purchase_invoice: [:user, :organisation, :supplier])
+                        .order('purchase_invoice_items.created_at ASC')
+                        .limit(10)
+    end
+  end
 
   # POST /setup/products/:id/approve
   # Super admin promotes an AI-enriched product to active
@@ -392,7 +417,7 @@ class Setup::ProductsController < Setup::BaseController
   private
 
   def set_product
-    @product = Product.find(params[:id])
+    @product = Product.includes(:reviewed_by, :merged_into).find(params[:id])
   end
 
   def product_params

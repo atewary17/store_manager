@@ -3,11 +3,16 @@ class Inventory::TintingMachineController < Inventory::BaseController
 
   DISPENSE_STEP_PCT = 25  # each ± tap moves 25% of initial volume
 
+  SUPPORTED_TINTING_BRANDS = [
+    'Asian Paints', 'Salimar Paints', 'Berger Paints', 'Nerolac Paints', 'Birla Opus'
+  ].freeze
+
   before_action :set_brand,    only: [:show, :load_canister, :adjust, :reload_last]
   before_action :set_canister, only: [:adjust]
 
   def index
     @brands          = Brand.active.ordered
+                            .where(name: SUPPORTED_TINTING_BRANDS)
     @brand_summaries = @brands.index_with { |b| canisters_for(b.id) }
   end
 

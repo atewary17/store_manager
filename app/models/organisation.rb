@@ -36,6 +36,15 @@ class Organisation < ApplicationRecord
     gst_number.present?
   end
 
+  # ── Settings helpers ─────────────────────────────────────────────────────
+  def stock_updates_locked?
+    settings['stock_updates_locked'] == true
+  end
+
+  def update_setting!(key, value)
+    update!(settings: settings.merge(key.to_s => value))
+  end
+
   # All products enrolled in this org's catalogue (active only)
   def available_products
     Product.for_org(self).includes(:brand, :base_uom, :product_category)

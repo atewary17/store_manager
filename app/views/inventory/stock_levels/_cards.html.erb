@@ -62,11 +62,14 @@
         <%# Minus button %>
         <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="-1"
                 data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
+                <%= 'disabled' if stock_locked %>
                 style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
-                       background:var(--bg);color:var(--text);font-size:16px;cursor:pointer;
+                       background:var(--bg);color:<%= stock_locked ? 'var(--muted)' : 'var(--text)' %>;
+                       font-size:16px;cursor:<%= stock_locked ? 'not-allowed' : 'pointer' %>;
                        display:flex;align-items:center;justify-content:center;flex-shrink:0;
-                       transition:background .1s,border-color .1s"
-                title="Remove 1">−</button>
+                       transition:background .1s,border-color .1s;
+                       opacity:<%= stock_locked ? '0.4' : '1' %>"
+                title="<%= stock_locked ? 'Stock updates are locked' : 'Remove 1' %>">−</button>
 
         <%# Qty display %>
         <div style="text-align:center;min-width:64px">
@@ -82,11 +85,14 @@
         <%# Plus button %>
         <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="+1"
                 data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
+                <%= 'disabled' if stock_locked %>
                 style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
-                       background:var(--bg);color:var(--text);font-size:16px;cursor:pointer;
+                       background:var(--bg);color:<%= stock_locked ? 'var(--muted)' : 'var(--text)' %>;
+                       font-size:16px;cursor:<%= stock_locked ? 'not-allowed' : 'pointer' %>;
                        display:flex;align-items:center;justify-content:center;flex-shrink:0;
-                       transition:background .1s,border-color .1s"
-                title="Add 1">+</button>
+                       transition:background .1s,border-color .1s;
+                       opacity:<%= stock_locked ? '0.4' : '1' %>"
+                title="<%= stock_locked ? 'Stock updates are locked' : 'Add 1' %>">+</button>
       </div>
 
       <%# Status dot + label %>

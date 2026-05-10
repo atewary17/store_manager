@@ -3,7 +3,7 @@
 <% content_for :breadcrumb do %>
   <span style="color:var(--text-dim)">Setup</span>
   <span class="breadcrumb-sep">/</span>
-  <%= link_to 'Products', setup_products_path %>
+  <%= link_to 'Products', setup_products_path, style: "color:var(--text-dim)" %>
   <span class="breadcrumb-sep">/</span>
   <span class="breadcrumb-current"><%= @product.brand&.name || 'No Brand' %></span>
 <% end %>
@@ -17,283 +17,559 @@
                    original_name created_at created_by_org approved_by approved_at
                    needs_review ai_pack_size_guess ai_hsn_code ai_gst_rate]
   custom_meta = meta.reject { |k, _| known_meta.include?(k) }
+  total_stock = @stock_levels.sum { |s| s.quantity.to_f }
+  active_org_count = @org_products.count(&:active?)
+  total_org_count  = @org_products.size
 %>
 
-<div class="page-header">
-  <div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-      <span class="badge badge-plan"><%= @product.product_category&.name %></span>
+<style>
+  .prod-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    align-items: start;
+  }
+  .prod-main  { display: flex; flex-direction: column; gap: 16px; }
+  .prod-aside { display: flex; flex-direction: column; gap: 16px; }
+  .prod-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .prod-card-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .prod-card-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-dim); font-weight: 500;
+  }
+  .prod-card-body { padding: 16px 20px; }
+  .kv-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 20px;
+  }
+  .kv-field label {
+    display: block; font-size: 11px; font-weight: 500;
+    color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .kv-field .val {
+    font-size: 13.5px; color: var(--text); line-height: 1.4;
+  }
+  .kv-field .val.mono { font-family: var(--mono); }
+  .prod-stat-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--border);
+  }
+  .prod-stat-item {
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .prod-stat-item:last-child { border-right: none; }
+  .prod-stat-num {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    line-height: 1; margin-bottom: 4px;
+  }
+  .prod-stat-lbl {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .prod-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .prod-tbl th {
+    padding: 8px 14px; text-align: left; font-family: var(--mono);
+    font-size: 10px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--text-dim); border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .prod-tbl th.right { text-align: right; }
+  .prod-tbl td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .prod-tbl tbody tr:last-child td { border-bottom: none; }
+  .prod-tbl tfoot td {
+    padding: 9px 14px; background: var(--bg); font-weight: 600;
+    font-size: 12px; color: var(--text-dim);
+  }
+</style>
+
+<%# ══════════════════════════════════════════════════════
+    HERO — brand, description, badges, actions
+══════════════════════════════════════════════════════ %>
+<div class="prod-card" style="margin-bottom:20px">
+  <div style="padding:24px 28px 0">
+
+    <%# Badges row %>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="badge badge-plan" style="font-size:11px"><%= @product.product_category&.name %></span>
       <span class="badge <%= @product.active? ? 'badge-active' : 'badge-inactive' %>">
         <%= @product.active? ? 'Active' : 'Inactive' %>
       </span>
       <% if is_tintable %>
-        <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;
-                     background:rgba(79,142,247,0.12);color:var(--accent);
-                     font-family:var(--mono)">🎨 Tintable</span>
+        <span style="font-size:10px;padding:2px 9px;border-radius:10px;font-weight:600;
+                     background:rgba(79,142,247,0.12);color:var(--accent);font-family:var(--mono)">
+          🎨 Tintable
+        </span>
       <% end %>
       <% if is_pending %>
-        <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;
-                     background:rgba(247,195,79,0.12);color:var(--warning);
-                     font-family:var(--mono)">⏳ Pending Review</span>
+        <span style="font-size:10px;padding:2px 9px;border-radius:10px;font-weight:600;
+                     background:rgba(247,195,79,0.12);color:var(--warning);font-family:var(--mono)">
+          ⏳ Pending Review
+        </span>
       <% end %>
+      <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+        ID #<%= @product.id %>
+      </span>
     </div>
-    <div class="page-title"><%= @product.brand&.name || '—' %></div>
-    <div class="page-subtitle" style="font-size:14px;margin-top:4px;max-width:600px">
+
+    <%# Brand + description %>
+    <div style="font-size:13px;font-weight:500;color:var(--text-dim);margin-bottom:4px">
+      <%= @product.brand&.name || '—' %>
+    </div>
+    <div style="font-size:22px;font-weight:700;color:var(--text);line-height:1.3;
+                margin-bottom:4px;max-width:780px">
       <%= @product.description %>
     </div>
-  </div>
-  <div class="actions">
-    <%= link_to 'Edit', edit_setup_product_path(@product), class: 'btn btn-secondary' %>
-    <% if current_user.super_admin? && is_pending %>
-      <%= button_to '✅ Approve',
-            approve_pending_setup_products_path(@product),
-            method: :post,
-            class: 'btn btn-secondary',
-            style: 'color:var(--success);border-color:var(--success)',
-            form: { style: 'margin:0' },
-            data: { turbo_confirm: "Approve #{@product.description}? It will become fully active." } %>
+    <% if @product.pack_code.present? %>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:16px">
+        Pack: <%= @product.pack_code %>
+      </div>
+    <% else %>
+      <div style="margin-bottom:16px"></div>
     <% end %>
-    <%= button_to 'Delete', setup_product_path(@product),
-          method: :delete,
-          class: 'btn btn-danger',
-          form: { style: 'margin:0' },
-          data: { confirm: "Delete this product? This cannot be undone." } %>
+
+    <%# Action buttons %>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;padding-bottom:20px">
+      <%= link_to 'Edit', edit_setup_product_path(@product), class: 'btn btn-secondary' %>
+      <% if current_user.super_admin? && is_pending %>
+        <%= button_to 'Approve',
+              approve_pending_setup_products_path(@product),
+              method: :post,
+              class: 'btn btn-secondary',
+              style: 'color:var(--success);border-color:var(--success)',
+              form: { style: 'margin:0' },
+              data: { turbo_confirm: "Approve #{@product.description}? It will become fully active." } %>
+      <% end %>
+      <%= button_to 'Delete', setup_product_path(@product),
+            method: :delete,
+            class: 'btn btn-danger',
+            form: { style: 'margin:0' },
+            data: { confirm: 'Delete this product? This cannot be undone.' } %>
+      <%= link_to '← Back', setup_products_path,
+            style: 'margin-left:auto;font-size:13px;color:var(--text-dim);
+                    text-decoration:none;align-self:center' %>
+    </div>
+  </div>
+
+  <%# Stat strip %>
+  <div class="prod-stat-strip">
+    <div class="prod-stat-item">
+      <div class="prod-stat-num" style="color:<%= total_stock > 0 ? 'var(--success)' : 'var(--text-dim)' %>">
+        <%= number_with_precision(total_stock, precision: 0) %>
+      </div>
+      <div class="prod-stat-lbl">Total Stock</div>
+    </div>
+    <div class="prod-stat-item">
+      <div class="prod-stat-num" style="color:<%= active_org_count > 0 ? 'var(--accent)' : 'var(--text-dim)' %>">
+        <%= active_org_count %><% if active_org_count < total_org_count %><span style="font-size:14px;color:var(--text-dim)"> / <%= total_org_count %></span><% end %>
+      </div>
+      <div class="prod-stat-lbl">Orgs Using</div>
+    </div>
+    <div class="prod-stat-item">
+      <div class="prod-stat-num" style="color:<%= @product.gst_rate == 0 ? 'var(--success)' : 'var(--warning)' %>">
+        <%= @product.gst_rate %>%
+      </div>
+      <div class="prod-stat-lbl">GST Rate</div>
+    </div>
   </div>
 </div>
 
-<div class="detail-card">
+<%# ══════════════════════════════════════════════════════
+    TWO-COLUMN LAYOUT
+══════════════════════════════════════════════════════ %>
+<div class="prod-layout">
 
-  <%# ── Classification ── %>
-  <div class="detail-section">
-    <div class="detail-section-title">Classification</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <label>Category</label>
-        <div class="value">
-          <%= link_to @product.product_category.name,
-                setup_product_category_path(@product.product_category) %>
-        </div>
-      </div>
-      <div class="detail-field">
-        <label>Base UOM</label>
-        <div class="value">
-          <%= @product.base_uom.name %>
-          <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-left:4px">
-            (<%= @product.base_uom.short_name %>)
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
+  <%# ── LEFT: main content ── %>
+  <div class="prod-main">
 
-  <%# ── Product Details ── %>
-  <div class="detail-section">
-    <div class="detail-section-title">Product Details</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <label>Brand</label>
-        <div class="value"><%= @product.brand&.name || '—' %></div>
+    <%# Stock Levels %>
+    <div class="prod-card">
+      <div class="prod-card-head">
+        <span class="prod-card-label">Stock Levels</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+          across <%= total_org_count %> org<%= total_org_count != 1 ? 's' : '' %>
+        </span>
       </div>
-      <div class="detail-field">
-        <label>Pack Code</label>
-        <div class="value mono"><%= @product.pack_code.presence || '—' %></div>
-      </div>
-      <div class="detail-field" style="grid-column:span 2">
-        <label>Description</label>
-        <div class="value"><%= @product.description %></div>
-      </div>
-      <% if is_pending && meta['original_name'].present? && meta['original_name'] != @product.description %>
-        <div class="detail-field" style="grid-column:span 2">
-          <label>Original Invoice Name</label>
-          <div class="value" style="color:var(--text-dim);font-style:italic">
-            "<%= meta['original_name'] %>"
-          </div>
-        </div>
-      <% end %>
-    </div>
-  </div>
-
-  <%# ── Codes & Identifiers ── %>
-  <div class="detail-section">
-    <div class="detail-section-title">Codes &amp; Identifiers</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <label>Material Code</label>
-        <div class="value mono"><%= @product.material_code.presence || '—' %></div>
-      </div>
-      <div class="detail-field">
-        <label>Product Code</label>
-        <div class="value mono"><%= @product.product_code.presence || '—' %></div>
-      </div>
-    </div>
-  </div>
-
-  <%# ── Tax & Pricing ── %>
-  <div class="detail-section">
-    <div class="detail-section-title">Tax &amp; Pricing</div>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <label>HSN Code</label>
-        <div class="value mono"><%= @product.hsn_code.presence || '—' %></div>
-      </div>
-      <div class="detail-field">
-        <label>GST Rate</label>
-        <div class="value">
-          <span style="font-family:var(--mono);font-size:14px;font-weight:600;
-                       color:<%= @product.gst_rate == 0 ? 'var(--success)' : 'var(--warning)' %>">
-            <%= @product.gst_rate %>%
-          </span>
-        </div>
-      </div>
-      <% if Product.column_names.include?('mrp') && @product.mrp.present? %>
-        <div class="detail-field">
-          <label>MRP</label>
-          <div class="value mono">
-            ₹ <%= number_with_precision(@product.mrp, precision: 2, delimiter: ',') %>
-          </div>
+      <% if @stock_levels.any? %>
+        <table class="prod-tbl">
+          <thead>
+            <tr>
+              <th>Organisation</th>
+              <th class="right">Qty in Stock</th>
+              <th class="right">Avg Cost (₹)</th>
+              <th class="right">Stock Value (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @stock_levels.each do |sl| %>
+              <% qty   = sl.quantity.to_f %>
+              <% cost  = sl.avg_cost.to_f %>
+              <% value = (qty * cost).round(2) %>
+              <tr>
+                <td style="font-weight:500"><%= sl.org_name %></td>
+                <td style="text-align:right;font-family:var(--mono);font-weight:700;
+                           color:<%= qty > 0 ? 'var(--success)' : 'var(--danger)' %>">
+                  <%= number_with_precision(qty, precision: 3, strip_insignificant_zeros: true) %>
+                </td>
+                <td style="text-align:right;font-family:var(--mono);color:var(--text-dim)">
+                  <%= cost > 0 ? number_with_precision(cost, precision: 2, delimiter: ',') : '—' %>
+                </td>
+                <td style="text-align:right;font-family:var(--mono)">
+                  <%= value > 0 ? number_with_precision(value, precision: 2, delimiter: ',') : '—' %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+          <% if @stock_levels.size > 1 %>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td style="text-align:right;font-family:var(--mono);font-weight:700;
+                           color:<%= total_stock > 0 ? 'var(--success)' : 'var(--text-dim)' %>">
+                  <%= number_with_precision(total_stock, precision: 3, strip_insignificant_zeros: true) %>
+                </td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          <% end %>
+        </table>
+      <% else %>
+        <div class="prod-card-body" style="color:var(--text-dim);font-style:italic;font-size:13px">
+          No stock recorded for this product.
         </div>
       <% end %>
     </div>
-  </div>
 
-  <%# ── Metadata ── %>
-  <% if meta.any? %>
-    <div class="detail-section">
-      <div class="detail-section-title">Metadata</div>
+    <%# Organisation Catalogue %>
+    <div class="prod-card">
+      <div class="prod-card-head">
+        <span class="prod-card-label">Organisation Catalogue</span>
+        <span style="font-family:var(--mono);font-size:12px;
+                     color:<%= active_org_count > 0 ? 'var(--accent)' : 'var(--text-dim)' %>">
+          <%= active_org_count %> active / <%= total_org_count %> total
+        </span>
+      </div>
+      <% if @org_products.any? %>
+        <table class="prod-tbl">
+          <thead>
+            <tr>
+              <th>Organisation</th>
+              <th style="text-align:center">Status</th>
+              <th class="right">MRP (₹)</th>
+              <th>Internal Code</th>
+              <th>Local Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @org_products.each do |op| %>
+              <tr>
+                <td style="font-weight:500"><%= op.organisation.name %></td>
+                <td style="text-align:center">
+                  <span class="badge <%= op.active? ? 'badge-active' : 'badge-inactive' %>">
+                    <%= op.active? ? 'active' : 'inactive' %>
+                  </span>
+                </td>
+                <td style="text-align:right;font-family:var(--mono);color:var(--text-dim)">
+                  <%= op.mrp.present? ? "₹#{number_with_precision(op.mrp, precision: 2, delimiter: ',')}" : '—' %>
+                </td>
+                <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+                  <%= op.internal_code.presence || '—' %>
+                </td>
+                <td style="font-size:12px;color:var(--text-dim)">
+                  <%= op.local_description.presence || '—' %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <div class="prod-card-body" style="color:var(--text-dim);font-style:italic;font-size:13px">
+          Not enrolled in any organisation's catalogue yet.
+        </div>
+      <% end %>
+    </div>
 
-      <%# Tinting machine block %>
-      <% if is_tintable || meta['family_colour'].present? || meta['canister_volume_ml'].present? %>
-        <div style="background:rgba(79,142,247,0.04);border:1px solid rgba(79,142,247,0.15);
-                    border-radius:10px;padding:14px 16px;margin-bottom:14px">
-          <div style="font-size:11px;font-weight:600;color:var(--accent);
-                      text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
-            🎨 Tinting Machine
+    <%# Origin & Review — shown for pi_scan products or those under review %>
+    <% show_origin = @product.source == 'pi_scan' || @product.metadata&.dig('created_from_pi') || @product.under_review? || (@product.respond_to?(:catalogue_status) && @product.catalogue_status != 'active') %>
+    <% if show_origin %>
+      <div class="prod-card">
+        <div class="prod-card-head">
+          <span class="prod-card-label">Origin & Review</span>
+          <% if @product.respond_to?(:catalogue_status) %>
+            <% cs = @product.catalogue_status.to_s %>
+            <% cs_color = case cs
+               when 'active'       then 'var(--success)'
+               when 'under_review' then 'var(--warning)'
+               when 'merged'       then 'var(--accent)'
+               when 'rejected'     then 'var(--danger)'
+               else                     'var(--text-dim)'
+               end %>
+            <span style="font-family:var(--mono);font-size:11px;font-weight:600;
+                         padding:2px 8px;border-radius:4px;
+                         background:<%= cs_color %>22;color:<%= cs_color %>">
+              <%= cs.humanize %>
+            </span>
+          <% end %>
+        </div>
+        <div class="prod-card-body">
+
+          <%# ── Source badge + creation context ── %>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+            <% src = @product.source.to_s %>
+            <% src_color = src == 'pi_scan' ? 'var(--warning)' : src == 'import' ? 'var(--accent)' : 'var(--text-dim)' %>
+            <span style="font-family:var(--mono);font-size:11px;font-weight:600;
+                         padding:3px 10px;border-radius:10px;
+                         background:<%= src_color %>22;color:<%= src_color %>">
+              <%= src == 'pi_scan' ? 'PI Scan' : src.humanize %>
+            </span>
+            <% if @product.under_review? %>
+              <span style="font-family:var(--mono);font-size:11px;font-weight:600;
+                           padding:3px 10px;border-radius:10px;
+                           background:rgba(247,195,79,0.12);color:var(--warning)">
+                Under Review
+              </span>
+            <% end %>
+            <span style="font-size:12px;color:var(--text-dim)">
+              Created <%= @product.created_at.strftime('%d %b %Y at %H:%M') %>
+            </span>
           </div>
-          <div class="detail-grid">
-            <div class="detail-field">
-              <label>Tintable</label>
-              <div class="value">
-                <% if meta['tint'].to_s == 'true' %>
-                  <span style="color:var(--success);font-weight:600">✓ Yes</span>
-                <% elsif meta['tint'].to_s == 'false' %>
-                  <span style="color:var(--text-dim)">No</span>
-                <% else %>
-                  <span style="color:var(--text-dim)">—</span>
+
+          <%# ── Raw description & hints from metadata ── %>
+          <% hint_keys = %w[raw_description brand_hint category_hint uom_hint pack_size] %>
+          <% if hint_keys.any? { |k| meta[k].present? } %>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                        padding:12px 14px;margin-bottom:16px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                          color:var(--text-dim);margin-bottom:10px">Original Invoice Details</div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <% if meta['raw_description'].present? %>
+                  <div style="display:flex;gap:8px">
+                    <span style="font-size:11px;color:var(--text-dim);min-width:90px;flex-shrink:0">Description</span>
+                    <span style="font-size:13px;font-weight:500;color:var(--text);font-style:italic">
+                      "<%= meta['raw_description'] %>"
+                    </span>
+                  </div>
+                <% end %>
+                <% if meta['brand_hint'].present? %>
+                  <div style="display:flex;gap:8px">
+                    <span style="font-size:11px;color:var(--text-dim);min-width:90px;flex-shrink:0">Brand hint</span>
+                    <span style="font-size:12px;font-family:var(--mono)"><%= meta['brand_hint'] %></span>
+                  </div>
+                <% end %>
+                <% if meta['category_hint'].present? %>
+                  <div style="display:flex;gap:8px">
+                    <span style="font-size:11px;color:var(--text-dim);min-width:90px;flex-shrink:0">Category hint</span>
+                    <span style="font-size:12px;font-family:var(--mono)"><%= meta['category_hint'] %></span>
+                  </div>
+                <% end %>
+                <% if meta['uom_hint'].present? %>
+                  <div style="display:flex;gap:8px">
+                    <span style="font-size:11px;color:var(--text-dim);min-width:90px;flex-shrink:0">UOM hint</span>
+                    <span style="font-size:12px;font-family:var(--mono)"><%= meta['uom_hint'] %></span>
+                  </div>
+                <% end %>
+                <% if meta['pack_size'].present? %>
+                  <div style="display:flex;gap:8px">
+                    <span style="font-size:11px;color:var(--text-dim);min-width:90px;flex-shrink:0">Pack size</span>
+                    <span style="font-size:12px;font-family:var(--mono)"><%= meta['pack_size'] %></span>
+                  </div>
                 <% end %>
               </div>
             </div>
-            <% if meta['family_colour'].present? %>
-              <div class="detail-field">
-                <label>Family Colour</label>
-                <div class="value" style="display:flex;align-items:center;gap:8px">
-                  <%
-                    fc = meta['family_colour'].to_s.downcase
-                    dot_color = fc.include?('black') ? '#333333' :
-                                fc.include?('white') ? '#eeeeee' :
-                                fc.include?('red')   ? '#e74c3c' :
-                                fc.include?('blue')  ? '#3498db' :
-                                fc.include?('green') ? '#2ecc71' :
-                                fc.include?('yellow')? '#f1c40f' :
-                                fc.include?('gold')  ? '#d4a017' :
-                                fc.include?('amber') ? '#c17f24' :
-                                fc.include?('brown') ? '#795548' :
-                                fc.include?('orange')? '#e67e22' :
-                                fc.include?('grey') || fc.include?('gray') ? '#9e9e9e' :
-                                '#4f8ef7'
-                  %>
-                  <span style="width:14px;height:14px;border-radius:50%;
-                               background:<%= dot_color %>;border:1px solid var(--border);
-                               flex-shrink:0"></span>
-                  <span><%= meta['family_colour'] %></span>
-                </div>
-              </div>
-            <% end %>
-            <% if meta['canister_volume_ml'].present? %>
-              <div class="detail-field">
-                <label>Canister Volume</label>
-                <div class="value mono"><%= meta['canister_volume_ml'] %> ml</div>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      <% end %>
+          <% end %>
 
-      <%# AI enrichment block %>
-      <% ai_keys = %w[source validation_status ai_confidence ai_brand_guess
-                      ai_category_guess ai_notes original_name] %>
-      <% if ai_keys.any? { |k| meta[k].present? } %>
-        <div style="background:rgba(247,195,79,0.05);border:1px solid rgba(247,195,79,0.2);
-                    border-radius:10px;padding:14px 16px;margin-bottom:14px">
-          <div style="font-size:11px;font-weight:600;color:var(--warning);
-                      text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
-            🤖 AI Enrichment
-          </div>
-          <div class="detail-grid">
-            <% if meta['source'].present? %>
-              <div class="detail-field">
-                <label>Source</label>
-                <div class="value mono" style="font-size:12px"><%= meta['source'] %></div>
+          <%# ── Purchase invoices that originated this product ── %>
+          <% if @origin_items&.any? %>
+            <div style="margin-bottom:16px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                          color:var(--text-dim);margin-bottom:10px">
+                Originating Purchase Invoice<%= @origin_items.size > 1 ? 's' : '' %>
               </div>
-            <% end %>
-            <% if meta['validation_status'].present? %>
-              <div class="detail-field">
-                <label>Validation Status</label>
-                <div class="value">
-                  <% vs_color = case meta['validation_status']
-                     when 'approved'         then 'var(--success)'
-                     when 'pending'          then 'var(--warning)'
-                     when 'needs_validation' then 'var(--danger)'
-                     else                        'var(--text-dim)'
-                     end %>
-                  <span style="font-family:var(--mono);font-size:11px;font-weight:600;
-                               padding:2px 8px;border-radius:4px;
-                               background:<%= vs_color %>22;color:<%= vs_color %>">
-                    <%= meta['validation_status'].humanize %>
-                  </span>
+              <table class="prod-tbl">
+                <thead>
+                  <tr>
+                    <th>Organisation</th>
+                    <th>Invoice</th>
+                    <th>Date</th>
+                    <th class="right">Qty</th>
+                    <th>Confirmed by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @origin_items.each do |item| %>
+                    <% pi = item.purchase_invoice %>
+                    <tr>
+                      <td style="font-weight:500"><%= pi.organisation&.name || '—' %></td>
+                      <td style="font-family:var(--mono);font-size:12px">
+                        <%= pi.invoice_number.presence || "(Draft ##{pi.id})" %>
+                      </td>
+                      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                        <%= pi.invoice_date&.strftime('%d %b %Y') || pi.created_at.strftime('%d %b %Y') %>
+                      </td>
+                      <td style="text-align:right;font-family:var(--mono);font-size:12px">
+                        <%= number_with_precision(item.quantity, precision: 3, strip_insignificant_zeros: true) %>
+                      </td>
+                      <td style="font-size:12px">
+                        <% if pi.user %>
+                          <div style="font-weight:500"><%= pi.user.full_name %></div>
+                          <div style="font-size:10px;color:var(--text-dim)">
+                            <%= pi.confirmed_at ? pi.confirmed_at.strftime('%d %b %Y') : 'Not confirmed' %>
+                          </div>
+                        <% else %>
+                          —
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% end %>
+
+          <%# ── Review details ── %>
+          <% reviewed = @product.respond_to?(:reviewed_at) && @product.reviewed_at.present? %>
+          <% if reviewed || @product.respond_to?(:review_notes) && @product.review_notes.present? %>
+            <div style="border-top:1px solid var(--border);padding-top:14px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                          color:var(--text-dim);margin-bottom:10px">Review Details</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <% if reviewed %>
+                  <div style="display:flex;gap:8px;align-items:flex-start">
+                    <span style="font-size:11px;color:var(--text-dim);min-width:90px;flex-shrink:0">Reviewed by</span>
+                    <div>
+                      <div style="font-size:13px;font-weight:500">
+                        <%= @product.reviewed_by&.full_name || "User ##{@product.reviewed_by_id}" %>
+                      </div>
+                      <div style="font-size:11px;color:var(--text-dim)">
+                        <%= @product.reviewed_at.strftime('%d %b %Y at %H:%M') %>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+                <% if @product.respond_to?(:review_notes) && @product.review_notes.present? %>
+                  <div style="display:flex;gap:8px;align-items:flex-start">
+                    <span style="font-size:11px;color:var(--text-dim);min-width:90px;flex-shrink:0">Notes</span>
+                    <span style="font-size:13px;color:var(--text);line-height:1.5">
+                      <%= @product.review_notes %>
+                    </span>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+
+          <%# ── Merged into ── %>
+          <% if @product.respond_to?(:merged_into) && @product.merged_into.present? %>
+            <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Merged into</div>
+              <%= link_to setup_product_path(@product.merged_into),
+                    style: 'display:flex;align-items:center;gap:8px;text-decoration:none;
+                            background:var(--bg);border:1px solid var(--border);
+                            border-radius:8px;padding:10px 12px' do %>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:var(--accent)">
+                    <%= @product.merged_into.description %>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-dim)">
+                    #<%= @product.merged_into.id %> · <%= @product.merged_into.brand&.name %>
+                  </div>
                 </div>
+                <svg style="margin-left:auto;color:var(--text-dim)" width="14" height="14"
+                     fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              <% end %>
+            </div>
+          <% end %>
+
+        </div>
+      </div>
+    <% end %>
+
+    <%# AI Enrichment (if any) %>
+    <% ai_keys = %w[source validation_status ai_confidence ai_brand_guess ai_category_guess ai_notes original_name] %>
+    <% if ai_keys.any? { |k| meta[k].present? } %>
+      <div class="prod-card">
+        <div class="prod-card-head">
+          <span class="prod-card-label">🤖 AI Enrichment</span>
+          <% if meta['validation_status'].present? %>
+            <% vs_color = case meta['validation_status']
+               when 'approved'         then 'var(--success)'
+               when 'pending'          then 'var(--warning)'
+               when 'needs_validation' then 'var(--danger)'
+               else                        'var(--text-dim)'
+               end %>
+            <span style="font-family:var(--mono);font-size:11px;font-weight:600;
+                         padding:2px 8px;border-radius:4px;
+                         background:<%= vs_color %>22;color:<%= vs_color %>">
+              <%= meta['validation_status'].humanize %>
+            </span>
+          <% end %>
+        </div>
+        <div class="prod-card-body">
+          <div class="kv-grid">
+            <% if meta['source'].present? %>
+              <div class="kv-field">
+                <label>Source</label>
+                <div class="val mono" style="font-size:12px"><%= meta['source'] %></div>
               </div>
             <% end %>
             <% if meta['ai_confidence'].present? %>
-              <div class="detail-field">
+              <div class="kv-field">
                 <label>AI Confidence</label>
-                <div class="value">
+                <div class="val">
                   <% conf = (meta['ai_confidence'].to_f * 100).round %>
                   <% cc   = conf >= 80 ? 'var(--success)' : conf >= 50 ? 'var(--warning)' : 'var(--danger)' %>
                   <div style="display:flex;align-items:center;gap:8px">
-                    <div style="width:80px;height:5px;background:var(--border);
+                    <div style="flex:1;max-width:80px;height:5px;background:var(--border);
                                 border-radius:3px;overflow:hidden">
-                      <div style="height:100%;width:<%= conf %>%;
-                                  background:<%= cc %>;border-radius:3px"></div>
+                      <div style="height:100%;width:<%= conf %>%;background:<%= cc %>;border-radius:3px"></div>
                     </div>
-                    <span style="font-family:var(--mono);font-size:12px;
-                                 font-weight:600;color:<%= cc %>"><%= conf %>%</span>
+                    <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:<%= cc %>"><%= conf %>%</span>
                   </div>
                 </div>
               </div>
             <% end %>
             <% if meta['ai_brand_guess'].present? %>
-              <div class="detail-field">
-                <label>AI Brand Guess</label>
-                <div class="value" style="color:var(--text-dim)"><%= meta['ai_brand_guess'] %></div>
+              <div class="kv-field">
+                <label>Brand Guess</label>
+                <div class="val" style="color:var(--text-dim)"><%= meta['ai_brand_guess'] %></div>
               </div>
             <% end %>
             <% if meta['ai_category_guess'].present? %>
-              <div class="detail-field">
-                <label>AI Category Guess</label>
-                <div class="value" style="color:var(--text-dim)"><%= meta['ai_category_guess'] %></div>
+              <div class="kv-field">
+                <label>Category Guess</label>
+                <div class="val" style="color:var(--text-dim)"><%= meta['ai_category_guess'] %></div>
+              </div>
+            <% end %>
+            <% if meta['original_name'].present? && meta['original_name'] != @product.description %>
+              <div class="kv-field" style="grid-column:span 2">
+                <label>Original Invoice Name</label>
+                <div class="val" style="color:var(--text-dim);font-style:italic">"<%= meta['original_name'] %>"</div>
               </div>
             <% end %>
             <% if meta['ai_notes'].present? %>
-              <div class="detail-field" style="grid-column:span 2">
+              <div class="kv-field" style="grid-column:span 2">
                 <label>AI Notes</label>
-                <div class="value" style="color:var(--text-dim);font-style:italic">
-                  "<%= meta['ai_notes'] %>"
-                </div>
+                <div class="val" style="color:var(--text-dim);font-style:italic">"<%= meta['ai_notes'] %>"</div>
               </div>
             <% end %>
           </div>
           <% if meta['approved_by'].present? %>
-            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);
                         font-size:11px;color:var(--text-dim)">
               Approved by User #<%= meta['approved_by'] %>
               <% if meta['approved_at'].present? %>
@@ -302,79 +578,181 @@
             </div>
           <% end %>
         </div>
-      <% end %>
+      </div>
+    <% end %>
 
-      <%# Custom metadata %>
-      <% if custom_meta.any? %>
-        <div>
-          <div style="font-size:11px;font-weight:600;color:var(--text-dim);
-                      text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">
-            Custom Fields
+  </div><%# /prod-main %>
+
+  <%# ── RIGHT: sidebar ── %>
+  <div class="prod-aside">
+
+    <%# Core Details %>
+    <div class="prod-card">
+      <div class="prod-card-head">
+        <span class="prod-card-label">Product Details</span>
+      </div>
+      <div class="prod-card-body" style="display:flex;flex-direction:column;gap:14px">
+
+        <div class="kv-field">
+          <label>Category</label>
+          <div class="val">
+            <%= link_to @product.product_category.name,
+                  setup_product_category_path(@product.product_category),
+                  style: 'color:var(--accent);text-decoration:none' %>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px">
-            <% custom_meta.each do |key, val| %>
-              <div style="padding:6px 12px;background:var(--bg);border:1px solid var(--border);
-                          border-radius:6px;font-size:12px">
-                <span style="color:var(--text-dim);margin-right:6px;
-                             font-family:var(--mono);font-size:11px"><%= key %>:</span>
-                <span style="color:var(--text);font-weight:500"><%= val %></span>
+        </div>
+
+        <div class="kv-field">
+          <label>Base UOM</label>
+          <div class="val mono">
+            <%= @product.base_uom.short_name %>
+            <span style="font-size:11px;color:var(--text-dim);margin-left:4px">(<%= @product.base_uom.name %>)</span>
+          </div>
+        </div>
+
+        <div class="kv-field">
+          <label>HSN Code</label>
+          <div class="val mono"><%= @product.hsn_code.presence || '—' %></div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:10px;font-weight:500;color:var(--text-dim);text-transform:uppercase;
+                      letter-spacing:.05em;margin-bottom:10px">Codes</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:11px;color:var(--text-dim)">Material</span>
+              <span style="font-family:var(--mono);font-size:12px">
+                <%= @product.material_code.presence || '—' %>
+              </span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:11px;color:var(--text-dim)">Product</span>
+              <span style="font-family:var(--mono);font-size:12px">
+                <%= @product.product_code.presence || '—' %>
+              </span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:11px;color:var(--text-dim)">Pack</span>
+              <span style="font-family:var(--mono);font-size:12px">
+                <%= @product.pack_code.presence || '—' %>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <% if Product.column_names.include?('mrp') && @product.mrp.present? %>
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div class="kv-field">
+              <label>MRP</label>
+              <div class="val mono" style="font-size:16px;font-weight:700;color:var(--text)">
+                ₹<%= number_with_precision(@product.mrp, precision: 2, delimiter: ',') %>
               </div>
+            </div>
+          </div>
+        <% end %>
+
+      </div>
+    </div>
+
+    <%# Tinting Machine (if applicable) %>
+    <% if is_tintable || meta['family_colour'].present? || meta['canister_volume_ml'].present? %>
+      <div class="prod-card" style="border-color:rgba(79,142,247,0.3)">
+        <div class="prod-card-head" style="background:rgba(79,142,247,0.04)">
+          <span class="prod-card-label" style="color:var(--accent)">🎨 Tinting Machine</span>
+        </div>
+        <div class="prod-card-body" style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--text-dim)">Tintable</span>
+            <% if meta['tint'].to_s == 'true' %>
+              <span style="color:var(--success);font-weight:600;font-size:13px">✓ Yes</span>
+            <% else %>
+              <span style="color:var(--text-dim);font-size:13px">No</span>
             <% end %>
           </div>
-        </div>
-      <% end %>
-
-    </div>
-  <% end %>
-
-  <%# ── Organisation Catalogue (superadmin) ── %>
-  <% if current_user.super_admin? %>
-    <% org_products = @product.organisation_products.includes(:organisation) %>
-    <div class="detail-section">
-      <div class="detail-section-title">
-        Organisation Catalogue
-        <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
-          orgs that have this product enrolled
-        </span>
-      </div>
-      <% if org_products.any? %>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <% org_products.each do |op| %>
-            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;
-                         padding:5px 10px;border-radius:6px;
-                         background:<%= op.active? ? 'rgba(79,142,247,0.1)' : 'rgba(122,131,153,0.1)' %>;
-                         border:1px solid <%= op.active? ? 'rgba(79,142,247,0.3)' : 'var(--border)' %>;
-                         color:<%= op.active? ? 'var(--accent)' : 'var(--text-dim)' %>">
-              <%= op.organisation.name %>
-              <% unless op.active? %>
-                <span style="font-size:10px;opacity:0.7">(inactive)</span>
-              <% end %>
-              <% if op.mrp.present? %>
-                <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
-                  MRP ₹<%= op.mrp %>
-                </span>
-              <% end %>
-              <% if op.internal_code.present? %>
-                <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
-                  · <%= op.internal_code %>
-                </span>
-              <% end %>
-            </span>
+          <% if meta['family_colour'].present? %>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:12px;color:var(--text-dim)">Family Colour</span>
+              <%
+                fc = meta['family_colour'].to_s.downcase
+                dot_color = fc.include?('black') ? '#333333' :
+                            fc.include?('white') ? '#eeeeee' :
+                            fc.include?('red')   ? '#e74c3c' :
+                            fc.include?('blue')  ? '#3498db' :
+                            fc.include?('green') ? '#2ecc71' :
+                            fc.include?('yellow')? '#f1c40f' :
+                            fc.include?('gold')  ? '#d4a017' :
+                            fc.include?('amber') ? '#c17f24' :
+                            fc.include?('brown') ? '#795548' :
+                            fc.include?('orange')? '#e67e22' :
+                            fc.include?('grey') || fc.include?('gray') ? '#9e9e9e' : '#4f8ef7'
+              %>
+              <div style="display:flex;align-items:center;gap:7px">
+                <span style="width:13px;height:13px;border-radius:50%;
+                             background:<%= dot_color %>;border:1px solid var(--border);
+                             flex-shrink:0;display:inline-block"></span>
+                <span style="font-size:13px;font-weight:500"><%= meta['family_colour'] %></span>
+              </div>
+            </div>
+          <% end %>
+          <% if meta['canister_volume_ml'].present? %>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:12px;color:var(--text-dim)">Canister Volume</span>
+              <span style="font-family:var(--mono);font-size:13px"><%= meta['canister_volume_ml'] %> ml</span>
+            </div>
           <% end %>
         </div>
-      <% else %>
-        <div style="font-size:13px;color:var(--text-dim);font-style:italic">
-          Not enrolled in any organisation's catalogue yet.
+      </div>
+    <% end %>
+
+    <%# Custom Metadata %>
+    <% if custom_meta.any? %>
+      <div class="prod-card">
+        <div class="prod-card-head">
+          <span class="prod-card-label">Custom Fields</span>
         </div>
-      <% end %>
+        <div class="prod-card-body" style="display:flex;flex-direction:column;gap:10px">
+          <% custom_meta.each do |key, val| %>
+            <div style="display:flex;justify-content:space-between;align-items:center;
+                        gap:8px;flex-wrap:wrap">
+              <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)"><%= key %></span>
+              <span style="font-size:13px;font-weight:500;color:var(--text)"><%= val %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# System Info %>
+    <div class="prod-card">
+      <div class="prod-card-head">
+        <span class="prod-card-label">System</span>
+      </div>
+      <div class="prod-card-body" style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:12px;color:var(--text-dim)">Product ID</span>
+          <span style="font-family:var(--mono);font-size:12px">#<%= @product.id %></span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:12px;color:var(--text-dim)">Created</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+            <%= @product.created_at.strftime('%d %b %Y') %>
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:12px;color:var(--text-dim)">Updated</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+            <%= @product.updated_at.strftime('%d %b %Y') %>
+          </span>
+        </div>
+        <% if current_user.super_admin? %>
+          <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:2px">
+            <%= link_to 'View in Register →', product_register_setup_products_path,
+                  style: 'font-size:12px;color:var(--accent);text-decoration:none' %>
+          </div>
+        <% end %>
+      </div>
     </div>
-  <% end %>
 
-</div>
+  </div><%# /prod-aside %>
 
-<div style="margin-top:20px;display:flex;gap:10px">
-  <%= link_to '← Back to Products', setup_products_path, class: 'btn btn-secondary' %>
-  <% if current_user.super_admin? %>
-    <%= link_to 'View Register', product_register_setup_products_path, class: 'btn btn-secondary' %>
-  <% end %>
-</div>
+</div><%# /prod-layout %>

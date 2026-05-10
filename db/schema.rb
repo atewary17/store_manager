@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_26_121029) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
@@ -257,7 +257,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_26_121029) do
     t.string "state_code"
     t.string "gstin"
     t.string "pan"
+    t.jsonb "settings", default: {}, null: false
     t.index ["gst_number"], name: "index_organisations_on_gst_number", unique: true
+    t.index ["settings"], name: "idx_organisations_settings_gin", using: :gin
   end
 
   create_table "product_categories", force: :cascade do |t|

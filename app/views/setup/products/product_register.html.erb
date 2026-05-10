@@ -25,7 +25,7 @@
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      Export All Products
+      Export All
     <% end %>
     <%= link_to new_setup_product_path, class: 'btn btn-primary' do %>
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -69,7 +69,7 @@
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
     <input type="text" class="search-input"
-           placeholder="Search brand, description, code, org..." id="productSearch">
+           placeholder="Search brand, description, code..." id="productSearch">
   </div>
 
   <%= form_with url: product_register_setup_products_path, method: :get, local: true,
@@ -89,7 +89,6 @@
           { selected: params[:status] },
           style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
                   padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
-    <%# Org filter %>
     <select name="org_id" onchange="this.form.submit()"
             style="background:var(--surface);border:1px solid var(--border);border-radius:6px;
                    padding:8px 12px;color:var(--text);font-size:13px;outline:none">
@@ -100,6 +99,11 @@
         </option>
       <% end %>
     </select>
+    <%= f.select :per_page,
+          [['25 / page', 25], ['50 / page', 50], ['75 / page', 75]],
+          { selected: @per_page },
+          style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
+                  padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
     <%= f.submit 'Filter', class: 'btn btn-secondary btn-sm' %>
     <% if params[:category_id].present? || params[:brand_id].present? || params[:status].present? || params[:org_id].present? %>
       <%= link_to 'Clear', product_register_setup_products_path, class: 'btn btn-secondary btn-sm' %>
@@ -113,54 +117,55 @@
     <table id="productTable">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Brand & Description</th>
+          <th>Brand &amp; Description</th>
           <th>Category</th>
-          <th>Codes</th>
-          <th>HSN</th>
+          <th>Pack</th>
           <th>GST</th>
           <th>UOM</th>
           <th>Status</th>
-          <th style="min-width:180px">Organisations Using</th>
+          <th style="text-align:center">Orgs Using</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         <% @products.each do |product| %>
           <%
-            org_products = product.organisation_products
-            # If filtering by org, only show if enrolled
+            org_products   = product.organisation_products
+            active_orgs    = org_products.count(&:active?)
+            total_orgs     = org_products.size
             next if params[:org_id].present? &&
                     org_products.none? { |op| op.organisation_id.to_s == params[:org_id] }
           %>
           <tr>
-            <td style="font-family:var(--mono);color:var(--text-dim);font-size:12px">
-              <%= product.id %>
-            </td>
-            <td style="max-width:220px">
-              <div style="font-weight:500"><%= product.brand&.name %></div>
+            <%# Brand & Description %>
+            <td style="max-width:260px">
+              <div style="font-weight:500;font-size:13px">
+                <%= product.brand&.name || '—' %>
+              </div>
               <div style="font-size:12px;color:var(--text-dim);margin-top:2px;line-height:1.4">
-                <%= link_to product.description.truncate(60), setup_product_path(product),
+                <%= link_to product.description.truncate(70), setup_product_path(product),
                       style: 'color:inherit;text-decoration:none' %>
               </div>
+              <% if product.material_code.present? %>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px">
+                  M: <%= product.material_code %>
+                </div>
+              <% end %>
             </td>
+
+            <%# Category %>
             <td>
               <span class="badge badge-plan" style="font-size:10px">
                 <%= product.product_category.name %>
               </span>
             </td>
-            <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-              <% if product.material_code.present? %>
-                <div>M: <%= product.material_code %></div>
-              <% end %>
-              <% if product.product_code.present? %>
-                <div>P: <%= product.product_code %></div>
-              <% end %>
-              <% if product.material_code.blank? && product.product_code.blank? %>—<% end %>
-            </td>
+
+            <%# Pack %>
             <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
-              <%= product.hsn_code.presence || '—' %>
+              <%= product.pack_code.presence || '—' %>
             </td>
+
+            <%# GST %>
             <td>
               <span style="font-family:var(--mono);font-size:12px;
                            background:<%= product.gst_rate == 0 ? 'rgba(52,217,139,0.1)' : 'rgba(247,195,79,0.1)' %>;
@@ -169,47 +174,47 @@
                 <%= product.gst_rate %>%
               </span>
             </td>
+
+            <%# UOM %>
             <td>
               <span style="font-family:var(--mono);font-size:11px;background:var(--bg);
                            border:1px solid var(--border);padding:2px 6px;border-radius:4px">
                 <%= product.base_uom.short_name %>
               </span>
             </td>
+
+            <%# Status %>
             <td>
               <span class="badge <%= product.active? ? 'badge-active' : 'badge-inactive' %>">
                 <%= product.active? ? 'active' : 'inactive' %>
               </span>
             </td>
 
-            <%# Organisations column — the key addition %>
-            <td>
-              <% if org_products.any? %>
-                <div style="display:flex;flex-wrap:wrap;gap:4px">
-                  <% org_products.each do |op| %>
-                    <span style="font-size:10px;padding:2px 7px;border-radius:4px;
-                                 background:<%= op.active? ? 'rgba(79,142,247,0.12)' : 'rgba(122,131,153,0.12)' %>;
-                                 color:<%= op.active? ? 'var(--accent)' : 'var(--text-dim)' %>;
-                                 border:1px solid <%= op.active? ? 'rgba(79,142,247,0.25)' : 'var(--border)' %>;
-                                 white-space:nowrap"
-                          title="<%= op.active? ? 'Active' : 'Inactive' %> in this org<%= op.mrp ? ' · MRP: ₹' + op.mrp.to_s : '' %>">
-                      <%= op.organisation.name %>
-                      <% unless op.active? %>
-                        <span style="opacity:0.6">(off)</span>
-                      <% end %>
-                    </span>
-                  <% end %>
-                </div>
-              <% else %>
-                <span style="font-size:11px;color:var(--text-dim);font-style:italic">
-                  Not enrolled
+            <%# Orgs Using — count only %>
+            <td style="text-align:center">
+              <% if total_orgs > 0 %>
+                <span title="<%= org_products.map { |op| op.organisation.name }.join(', ') %>"
+                      style="font-family:var(--mono);font-size:13px;font-weight:600;
+                             padding:3px 10px;border-radius:12px;cursor:default;
+                             background:<%= active_orgs > 0 ? 'rgba(79,142,247,0.12)' : 'rgba(122,131,153,0.1)' %>;
+                             color:<%= active_orgs > 0 ? 'var(--accent)' : 'var(--text-dim)' %>;
+                             border:1px solid <%= active_orgs > 0 ? 'rgba(79,142,247,0.25)' : 'var(--border)' %>">
+                  <%= active_orgs %><% if active_orgs < total_orgs %><span style="font-size:10px;opacity:0.6"> / <%= total_orgs %></span><% end %>
                 </span>
+              <% else %>
+                <span style="font-size:11px;color:var(--text-dim)">—</span>
               <% end %>
             </td>
 
+            <%# Actions %>
             <td>
               <div class="actions">
                 <%= link_to 'View', setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
                 <%= link_to 'Edit', edit_setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
+                <%= button_to 'Delete', setup_product_path(product), method: :delete,
+                      class: 'btn btn-danger btn-sm',
+                      form: { style: 'margin:0;display:inline' },
+                      data: { turbo_confirm: "Delete \"#{product.description}\"? This cannot be undone." } %>
               </div>
             </td>
           </tr>
@@ -222,6 +227,46 @@
     </div>
   <% end %>
 </div>
+
+<%# ── Pagination ── %>
+<% if @total_pages > 1 %>
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              margin-top:16px;font-size:13px;color:var(--text-dim)">
+    <span>
+      Showing <%= ((@page - 1) * @per_page) + 1 %>–<%= [(@page * @per_page), @filtered_count].min %>
+      of <%= @filtered_count %> products
+    </span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <% if @page > 1 %>
+        <%= link_to '← Prev',
+              product_register_setup_products_path(page: @page - 1, per_page: @per_page,
+                category_id: params[:category_id], brand_id: params[:brand_id],
+                status: params[:status], org_id: params[:org_id]),
+              class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+      <% ([[@page - 2, 1].max, 1].max..[[@page + 2, @total_pages].min, @total_pages].min).each do |p| %>
+        <% if p == @page %>
+          <span style="padding:5px 10px;background:var(--accent);color:#fff;
+                       border-radius:6px;font-size:12px;font-weight:600"><%= p %></span>
+        <% else %>
+          <%= link_to p,
+                product_register_setup_products_path(page: p, per_page: @per_page,
+                  category_id: params[:category_id], brand_id: params[:brand_id],
+                  status: params[:status], org_id: params[:org_id]),
+                style: "padding:5px 10px;background:var(--surface);border:1px solid var(--border);
+                        color:var(--text);border-radius:6px;font-size:12px;text-decoration:none" %>
+        <% end %>
+      <% end %>
+      <% if @page < @total_pages %>
+        <%= link_to 'Next →',
+              product_register_setup_products_path(page: @page + 1, per_page: @per_page,
+                category_id: params[:category_id], brand_id: params[:brand_id],
+                status: params[:status], org_id: params[:org_id]),
+              class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+    </div>
+  </div>
+<% end %>
 
 <script>
   document.getElementById('productSearch').addEventListener('input', function() {
@@ -278,7 +323,6 @@
           <tr>
             <td>
               <div style="font-weight:500"><%= p.description %></div>
-              <%# Brand — actual or AI guess %>
               <% if p.brand.present? %>
                 <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
                   🏷 <%= p.brand.name %>
@@ -304,12 +348,9 @@
             <td style="font-family:var(--mono);font-size:12px"><%= p.hsn_code.presence || '—' %></td>
             <td style="font-family:var(--mono);font-size:12px;text-align:right"><%= p.gst_rate.to_f.round(0) %>%</td>
             <td style="font-size:12px">
-              <%= p.product_category&.name ||
-                  p.metadata['ai_category_guess'].presence ||
-                  '—' %>
+              <%= p.product_category&.name || p.metadata['ai_category_guess'].presence || '—' %>
               <% if p.product_category.nil? %>
-                <span style="font-size:9px;color:var(--warning);font-weight:600;
-                             display:block;margin-top:1px">⚠ needs review</span>
+                <span style="font-size:9px;color:var(--warning);font-weight:600;display:block;margin-top:1px">⚠ needs review</span>
               <% end %>
             </td>
             <td style="font-size:11px">
@@ -345,21 +386,16 @@
             </td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:nowrap">
-                <%# Approve — set active:true %>
                 <%= button_to '✅ Approve',
                       approve_pending_setup_products_path(p),
                       method: :post,
                       class: 'btn btn-secondary btn-sm',
                       style: 'color:var(--success);border-color:var(--success);white-space:nowrap',
                       data: { turbo_confirm: "Approve #{p.description}? It will become fully active and appear in sales searches." } %>
-
-                <%# Edit & Approve — open product edit form %>
                 <%= link_to '✏️ Edit',
                       edit_setup_product_path(p),
                       class: 'btn btn-secondary btn-sm',
                       style: 'white-space:nowrap' %>
-
-                <%# Reject — only if no stock %>
                 <% if stock <= 0 %>
                   <%= button_to '🗑 Delete',
                         reject_pending_setup_products_path(p),

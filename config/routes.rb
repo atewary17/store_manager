@@ -6,7 +6,8 @@ Rails.application.routes.draw do
   get   '/profile',           to: 'users#profile',           as: :profile
   patch '/profile',           to: 'users#update_profile',    as: :update_profile
   put   '/profile',           to: 'users#update_profile'
-  patch '/profile/shortcuts', to: 'users#update_shortcuts',  as: :update_shortcuts
+  patch '/profile/shortcuts',    to: 'users#update_shortcuts',    as: :update_shortcuts
+  patch '/profile/org_settings', to: 'users#update_org_settings', as: :update_org_settings
 
   # Organisations & Users
   resources :organisations, only: [:index, :show, :new, :create, :edit, :update] do

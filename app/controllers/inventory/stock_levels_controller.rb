@@ -97,8 +97,9 @@ class Inventory::StockLevelsController < Inventory::BaseController
       .includes(product: [:brand, :product_category, :base_uom])
       .order(page_ids.any? ? Arel.sql("CASE stock_levels.id #{id_order} END") : 'stock_levels.id')
 
-    @categories = ProductCategory.active.ordered
-    @brands     = Brand.active.ordered
+    @categories   = ProductCategory.active.ordered
+    @brands       = Brand.active.ordered
+    @stock_locked = @organisation.stock_updates_locked?
 
     # Last ledger entry date per product (for display on cards)
     pids = @levels.map(&:product_id)
@@ -111,10 +112,12 @@ class Inventory::StockLevelsController < Inventory::BaseController
       format.html
       format.json do
         card_html = render_to_string(partial: 'inventory/stock_levels/cards',
-                                     locals:  { levels: @levels, last_entry: @last_entry },
+                                     locals:  { levels: @levels, last_entry: @last_entry,
+                                                stock_locked: @stock_locked },
                                      formats: [:html])
         list_html = render_to_string(partial: 'inventory/stock_levels/list_rows',
-                                     locals:  { levels: @levels, last_entry: @last_entry },
+                                     locals:  { levels: @levels, last_entry: @last_entry,
+                                                stock_locked: @stock_locked },
                                      formats: [:html])
         render json: { html: card_html, list_html: list_html, has_more: @has_more, page: @page }
       end
@@ -217,6 +220,12 @@ class Inventory::StockLevelsController < Inventory::BaseController
 
   # POST /inventory/stock_levels/:id/quick_adjust
   def quick_adjust
+    if @organisation.stock_updates_locked?
+      render json: { error: 'Stock updates are locked by your administrator.' },
+             status: :forbidden
+      return
+    end
+
     @level  = StockLevel.for_org(@organisation.id).find(params[:id])
     delta   = params[:delta].to_f
 

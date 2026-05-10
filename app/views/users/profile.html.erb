@@ -573,6 +573,96 @@
       </div>
     </div>
 
+    <%# ── Organisation Settings — admin / owner / super_admin only ── %>
+    <% org = @user.organisation %>
+    <% if org && (@user.admin? || @user.owner? || @user.super_admin?) %>
+      <% stock_locked = org.stock_updates_locked? %>
+      <style>
+        .org-toggle-row {
+          display: flex; align-items: flex-start; justify-content: space-between;
+          gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border);
+        }
+        .org-toggle-row:last-of-type { border-bottom: none; }
+        /* Toggle switch */
+        .tog-wrap { position: relative; display: inline-flex; align-items: center;
+                    gap: 8px; cursor: pointer; user-select: none; flex-shrink: 0; }
+        .tog-input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .tog-track {
+          width: 42px; height: 24px; border-radius: 12px;
+          background: var(--border); transition: background .2s;
+          position: relative; flex-shrink: 0;
+        }
+        .tog-input:checked + .tog-track { background: var(--danger); }
+        .tog-track::after {
+          content: ''; position: absolute; top: 3px; left: 3px;
+          width: 18px; height: 18px; border-radius: 50%;
+          background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+        }
+        .tog-input:checked + .tog-track::after { transform: translateX(18px); }
+        .tog-label { font-size: 12px; font-family: var(--mono); font-weight: 600;
+                     color: var(--text-dim); transition: color .2s; }
+        .tog-input:checked ~ .tog-label { color: var(--danger); }
+      </style>
+
+      <div class="p-card">
+        <div class="p-card-header">
+          <div class="p-card-title">
+            <div class="c-icon" style="background:rgba(247,97,79,0.1)">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            Organisation Controls
+          </div>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim)"><%= org.name %></span>
+        </div>
+        <div class="p-card-body">
+          <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:16px;line-height:1.6">
+            These settings apply to <strong style="color:var(--text)">all users</strong> in your organisation.
+          </div>
+
+          <%# ── Stock Updates Lock row ── %>
+          <div class="org-toggle-row" id="stock-lock-row">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px;
+                          display:flex;align-items:center;gap:6px">
+                <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"
+                     viewBox="0 0 24 24" id="stock-lock-icon"
+                     style="color:<%= stock_locked ? 'var(--danger)' : 'var(--text-dim)' %>">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Lock Stock Updates
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);line-height:1.5">
+                When locked, the +/− adjustment buttons on the Stock Dashboard are
+                disabled for all users. Stock still updates via purchase invoices.
+              </div>
+              <div id="stock-lock-status" style="margin-top:6px;font-size:11px;font-weight:600;
+                   font-family:var(--mono);color:<%= stock_locked ? 'var(--danger)' : 'var(--success)' %>">
+                <%= stock_locked ? 'LOCKED' : 'UNLOCKED' %>
+              </div>
+            </div>
+
+            <%# Toggle switch — flips via JS fetch, no page reload %>
+            <label class="tog-wrap" title="<%= stock_locked ? 'Click to unlock' : 'Click to lock' %>">
+              <input type="checkbox" class="tog-input" id="stock-lock-toggle"
+                     <%= 'checked' if stock_locked %>
+                     data-url="<%= update_org_settings_path %>"
+                     data-key="stock_updates_locked">
+              <span class="tog-track"></span>
+              <span class="tog-label" id="stock-lock-lbl"><%= stock_locked ? 'Locked' : 'Unlocked' %></span>
+            </label>
+          </div>
+
+          <div id="stock-lock-error"
+               style="display:none;margin-top:10px;font-size:11px;color:var(--danger);
+                      font-family:var(--mono)"></div>
+        </div>
+      </div>
+    <% end %>
+
   </div><!-- .profile-aside -->
 
 </div><!-- .profile-layout -->
@@ -609,5 +699,58 @@
 
   // Init counter on page load
   document.addEventListener('DOMContentLoaded', updateCounter);
+})();
+
+// ── Organisation settings toggle ──────────────────────────────────────────
+(function() {
+  var toggle = document.getElementById('stock-lock-toggle');
+  if (!toggle) return;
+
+  toggle.addEventListener('change', function() {
+    var locked   = this.checked;
+    var url      = this.dataset.url;
+    var key      = this.dataset.key;
+    var errEl    = document.getElementById('stock-lock-error');
+    var statusEl = document.getElementById('stock-lock-status');
+    var lblEl    = document.getElementById('stock-lock-lbl');
+    var iconEl   = document.getElementById('stock-lock-icon');
+
+    // Optimistic UI update
+    statusEl.textContent  = locked ? 'LOCKED' : 'UNLOCKED';
+    statusEl.style.color  = locked ? 'var(--danger)' : 'var(--success)';
+    lblEl.textContent     = locked ? 'Locked' : 'Unlocked';
+    iconEl.style.color    = locked ? 'var(--danger)' : 'var(--text-dim)';
+    errEl.style.display   = 'none';
+
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    var csrf = meta ? meta.getAttribute('content') : '';
+
+    fetch(url, {
+      method:  'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrf,
+        'Accept':       'application/json'
+      },
+      body: JSON.stringify({ setting_key: key, setting_value: locked })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        // Revert on error
+        toggle.checked        = !locked;
+        statusEl.textContent  = !locked ? 'LOCKED' : 'UNLOCKED';
+        statusEl.style.color  = !locked ? 'var(--danger)' : 'var(--success)';
+        lblEl.textContent     = !locked ? 'Locked' : 'Unlocked';
+        iconEl.style.color    = !locked ? 'var(--danger)' : 'var(--text-dim)';
+        errEl.textContent     = data.error;
+        errEl.style.display   = 'block';
+      }
+    })
+    .catch(function() {
+      // Network error — revert
+      toggle.checked = !locked;
+    });
+  });
 })();
 </script>

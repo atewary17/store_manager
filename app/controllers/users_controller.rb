@@ -1,8 +1,8 @@
 # app/controllers/users_controller.rb
 class UsersController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_organisation, except: [:profile, :update_profile, :update_shortcuts]
-  before_action :authorize_access!, except: [:profile, :update_profile, :update_shortcuts]
+  before_action :set_organisation, except: [:profile, :update_profile, :update_shortcuts, :update_org_settings]
+  before_action :authorize_access!, except: [:profile, :update_profile, :update_shortcuts, :update_org_settings]
   before_action :set_user, only: [:show, :edit, :update]
 
   # GET /profile — any logged-in user can view/edit their own profile
@@ -37,6 +37,30 @@ class UsersController < ApplicationController
     else
       render :profile, status: :unprocessable_entity
     end
+  end
+
+  # PATCH /profile/org_settings — toggle org-wide settings (admin/owner/super_admin)
+  # Responds with JSON so the toggle flips without a page reload.
+  def update_org_settings
+    org = current_user.organisation
+
+    unless org && (current_user.admin? || current_user.owner? || current_user.super_admin?)
+      render json: { error: 'Access denied.' }, status: :forbidden
+      return
+    end
+
+    key = params[:setting_key].to_s.strip
+    unless %w[stock_updates_locked].include?(key)
+      render json: { error: 'Unknown setting.' }, status: :unprocessable_entity
+      return
+    end
+
+    bool_val = params[:setting_value].to_s == 'true'
+    org.update_setting!(key, bool_val)
+
+    render json: { locked: bool_val, org: org.name }
+  rescue => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # PATCH /profile/shortcuts — save dashboard shortcut keys (admin + super_admin)
