@@ -720,8 +720,8 @@
             </div>
           <% end %>
 
-          <%# Invoice reconciliation — mirrors the invoice summary breakdown %>
-          <% if rc_total > 0 || ex_total > 0 %>
+          <%# Invoice reconciliation — superadmin only %>
+          <% if current_user.super_admin? && (rc_total > 0 || ex_total > 0) %>
             <div style="background:rgba(0,0,0,0.15);border-radius:6px;padding:10px 12px;margin-bottom:10px">
 
               <%# Header row with overall status %>
@@ -1066,9 +1066,9 @@
                       (d['quantity'].to_f - item['quantity'].to_f).abs < 0.001
                     }
 
-                    # ── Per-item validation ───────────────────────────────────
+                    # ── Per-item validation (calculated vs parsed) ────────────
                     iv_qty      = item['quantity'].to_f
-                    iv_volume   = item['volume'].to_f
+                    iv_rate     = item['unit_rate'].to_f
                     iv_value    = item['value'].to_f
                     iv_disc     = item['discount_amount'].to_f
                     iv_taxable  = item['taxable_amount'].to_f
@@ -1084,12 +1084,15 @@
 
                     item_warnings = []
 
-                    # Qty == Volume → AI likely read the wrong column
-                    if iv_volume > 0 && (iv_qty - iv_volume).abs < 0.01
-                      item_warnings << "Qty (#{iv_qty}) equals Volume (#{iv_volume}) — AI may have confused columns. Correct Qty manually."
+                    # 1. Qty × Rate = Value
+                    if iv_qty > 0 && iv_rate > 0 && iv_value > 0
+                      exp_value = (iv_qty * iv_rate).round(2)
+                      if (exp_value - iv_value).abs > 1.0
+                        item_warnings << "Value ₹#{iv_value} ≠ Qty(#{iv_qty.to_i}) × Rate(#{iv_rate}) = ₹#{exp_value}"
+                      end
                     end
 
-                    # Taxable = Value − Discount
+                    # 2. Value − Discount = Taxable
                     if iv_value > 0 && iv_taxable > 0
                       exp_taxable = (iv_value - iv_disc).round(2)
                       if (exp_taxable - iv_taxable).abs > 1.0
@@ -1097,24 +1100,23 @@
                       end
                     end
 
-                    # GST = Taxable × GST%
+                    # 3. Taxable × GST% = GST amount
                     if iv_taxable > 0 && iv_gst_rate > 0 && iv_gst_amt > 0
                       exp_gst = (iv_taxable * iv_gst_rate / 100.0).round(2)
                       if (exp_gst - iv_gst_amt).abs > 1.0
-                        item_warnings << "GST ₹#{iv_gst_amt} ≠ #{iv_gst_rate}% × #{iv_taxable} = ₹#{exp_gst}"
+                        item_warnings << "GST ₹#{iv_gst_amt} ≠ #{iv_gst_rate.to_i}% × ₹#{iv_taxable} = ₹#{exp_gst}"
                       end
                     end
 
-                    # Total = Taxable + GST
+                    # 4. Taxable + GST = Total
                     if iv_taxable > 0 && iv_total > 0
                       exp_total = (iv_taxable + iv_gst_amt).round(2)
                       if (exp_total - iv_total).abs > 1.0
-                        item_warnings << "Total ₹#{iv_total} ≠ Taxable(#{iv_taxable}) + GST(#{iv_gst_amt}) = ₹#{exp_total}"
+                        item_warnings << "Total ₹#{iv_total} ≠ Taxable(₹#{iv_taxable}) + GST(₹#{iv_gst_amt}) = ₹#{exp_total}"
                       end
                     end
 
-                    item_qty_suspect = iv_volume > 0 && (iv_qty - iv_volume).abs < 0.01
-                    item_has_issues  = item_warnings.any? && !is_duplicate
+                    item_has_issues = item_warnings.any? && !is_duplicate
                   %>
                   <% if page_boundaries.key?(idx) %>
                     <tr>
@@ -1176,15 +1178,8 @@
                       <input type="number"
                              name="parsed_data[items][<%= idx %>][quantity]"
                              value="<%= item['quantity'] %>"
-                             class="form-control" style="text-align:right;font-family:var(--mono);width:100%;
-                                    <%= item_qty_suspect ? 'border-color:var(--warning);' : '' %>"
+                             class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
                              step="0.001">
-                      <% if item_qty_suspect %>
-                        <div style="font-size:9px;color:var(--warning);margin-top:2px;
-                                    font-family:var(--mono);font-weight:700">
-                          ⚠ Vol=<%= iv_volume %> — check Qty
-                        </div>
-                      <% end %>
                     </td>
 
                     <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">

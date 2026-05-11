@@ -246,16 +246,28 @@ class GroqInvoiceParser
     base       = successful.first[:data]
     all_items  = successful.flat_map { |r| r[:data]['items'] || [] }
 
-    # Post-parse correction: when quantity == volume the AI read the wrong column.
-    # Substitute num_packs (the integer pack count) as the corrected quantity.
+    # AI quantity is used as-is — no automatic correction.
+    # The review form lets the user verify and edit before confirming.
+
+    # Resolve unit_rate vs rate_per_pack: the AI is inconsistent about which field
+    # holds the per-ordered-unit price. Test both against qty × rate = value and
+    # set unit_rate to whichever satisfies the equation.
     all_items.each do |item|
-      qty    = item['quantity'].to_f
-      volume = item['volume'].to_f
-      next unless volume > 0 && (qty - volume).abs < 0.01
-      # num_packs is the carton/drum count — the true ordered unit count
-      np = item['num_packs'].to_i
-      item['quantity']    = np > 0 ? np : item['quantity']
-      item['_qty_fixed']  = true   # flag so UI can still warn if needed
+      qty = item['quantity'].to_f
+      val = item['value'].to_f
+      rpp = item['rate_per_pack'].to_f
+      ur  = item['unit_rate'].to_f
+      next unless qty > 0 && val > 0
+
+      tol = [val * 0.005, 1.0].max  # 0.5% or ₹1, whichever is larger
+
+      if rpp > 0 && (qty * rpp - val).abs <= tol
+        item['unit_rate'] = rpp          # rate_per_pack satisfies qty × rate = value
+      elsif ur > 0 && (qty * ur - val).abs <= tol
+        # original unit_rate is already correct — leave it unchanged
+      elsif rpp > 0
+        item['unit_rate'] = rpp          # neither fits; default to rate_per_pack
+      end
     end
 
     # Determine true page_count from AI — take the max total_pages seen
