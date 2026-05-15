@@ -357,7 +357,7 @@
             data: { confirm: "Record full payment of ₹#{@invoice.outstanding_amount} as cash?" },
             class: 'btn btn-primary btn-sm' %>
     <% end %>
-    <% if @invoice.confirmed? %>
+    <% if @invoice.confirmed? && !@invoice.fully_paid? %>
       <%= button_to 'Void',
             void_sales_sales_invoice_path(@invoice),
             method: :post,
@@ -472,15 +472,19 @@
               <td>
                 <% if item.paint? %>
                   <div class="li-product"><%= item.shade_display %></div>
-                  <div class="li-sub">
-                    <%= item.metadata['colour_family'] %>
-                    <% if item.base_product.present? %>&nbsp;· Base: <%= item.base_product.pack_code %><% end %>
-                  </div>
+                  <% paint_sub = [item.metadata['colour_family'].presence,
+                                  item.base_product.present? ? "Base: #{item.base_product.display_name}" : nil
+                                 ].compact.join(' · ') %>
+                  <% if paint_sub.present? %>
+                    <div class="li-sub"><%= paint_sub %></div>
+                  <% end %>
                 <% elsif item.adhoc? %>
                   <div class="li-product"><%= item.description.presence || 'Ad-hoc charge' %></div>
                 <% else %>
                   <div class="li-product"><%= item.product&.display_name || '—' %></div>
-                  <div class="li-sub"><%= item.product&.material_code %></div>
+                  <% if item.product&.material_code.present? %>
+                    <div class="li-sub"><%= item.product.material_code %></div>
+                  <% end %>
                 <% end %>
               </td>
               <td>
@@ -501,8 +505,9 @@
                 <%= number_with_precision(item.taxable_amount, precision: 2) %>
               </td>
               <td class="tr" style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-                <% gst = item.cgst_percent.to_f + item.sgst_percent.to_f %>
-                <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
+                <% igst = item.metadata['igst_percent'].to_f %>
+                <% gst  = item.cgst_percent.to_f + item.sgst_percent.to_f %>
+                <%= igst > 0 ? "#{igst.to_i}%" : gst > 0 ? "#{gst.to_i}%" : '—' %>
               </td>
               <td class="tr" style="font-family:var(--mono);font-weight:600;color:var(--accent)">
                 <%= number_with_precision(item.total_amount, precision: 2) %>
@@ -577,15 +582,15 @@
                   &#11015; PDF
                 <% end %>
               </div>
+              <% unless is_paid %>
               <div>
-                <%= button_to '&#10005;',
-                      sales_sales_invoice_sale_payment_path(@invoice, pmt),
-                      method: :delete,
-                      data: { confirm: "Delete payment #{pmt.receipt_label}?" },
-                      style: "background:none;border:none;color:var(--danger);
-                              cursor:pointer;font-size:13px;padding:2px 5px;
-                              border-radius:4px;line-height:1" %>
+                <button type="button"
+                        onclick="confirmDeletePayment('<%= sales_sales_invoice_sale_payment_path(@invoice, pmt) %>', '<%= j pmt.receipt_label %>', '&#8377;&nbsp;<%= number_with_delimiter(pmt.amount) %>')"
+                        style="background:none;border:none;color:var(--danger);
+                               cursor:pointer;font-size:13px;padding:2px 5px;
+                               border-radius:4px;line-height:1">&#10005;</button>
               </div>
+              <% end %>
             </div>
           <% end %>
         <% else %>
@@ -664,11 +669,12 @@
           &#8377; <%= number_with_delimiter(@invoice.computed_tax_total.round(2)) %>
         </div>
       </div>
-      <% if @invoice.overall_discount_amount.to_f > 0 %>
+      <% total_disc = @invoice.computed_discount_total %>
+      <% if total_disc > 0 %>
         <div class="sum-stat">
           <div class="sum-stat-label">Discount</div>
           <div class="sum-stat-val" style="font-size:16px;color:var(--warning)">
-            − &#8377; <%= number_with_delimiter(@invoice.overall_discount_amount.to_f) %>
+            − &#8377; <%= number_with_delimiter(total_disc) %>
           </div>
         </div>
       <% end %>
@@ -732,3 +738,128 @@
   </div><%# /inv-aside %>
 
 </div><%# /inv-layout %>
+
+<%# ── Delete Payment Confirmation Modal ── %>
+<div id="del-pmt-modal"
+     style="display:none;position:fixed;inset:0;z-index:1000;
+            background:rgba(0,0,0,0.45);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;
+              padding:28px 28px 22px;width:360px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span style="font-size:22px;color:var(--danger)">&#9888;</span>
+      <span style="font-size:15px;font-weight:700;color:var(--text)">Delete Payment</span>
+    </div>
+    <p style="font-size:13px;color:var(--text-dim);margin:0 0 6px">
+      Are you sure you want to delete payment
+    </p>
+    <p style="font-size:13px;font-weight:600;color:var(--text);font-family:var(--mono);margin:0 0 4px"
+       id="del-pmt-label"></p>
+    <p style="font-size:13px;color:var(--danger);font-family:var(--mono);margin:0 0 20px"
+       id="del-pmt-amount"></p>
+    <p style="font-size:12px;color:var(--text-dim);margin:0 0 20px">
+      This cannot be undone and the amount will be removed from the payment history.
+    </p>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button type="button" onclick="closeDeletePaymentModal()"
+              style="padding:8px 18px;border:1px solid var(--border);border-radius:7px;
+                     background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;
+                     font-family:var(--sans)">Cancel</button>
+      <form id="del-pmt-form" method="post" style="margin:0">
+        <input type="hidden" name="_method" value="delete">
+        <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+        <button type="submit"
+                style="padding:8px 18px;border:none;border-radius:7px;
+                       background:var(--danger);color:#fff;font-size:13px;
+                       font-weight:600;cursor:pointer;font-family:var(--sans)">
+          Delete
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  function confirmDeletePayment(url, label, amount) {
+    document.getElementById('del-pmt-label').textContent  = label;
+    document.getElementById('del-pmt-amount').innerHTML   = amount;
+    document.getElementById('del-pmt-form').action        = url;
+    var modal = document.getElementById('del-pmt-modal');
+    modal.style.display = 'flex';
+  }
+  function closeDeletePaymentModal() {
+    document.getElementById('del-pmt-modal').style.display = 'none';
+  }
+  document.getElementById('del-pmt-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeletePaymentModal();
+  });
+</script>
+
+<%# ── Post-confirm tinting prompt ── %>
+<% if flash[:tinting_prompt] %>
+<%
+  _tinting_brand_id = flash[:tinting_brand_id]
+  _tinting_action   = flash[:tinting_action].to_s.presence || 'new_tab'
+  _tinting_url      = _tinting_brand_id.present? ?
+                        inventory_tinting_machine_brand_path(brand_id: _tinting_brand_id, modal: 1) :
+                        inventory_tinting_machine_path(modal: 1)
+%>
+<div id="tint-prompt"
+     style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:800;
+            display:flex;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;
+              padding:32px 36px;max-width:440px;width:100%;
+              box-shadow:0 24px 60px rgba(0,0,0,0.5);text-align:center">
+    <div style="font-size:36px;margin-bottom:12px">🎨</div>
+    <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px">
+      Update Tinting Machine?
+    </div>
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:24px;line-height:1.6">
+      You've sold enough base paint since the last tinting update.<br>
+      Would you like to check or update the tinting machine levels now?
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="openTinting()"
+              style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:9px;
+                     padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer">
+        Yes, Update Now
+      </button>
+      <button onclick="dismissTintPrompt('skip')"
+              style="flex:1;background:transparent;color:var(--text-dim);
+                     border:1.5px solid var(--border);border-radius:9px;
+                     padding:12px 20px;font-size:14px;cursor:pointer">
+        Skip
+      </button>
+    </div>
+    <button onclick="dismissTintPrompt('remind')"
+            style="margin-top:12px;background:transparent;border:none;color:var(--text-dim);
+                   font-size:12px;cursor:pointer;text-decoration:underline">
+      Remind me next time
+    </button>
+  </div>
+</div>
+
+<script>
+  function openTinting() {
+    document.getElementById('tint-prompt').style.display = 'none';
+    var url = '<%= j _tinting_url %>';
+    <% if _tinting_action == 'popup_window' %>
+      window.open(url, 'TintingMachine',
+        'width=1280,height=820,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no');
+    <% else %>
+      window.open(url, '_blank');
+    <% end %>
+  }
+
+  function dismissTintPrompt(type) {
+    document.getElementById('tint-prompt').style.display = 'none';
+    fetch('<%= tinting_snooze_sales_sales_invoices_path %>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+      },
+      body: JSON.stringify({ snooze_type: type })
+    });
+  }
+</script>
+<% end %>

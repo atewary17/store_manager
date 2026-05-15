@@ -112,9 +112,10 @@
           { selected: params[:stock_status] },
           { class: 'form-control', style: 'width:150px', onchange: 'this.form.submit()' } %>
     <%= f.select :sort,
-          [['Sort: Name','name'],['Sort: Qty ↑','qty_asc'],['Sort: Qty ↓','qty_desc']],
+          [['Sort: Name','name'],['Sort: Qty ↑','qty_asc'],['Sort: Qty ↓','qty_desc'],
+           ['Sort: Latest Entry','entry_latest'],['Sort: Oldest Entry','entry_oldest']],
           { selected: params[:sort] || 'name' },
-          { class: 'form-control', style: 'width:130px', onchange: 'this.form.submit()' } %>
+          { class: 'form-control', style: 'width:160px', onchange: 'this.form.submit()' } %>
     <% if params[:category_id].present? || params[:brand_id].present? ||
           params[:stock_status].present? || params[:q].present? %>
       <%= link_to 'Clear', inventory_stock_levels_path(view: params[:view]), class: 'btn btn-secondary btn-sm' %>

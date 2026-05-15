@@ -64,6 +64,20 @@ class Admin::ProductReviewsController < Admin::BaseController
     # Also mark all linked PI items as no longer unmatched
     @product.purchase_invoice_items.update_all(unmatched: false)
 
+    begin
+      ActivityLogger.log(
+        organisation:     nil,
+        user:             current_user,
+        activity_type:    'product_approval',
+        activity_subtype: 'approved',
+        description:      "Product approved — #{@product.display_name}",
+        reference:        @product,
+        metadata:         { product_id: @product.id, material_code: @product.material_code }.compact
+      )
+    rescue => e
+      Rails.logger.warn("[ActivityLog] product_approval approve #{@product.id}: #{e.message}")
+    end
+
     redirect_to admin_product_reviews_path,
                 notice: "#{@product.display_name} approved and activated."
   end
@@ -78,6 +92,21 @@ class Admin::ProductReviewsController < Admin::BaseController
       reviewed_by:      current_user,
       review_notes:     params[:review_notes].presence
     )
+
+    begin
+      ActivityLogger.log(
+        organisation:     nil,
+        user:             current_user,
+        activity_type:    'product_approval',
+        activity_subtype: 'rejected',
+        description:      "Product rejected — #{@product.display_name}",
+        reference:        @product,
+        metadata:         { product_id: @product.id, material_code: @product.material_code }.compact
+      )
+    rescue => e
+      Rails.logger.warn("[ActivityLog] product_approval reject #{@product.id}: #{e.message}")
+    end
+
     redirect_to admin_product_reviews_path,
                 notice: "#{@product.display_name} rejected."
   end

@@ -99,47 +99,50 @@ class Setup::ShadeCataloguesController < Setup::BaseController
 
     wb.add_worksheet(name: 'Shades') do |ws|
       ws.add_row(
-        ['shade_code', 'shade_name', 'manufacturer', 'colour_family', 'notes', 'active'],
+        ['shade_code', 'shade_name', 'brand', 'product_family', 'colour_family', 'notes', 'active'],
         style: hdr
       )
       ws.add_row(
-        ['Required*', 'Required*', 'Optional', 'Optional', 'Optional', 'Optional'],
-        style: [req, req, opt, opt, opt, opt]
+        ['Required*', 'Required*', 'Optional', 'Optional', 'Optional', 'Optional', 'Optional'],
+        style: [req, req, opt, opt, opt, opt, opt]
       )
       ws.add_row(
         [
           'Manufacturer shade code. E.g. 7711, OW-120. Will be uppercased.',
           'Full shade name. E.g. Pastel Blue, Ivory White.',
-          'Brand name. E.g. Asian Paints, Berger, Nerolac.',
+          'Brand name. Must match an existing brand. E.g. Asian Paints, Berger.',
+          'Product line / family. E.g. Apcolite Premium Gloss, Royale.',
           'Colour group for filtering. E.g. Blues, Whites, Neutrals.',
           'Any special notes. E.g. Interior use only.',
           'true or false. Defaults to true if blank.'
         ],
         style: desc
       )
-      ws.add_row(['7711',  'Pastel Blue',    'Asian Paints', 'Blues',   '',                    'true'],  style: example)
-      ws.add_row(['OW-120','Ivory White',    'Berger',       'Whites',  'Interior use only',   'true'],  style: example)
-      ws.add_row(['N-445', 'Terracotta Glow','Nerolac',      'Oranges', '',                    'true'],  style: example)
+      ws.add_row(['7711',  'Pastel Blue',    'Asian Paints', 'Apcolite Premium Gloss', 'Blues',   '',                    'true'],  style: example)
+      ws.add_row(['OW-120','Ivory White',    'Berger',       'Breathe Easy',           'Whites',  'Interior use only',   'true'],  style: example)
+      ws.add_row(['N-445', 'Terracotta Glow','Nerolac',      'Impressions',            'Oranges', '',                    'true'],  style: example)
 
-      ws.column_widths 18, 24, 18, 18, 30, 10
+      ws.column_widths 18, 24, 18, 26, 18, 30, 10
     end
 
     wb.add_worksheet(name: 'Instructions') do |ws|
       ws.add_row(['Shade Catalogue Import — Instructions'], style: hdr)
       ws.add_row([''])
       ws.add_row(['Field Rules:'])
-      ws.add_row(['shade_code  — Required. Unique per category. Automatically uppercased on import.'])
-      ws.add_row(['shade_name  — Required. Full descriptive name of the shade.'])
-      ws.add_row(['manufacturer — Optional but recommended. Helps with filtering in the shade catalogue.'])
-      ws.add_row(['colour_family — Optional. Used for grouping (Blues, Whites, Pastels, etc.).'])
-      ws.add_row(['notes       — Optional. Any special notes for store staff.'])
-      ws.add_row(['active      — Optional. Accepts: true, false, yes, no, 1, 0. Defaults to true.'])
+      ws.add_row(['shade_code     — Required. Unique per category. Automatically uppercased on import.'])
+      ws.add_row(['shade_name     — Required. Full descriptive name of the shade.'])
+      ws.add_row(['brand          — Optional but recommended. Must match an existing brand name exactly (case-insensitive).'])
+      ws.add_row(['product_family — Optional. Product line or family name. E.g. Apcolite Premium Gloss, Royale, Impressions.'])
+      ws.add_row(['colour_family  — Optional. Used for grouping (Blues, Whites, Pastels, etc.).'])
+      ws.add_row(['notes          — Optional. Any special notes for store staff.'])
+      ws.add_row(['active         — Optional. Accepts: true, false, yes, no, 1, 0. Defaults to true.'])
       ws.add_row([''])
       ws.add_row(['Import Notes:'])
       ws.add_row(['- Rows 1, 2, 3 in this template are headers/descriptors — they are skipped automatically.'])
       ws.add_row(['- Matching is done by shade_code (case-insensitive). Existing shades are updated, new ones created.'])
       ws.add_row(['- The category is assigned during upload, not in the file. All shades in a single file belong to one category.'])
-      ws.column_widths 80
+      ws.add_row(['- Backwards compatible: files with a "manufacturer" column header are also accepted.'])
+      ws.column_widths 90
     end
 
     send_data(package.to_stream.read,
@@ -160,8 +163,10 @@ class Setup::ShadeCataloguesController < Setup::BaseController
     odd     = wb.styles.add_style bg_color: 'FFFFFF', fg_color: '334155', sz: 10
 
     wb.add_worksheet(name: 'Shade Catalogue') do |ws|
-      ws.add_row(['Category', 'Shade Code', 'Shade Name', 'Manufacturer', 'Colour Family', 'Notes', 'Active'],
-        style: hdr)
+      ws.add_row(
+        ['Category', 'Shade Code', 'Shade Name', 'Brand', 'Product Family', 'Colour Family', 'Notes', 'Active'],
+        style: hdr
+      )
 
       @shades.each_with_index do |s, i|
         row_style = i.even? ? even : odd
@@ -169,14 +174,15 @@ class Setup::ShadeCataloguesController < Setup::BaseController
           s.product_category&.name,
           s.shade_code,
           s.shade_name,
-          s.manufacturer,
+          s.brand&.name,
+          s.product_family,
           s.colour_family,
           s.notes,
           s.active
         ], style: row_style)
       end
 
-      ws.column_widths 20, 14, 24, 18, 16, 30, 8
+      ws.column_widths 20, 14, 24, 18, 26, 16, 30, 8
     end
 
     send_data(package.to_stream.read,
@@ -259,7 +265,7 @@ class Setup::ShadeCataloguesController < Setup::BaseController
   def shade_params
     params.require(:shade_catalogue).permit(
       :product_category_id, :shade_code, :shade_name,
-      :brand_id, :colour_family, :notes, :active
+      :brand_id, :product_family, :colour_family, :notes, :active
     )
   end
 
@@ -276,7 +282,7 @@ class Setup::ShadeCataloguesController < Setup::BaseController
     wb      = package.workbook
 
     wb.add_worksheet(name: 'Import Errors') do |sheet|
-      headers = %w[row_number error shade_code shade_name manufacturer colour_family notes active]
+      headers = %w[row_number error shade_code shade_name brand product_family colour_family notes active]
       sheet.add_row headers
       import.error_rows.each do |row|
         sheet.add_row headers.map { |h| row[h].to_s }

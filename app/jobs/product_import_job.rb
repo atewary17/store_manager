@@ -9,6 +9,9 @@ class ProductImportJob < ApplicationJob
   # Only imports from this org are allowed to update master product fields.
   MASTER_ORG_ID = 1
 
+  # Columns whose leading zeros must survive (read via formatted_value).
+  CODE_COLS = %w[material_code product_code pack_code hsn_code shade_code].freeze
+
   def perform(product_import_id)
     import = ProductImport.find(product_import_id)
     import.update!(status: 'processing')
@@ -19,18 +22,21 @@ class ProductImportJob < ApplicationJob
     tmp.write(file_data)
     tmp.flush
 
-    xlsx  = Roo::Spreadsheet.open(tmp.path, extension: :xlsx)
+    # Use Roo::Excelx directly so we can call formatted_value for code columns
+    xlsx  = Roo::Excelx.new(tmp.path)
+    xlsx.default_sheet = xlsx.sheets.first
     sheet = xlsx.sheet(0)
 
     headers = sheet.row(1).map do |h|
       h = h.to_s.strip.downcase
-      # Preserve meta: prefix — just normalise spaces within the key part
       if h.start_with?('meta:')
         'meta:' + h.sub('meta:', '').gsub(/\s+/, '_')
       else
         h.gsub(/\s+/, '_')
       end
     end
+    # Map header name → 1-indexed column for formatted_value reads
+    col_index = headers.each_with_index.to_h { |h, i| [h, i + 1] }
 
     # Skip meta/descriptor rows from template
     data_start = 2
@@ -54,6 +60,11 @@ class ProductImportJob < ApplicationJob
 
     (data_start..sheet.last_row).each do |row_num|
       row_data = headers.zip(sheet.row(row_num)).to_h.with_indifferent_access
+      # Override code columns with formatted_value to preserve leading zeros
+      CODE_COLS.each do |key|
+        next unless col_index.key?(key)
+        row_data[key] = xlsx.formatted_value(row_num, col_index[key]).to_s.strip
+      end
       next if row_data.values.all? { |v| v.to_s.strip.blank? }
 
       begin
@@ -182,6 +193,7 @@ class ProductImportJob < ApplicationJob
       base_uom:         uom,
       brand:            Brand.where('LOWER(name) = LOWER(?)', row['brand'].to_s.strip).first,
       pack_code:        row['pack_code'].to_s.strip.presence,
+      shade_code:       row['shade_code'].to_s.strip.presence,
       description:      row['description'].to_s.strip,
       material_code:    row['material_code'].to_s.strip.presence,
       product_code:     row['product_code'].to_s.strip.presence,

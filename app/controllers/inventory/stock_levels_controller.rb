@@ -61,24 +61,34 @@ class Inventory::StockLevelsController < Inventory::BaseController
 
     # ── Sort ──
     sort_sql = case params[:sort]
-               when 'qty_asc'  then 'stock_levels.quantity ASC'
-               when 'qty_desc' then 'stock_levels.quantity DESC'
-               else                 Arel.sql("COALESCE(brands.name, 'zzz') ASC, products.description ASC")
+               when 'qty_asc'      then 'stock_levels.quantity ASC'
+               when 'qty_desc'     then 'stock_levels.quantity DESC'
+               when 'entry_latest' then 'le.last_entry_at DESC NULLS LAST'
+               when 'entry_oldest' then 'le.last_entry_at ASC NULLS LAST'
+               else                     Arel.sql("COALESCE(brands.name, 'zzz') ASC, products.description ASC")
                end
 
     # PostgreSQL requires ORDER BY columns to appear in SELECT when using DISTINCT.
     sort_select = case params[:sort]
                   when 'qty_asc', 'qty_desc'
                     'stock_levels.id, stock_levels.quantity'
+                  when 'entry_latest', 'entry_oldest'
+                    'stock_levels.id, le.last_entry_at'
                   else
                     "stock_levels.id, COALESCE(brands.name, 'zzz') as brand_sort, products.description"
                   end
+
+    org_id = @organisation.id.to_i
+    ledger_join = %w[entry_latest entry_oldest].include?(params[:sort]) ?
+      "LEFT JOIN (SELECT product_id, MAX(created_at) AS last_entry_at FROM stock_ledgers WHERE organisation_id = #{org_id} GROUP BY product_id) le ON le.product_id = products.id" :
+      nil
 
     # Use LEFT JOIN for brand — AI-enriched pending products may have no brand
     # INNER JOIN would silently exclude them from the stock dashboard
     sorted_ids = filtered
       .joins('INNER JOIN products ON products.id = stock_levels.product_id')
       .joins('LEFT OUTER JOIN brands ON brands.id = products.brand_id')
+      .then { |s| ledger_join ? s.joins(ledger_join) : s }
       .select(sort_select)
       .order(Arel.sql(sort_sql))
       .map(&:id)
@@ -250,6 +260,20 @@ class Inventory::StockLevelsController < Inventory::BaseController
     )
 
     @level.reload
+
+    begin
+      ActivityLogger.log(
+        organisation:     @organisation,
+        user:             current_user,
+        activity_type:    'stock_adjustment',
+        activity_subtype: 'manual',
+        description:      "Quick stock adjust #{delta > 0 ? '+1' : '-1'} — #{@level.product.description}",
+        reference:        @level.product,
+        metadata:         { product_id: @level.product_id, delta: delta, new_qty: @level.quantity.to_f }
+      )
+    rescue => e
+      Rails.logger.warn("[ActivityLog] stock_adjustment #{@level.id}: #{e.message}")
+    end
 
     render json: {
       qty:      @level.quantity.to_f,

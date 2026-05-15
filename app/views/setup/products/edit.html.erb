@@ -5,7 +5,7 @@
   <span class="breadcrumb-sep">/</span>
   <%= link_to 'Products', setup_products_path %>
   <span class="breadcrumb-sep">/</span>
-  <%= link_to @product.brand, setup_product_path(@product) %>
+  <%= link_to @product.brand&.name || 'Product', setup_product_path(@product) %>
   <span class="breadcrumb-sep">/</span>
   <span class="breadcrumb-current">Edit</span>
 <% end %>

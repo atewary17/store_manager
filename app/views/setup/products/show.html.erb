@@ -637,6 +637,14 @@
                 <%= @product.pack_code.presence || '—' %>
               </span>
             </div>
+            <% if @product.shade_code.present? %>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:11px;color:var(--text-dim)">Shade</span>
+              <span style="font-family:var(--mono);font-size:12px">
+                <%= @product.shade_code %>
+              </span>
+            </div>
+            <% end %>
           </div>
         </div>
 

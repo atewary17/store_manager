@@ -34,6 +34,11 @@ module StoreManager
       end
     end
 
+    # Use GoodJob as the ActiveJob queue adapter in all environments.
+    # Without this, Rails defaults to the in-memory :async adapter and jobs
+    # are never written to the database or visible in System Processes.
+    config.active_job.queue_adapter = :good_job
+
     # ─────────────────────────────────────────────────────────
     # Then your existing module StoreManager / class Application continues
   end

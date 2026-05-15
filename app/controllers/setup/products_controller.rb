@@ -184,14 +184,16 @@ class Setup::ProductsController < Setup::BaseController
 
     wb.add_worksheet(name: 'Product Register') do |sheet|
       sheet.add_row(
-        ['Category', 'UOM', 'Brand', 'Pack Code', 'Description',
+        ['Category', 'UOM', 'Brand', 'Pack Code', 'Shade Code', 'Description',
          'Material Code', 'Product Code', 'HSN Code', 'GST Rate',
          'Active', 'Organisation IDs',
+         'meta:tint', 'meta:family_colour', 'meta:canister_volume_ml', 'meta:is_tinting_base',
          'meta:source', 'meta:validation_status', 'meta:ai_confidence',
          'meta:ai_brand_guess', 'meta:ai_category_guess', 'meta:ai_notes',
          'meta:original_name', 'meta:created_by_org'],
-        style: [hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,
-                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr],
+        style: [hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,
+                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,
+                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr],
         height: 24
       )
 
@@ -205,6 +207,7 @@ class Setup::ProductsController < Setup::BaseController
           p.base_uom&.short_name,
           p.brand&.name,
           p.pack_code,
+          p.shade_code.to_s,
           p.description,
           p.material_code.to_s,
           p.product_code.to_s,
@@ -212,6 +215,10 @@ class Setup::ProductsController < Setup::BaseController
           p.gst_rate,
           p.active,
           org_ids_map[p.id] || '',
+          meta['tint'].to_s,
+          meta['family_colour'].to_s,
+          meta['canister_volume_ml'].to_s,
+          meta['is_tinting_base'].to_s,
           meta['source'].to_s,
           meta['validation_status'].to_s,
           meta['ai_confidence'].to_s,
@@ -220,15 +227,16 @@ class Setup::ProductsController < Setup::BaseController
           meta['ai_notes'].to_s,
           meta['original_name'].to_s,
           meta['created_by_org'].to_s
-        ], style: [row_style, row_style, row_style, row_style, row_style,
+        ], style: [row_style, row_style, row_style, row_style, code_style, row_style,
                    code_style, code_style, code_style, num, row_style, row_style,
+                   meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell],
            height: 18)
       end
 
-      sheet.column_widths 22, 10, 18, 12, 36, 20, 18, 12, 10, 8, 24,
-                          14, 18, 14, 18, 18, 28, 28, 14
+      sheet.column_widths 22, 10, 18, 12, 14, 36, 20, 18, 12, 10, 8, 24,
+                          12, 18, 18, 20, 14, 18, 14, 18, 18, 28, 28, 14
     end
 
     send_data package.to_stream.read,
@@ -281,15 +289,17 @@ class Setup::ProductsController < Setup::BaseController
     wb.add_worksheet(name: 'Products') do |sheet|
       # Row 1: Column headers
       sheet.add_row(
-        ['Category', 'UOM', 'Brand', 'Pack Code', 'Description',
+        ['Category', 'UOM', 'Brand', 'Pack Code', 'Shade Code', 'Description',
          'Material Code', 'Product Code', 'HSN Code', 'GST Rate',
          'MRP', 'Internal Code', 'Local Description', 'Active',
          # ── Metadata columns ──
+         'meta:tint', 'meta:family_colour', 'meta:canister_volume_ml', 'meta:is_tinting_base',
          'meta:source', 'meta:validation_status', 'meta:ai_confidence',
          'meta:ai_brand_guess', 'meta:ai_category_guess', 'meta:ai_notes',
          'meta:original_name', 'meta:created_by_org'],
-        style: [hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,
-                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr],
+        style: [hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,hdr,
+                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr,
+                meta_hdr,meta_hdr,meta_hdr,meta_hdr,meta_hdr],
         height: 24
       )
 
@@ -304,6 +314,7 @@ class Setup::ProductsController < Setup::BaseController
           p.base_uom&.short_name,
           p.brand&.name,
           p.pack_code,
+          p.shade_code.to_s,
           p.description,
           p.material_code.to_s,
           p.product_code.to_s,
@@ -314,6 +325,10 @@ class Setup::ProductsController < Setup::BaseController
           op&.local_description,
           p.active,
           # ── Metadata values ──
+          meta['tint'].to_s,
+          meta['family_colour'].to_s,
+          meta['canister_volume_ml'].to_s,
+          meta['is_tinting_base'].to_s,
           meta['source'].to_s,
           meta['validation_status'].to_s,
           meta['ai_confidence'].to_s,
@@ -322,16 +337,17 @@ class Setup::ProductsController < Setup::BaseController
           meta['ai_notes'].to_s,
           meta['original_name'].to_s,
           meta['created_by_org'].to_s
-        ], style: [row_style, row_style, row_style, row_style, row_style,
+        ], style: [row_style, row_style, row_style, row_style, code_style, row_style,
                    code_style, code_style, code_style, num, num,
                    row_style, row_style, row_style,
+                   meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell],
            height: 18)
       end
 
-      sheet.column_widths 22, 10, 18, 12, 34, 18, 18, 12, 10, 12, 20, 30, 8,
-                          14, 18, 14, 18, 18, 28, 28, 14
+      sheet.column_widths 22, 10, 18, 12, 14, 34, 18, 18, 12, 10, 12, 20, 30, 8,
+                          12, 18, 18, 20, 14, 18, 14, 18, 18, 28, 28, 14
     end
 
     send_data package.to_stream.read,
@@ -422,7 +438,7 @@ class Setup::ProductsController < Setup::BaseController
 
   def product_params
     allowed = %i[product_category_id base_uom_id brand_id
-                 material_code product_code pack_code
+                 material_code product_code pack_code shade_code
                  description hsn_code gst_rate active]
     allowed << :mrp if Product.column_names.include?('mrp')
     # Permit metadata as a hash with any keys (known fields + custom)

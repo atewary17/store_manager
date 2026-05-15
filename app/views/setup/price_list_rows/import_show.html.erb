@@ -1,0 +1,125 @@
+<%# app/views/setup/price_list_rows/import_show.html.erb %>
+<% content_for :title, "Price List Import ##{@import.id}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Imports', setup_product_imports_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Price List Imports', import_setup_price_list_rows_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">#<%= @import.id %></span>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title"><%= @import.file_name %></div>
+    <div class="page-subtitle">
+      Uploaded by <%= @import.user.full_name %>
+      · <%= @import.created_at.strftime('%d %b %Y, %H:%M') %>
+      <% if @import.effective_date %>
+        · Effective <%= @import.effective_date.strftime('%d %b %Y') %>
+      <% end %>
+    </div>
+  </div>
+  <%= link_to '← Back', import_setup_price_list_rows_path, class: 'btn btn-secondary' %>
+</div>
+
+<%# ── Summary stats ── %>
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Rows</div>
+    <div class="stat-value accent"><%= @import.total_rows %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Added</div>
+    <div class="stat-value" style="color:var(--success)"><%= @import.success_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Updated</div>
+    <div class="stat-value" style="color:var(--accent)"><%= @import.update_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Skipped</div>
+    <div class="stat-value" style="color:var(--text-dim)"><%= @import.skip_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Errors</div>
+    <div class="stat-value" style="color:<%= @import.has_errors? ? 'var(--danger)' : 'var(--text-dim)' %>">
+      <%= @import.error_count %>
+    </div>
+  </div>
+</div>
+
+<%# ── File details ── %>
+<div class="form-card" style="max-width:640px;margin-bottom:24px">
+  <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                  letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">File</div>
+      <div style="font-size:13px;font-family:var(--mono)"><%= @import.file_name %></div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                  letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">Size</div>
+      <div style="font-size:13px;font-family:var(--mono)"><%= @import.file_size_human %></div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                  letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">Completed</div>
+      <div style="font-size:13px">
+        <%= @import.completed_at ? @import.completed_at.strftime('%d %b %Y, %H:%M') : '—' %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# ── Error rows ── %>
+<% if @import.has_errors? %>
+  <div style="margin-bottom:24px">
+    <div style="font-family:var(--mono);font-size:11px;color:var(--danger);
+                letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">
+      <%= @import.error_count %> Error<%= 's' if @import.error_count != 1 %>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Row</th>
+            <th>Product Name</th>
+            <th>Prod Code</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @import.error_rows.first(50).each do |row| %>
+            <tr>
+              <td style="font-family:var(--mono)">#<%= row['row'] %></td>
+              <td style="font-size:12px;max-width:260px;overflow:hidden;
+                         text-overflow:ellipsis;white-space:nowrap">
+                <%= row['product_base_name'] %>
+              </td>
+              <td style="font-family:var(--mono);font-size:12px"><%= row['prod_code'] %></td>
+              <td style="color:var(--danger);font-size:12px"><%= row['error'] %></td>
+            </tr>
+          <% end %>
+          <% if @import.error_rows.size > 50 %>
+            <tr>
+              <td colspan="4" style="color:var(--text-dim);font-size:12px;text-align:center;padding:12px">
+                + <%= @import.error_rows.size - 50 %> more errors
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
+
+<%# ── Link to view the imported rows ── %>
+<% if @import.effective_date %>
+  <div>
+    <%= link_to "View #{@import.success_count + @import.update_count} rows for #{@import.effective_date.strftime('%d %b %Y')} →",
+          setup_price_list_rows_path(date: @import.effective_date),
+          class: 'btn btn-secondary' %>
+  </div>
+<% end %>

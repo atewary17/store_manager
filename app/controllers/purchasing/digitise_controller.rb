@@ -283,6 +283,24 @@ class Purchasing::DigitiseController < Purchasing::BaseController
                     )
     end
 
+    begin
+      ActivityLogger.log(
+        organisation:     @organisation,
+        user:             current_user,
+        activity_type:    'invoice_scan',
+        activity_subtype: 'confirmed',
+        description:      "Invoice scanned and saved — #{saved_invoice.invoice_number.presence || saved_invoice.display_number}",
+        reference:        saved_invoice,
+        metadata:         {
+          invoice_number: saved_invoice.invoice_number,
+          supplier:       saved_invoice.supplier&.name,
+          import_id:      @import.id
+        }.compact
+      )
+    rescue => e
+      Rails.logger.warn("[ActivityLog] invoice_scan #{@import.id}: #{e.message}")
+    end
+
     sup_msg = @supplier_matched ? 'Supplier matched.' : 'New supplier created.'
     redirect_to purchasing_purchase_invoice_path(saved_invoice),
       notice: "Invoice digitised and saved as draft. #{sup_msg} " \

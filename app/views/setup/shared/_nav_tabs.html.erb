@@ -68,6 +68,18 @@
       Shade Catalogue
       <span class="setup-tab-count"><%= ActiveRecord::Base.connection.table_exists?(:shade_catalogues) ? ShadeCatalogue.cached_count : 0 %></span>
     <% end %>
+    <%= link_to setup_price_list_rows_path,
+          class: "setup-tab #{controller_name == 'price_list_rows' ? 'active' : ''}" do %>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <rect x="2" y="3" width="20" height="14" rx="2"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      Price List
+      <span class="setup-tab-count">
+        <%= ActiveRecord::Base.connection.table_exists?(:price_list_rows) ? PriceListRow.count : 0 %>
+      </span>
+    <% end %>
   <% end %>
 
   <%# Imports tab — visible to admin + super_admin %>

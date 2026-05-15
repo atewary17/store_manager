@@ -29,7 +29,8 @@ class ShadeCatalogueImportJob < ApplicationJob
       first_cell = sheet.row(r).first.to_s.strip.downcase
       if %w[required optional required*].any? { |s| first_cell.start_with?(s) } ||
          first_cell.include?('must match') || first_cell.include?('manufacturer shade') ||
-         first_cell.include?('full shade') || first_cell.include?('brand name')
+         first_cell.include?('full shade')  || first_cell.include?('brand name') ||
+         first_cell.include?('brand name. must match')
         data_start = r + 1
       else
         break
@@ -96,17 +97,18 @@ class ShadeCatalogueImportJob < ApplicationJob
     shade_name = row['shade_name'].to_s.strip
     raise "Missing shade_name" if shade_name.blank?
 
-    # ── Brand / Manufacturer (optional — match by name) ──
+    # ── Brand (optional — match by name; accepts both "brand" and legacy "manufacturer" headers) ──
     brand = nil
-    manufacturer_val = row['manufacturer'].to_s.strip
-    if manufacturer_val.present?
-      brand = Brand.where('LOWER(name) = LOWER(?)', manufacturer_val).first
+    brand_val = (row['brand'] || row['manufacturer']).to_s.strip
+    if brand_val.present?
+      brand = Brand.where('LOWER(name) = LOWER(?)', brand_val).first
       # Don't fail if brand not found — just leave it nil
     end
 
     # ── Optional fields ──
-    colour_family = row['colour_family'].to_s.strip.presence
-    notes         = row['notes'].to_s.strip.presence
+    product_family = row['product_family'].to_s.strip.presence
+    colour_family  = row['colour_family'].to_s.strip.presence
+    notes          = row['notes'].to_s.strip.presence
 
     active_val = row['active'].to_s.strip.downcase
     active = if active_val.blank?
@@ -125,6 +127,7 @@ class ShadeCatalogueImportJob < ApplicationJob
       shade_code:       shade_code,
       shade_name:       shade_name,
       brand:            brand,
+      product_family:   product_family,
       colour_family:    colour_family,
       notes:            notes,
       active:           active

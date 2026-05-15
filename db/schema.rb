@@ -10,11 +10,55 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_15_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
+
+  create_table "activity_logs", force: :cascade do |t|
+    t.bigint "organisation_id", null: false
+    t.bigint "user_id"
+    t.string "activity_type", null: false
+    t.string "activity_subtype"
+    t.text "description", null: false
+    t.decimal "quantity_litres", precision: 8, scale: 3
+    t.string "reference_type"
+    t.bigint "reference_id"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "idx_activity_logs_activity_type"
+    t.index ["expires_at"], name: "idx_activity_logs_expires_at"
+    t.index ["organisation_id", "activity_type", "created_at"], name: "idx_activity_logs_org_type_date"
+    t.index ["organisation_id", "created_at"], name: "idx_activity_logs_org_date"
+    t.index ["organisation_id"], name: "index_activity_logs_on_organisation_id"
+    t.index ["reference_type", "reference_id"], name: "idx_activity_logs_reference"
+    t.index ["user_id", "organisation_id", "created_at"], name: "idx_activity_logs_user_org_date"
+    t.index ["user_id"], name: "index_activity_logs_on_user_id"
+  end
+
+  create_table "ap_price_list_sync_logs", force: :cascade do |t|
+    t.bigint "product_id", null: false
+    t.integer "ap_price_list_row_id"
+    t.integer "rule_applied", null: false
+    t.string "match_status", null: false
+    t.string "confidence", null: false
+    t.jsonb "fields_enriched", default: []
+    t.jsonb "fields_skipped", default: {}
+    t.jsonb "match_details", default: {}
+    t.string "notes"
+    t.datetime "run_at", null: false
+    t.bigint "run_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["match_status"], name: "index_ap_price_list_sync_logs_on_match_status"
+    t.index ["product_id", "run_at"], name: "index_ap_price_list_sync_logs_on_product_id_and_run_at"
+    t.index ["product_id"], name: "index_ap_price_list_sync_logs_on_product_id"
+    t.index ["rule_applied"], name: "index_ap_price_list_sync_logs_on_rule_applied"
+    t.index ["run_at"], name: "index_ap_price_list_sync_logs_on_run_at"
+  end
 
   create_table "brands", force: :cascade do |t|
     t.string "name", null: false
@@ -262,6 +306,50 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
     t.index ["settings"], name: "idx_organisations_settings_gin", using: :gin
   end
 
+  create_table "price_list_imports", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "file_name", null: false
+    t.integer "file_size", default: 0
+    t.date "effective_date"
+    t.integer "total_rows", default: 0
+    t.integer "success_count", default: 0
+    t.integer "update_count", default: 0
+    t.integer "skip_count", default: 0
+    t.integer "error_count", default: 0
+    t.jsonb "error_rows", default: []
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_price_list_imports_on_created_at"
+    t.index ["effective_date"], name: "index_price_list_imports_on_effective_date"
+    t.index ["user_id"], name: "index_price_list_imports_on_user_id"
+  end
+
+  create_table "price_list_rows", force: :cascade do |t|
+    t.string "product_base_name", null: false
+    t.string "prod_code"
+    t.string "shade_name"
+    t.string "shade_code"
+    t.integer "dpl_group"
+    t.decimal "pack_size_litres", precision: 8, scale: 3
+    t.string "pack_code"
+    t.decimal "dealer_price", precision: 10, scale: 2, null: false
+    t.date "effective_date", null: false
+    t.bigint "matched_product_id"
+    t.string "match_status", default: "pending", null: false
+    t.datetime "imported_at"
+    t.datetime "matched_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "brand_id"
+    t.index ["brand_id"], name: "index_price_list_rows_on_brand_id"
+    t.index ["effective_date"], name: "index_price_list_rows_on_effective_date"
+    t.index ["match_status"], name: "index_price_list_rows_on_match_status"
+    t.index ["matched_product_id"], name: "index_price_list_rows_on_matched_product_id"
+    t.index ["prod_code", "shade_code", "pack_code", "effective_date"], name: "idx_price_list_rows_lookup"
+    t.index ["shade_code"], name: "index_price_list_rows_on_shade_code"
+  end
+
   create_table "product_categories", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -338,6 +426,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
     t.text "review_notes"
     t.datetime "reviewed_at"
     t.bigint "reviewed_by_id"
+    t.string "shade_code"
     t.index ["active"], name: "index_products_on_active"
     t.index ["base_uom_id"], name: "index_products_on_base_uom_id"
     t.index ["brand_id"], name: "index_products_on_brand_id"
@@ -350,7 +439,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
     t.index ["merged_into_product_id"], name: "idx_products_merged_into_product_id"
     t.index ["metadata"], name: "index_products_on_metadata", using: :gin
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
-    t.index ["product_code"], name: "index_products_on_product_code", unique: true, where: "(product_code IS NOT NULL)"
+    t.index ["product_code"], name: "index_products_on_product_code", where: "(product_code IS NOT NULL)"
+    t.index ["shade_code"], name: "idx_products_shade_code_trgm", opclass: :gin_trgm_ops, where: "(shade_code IS NOT NULL)", using: :gin
     t.index ["source"], name: "idx_products_source"
     t.index ["under_review"], name: "idx_products_under_review", where: "(under_review = true)"
   end
@@ -569,18 +659,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
     t.bigint "product_category_id", null: false
     t.string "shade_code", null: false
     t.string "shade_name", null: false
-    t.string "manufacturer"
     t.string "colour_family"
     t.text "notes"
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "brand_id"
+    t.string "product_family"
     t.index ["active"], name: "index_shade_catalogues_on_active"
     t.index ["brand_id"], name: "index_shade_catalogues_on_brand_id"
     t.index ["colour_family"], name: "index_shade_catalogues_on_colour_family"
-    t.index ["manufacturer"], name: "index_shade_catalogues_on_manufacturer"
     t.index ["product_category_id"], name: "index_shade_catalogues_on_product_category_id"
+    t.index ["product_family"], name: "index_shade_catalogues_on_product_family"
     t.index ["shade_code", "product_category_id"], name: "idx_shade_code_per_category", unique: true
     t.index ["shade_code"], name: "index_shade_catalogues_on_shade_code"
   end
@@ -706,6 +796,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  add_foreign_key "activity_logs", "organisations"
+  add_foreign_key "activity_logs", "users"
+  add_foreign_key "ap_price_list_sync_logs", "products"
   add_foreign_key "customers", "organisations"
   add_foreign_key "gst_credit_ledger_entries", "organisations"
   add_foreign_key "gst_credit_ledger_entries", "users", column: "closed_by_id"
@@ -713,6 +806,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_10_000001) do
   add_foreign_key "organisation_product_categories", "product_categories"
   add_foreign_key "organisation_products", "organisations"
   add_foreign_key "organisation_products", "products"
+  add_foreign_key "price_list_imports", "users"
+  add_foreign_key "price_list_rows", "brands"
+  add_foreign_key "price_list_rows", "products", column: "matched_product_id"
   add_foreign_key "product_imports", "organisations"
   add_foreign_key "product_imports", "users"
   add_foreign_key "products", "brands"
