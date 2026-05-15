@@ -60,10 +60,16 @@ class ProductImportJob < ApplicationJob
 
     (data_start..sheet.last_row).each do |row_num|
       row_data = headers.zip(sheet.row(row_num)).to_h.with_indifferent_access
-      # Override code columns with formatted_value to preserve leading zeros
+      # Override code columns with formatted_value to preserve leading zeros.
+      # Fall back to raw cell value if Roo raises on an unknown format (e.g. 0E+00).
       CODE_COLS.each do |key|
         next unless col_index.key?(key)
-        row_data[key] = xlsx.formatted_value(row_num, col_index[key]).to_s.strip
+        raw = begin
+          xlsx.formatted_value(row_num, col_index[key])
+        rescue => _e
+          xlsx.cell(row_num, col_index[key])
+        end
+        row_data[key] = raw.to_s.strip
       end
       next if row_data.values.all? { |v| v.to_s.strip.blank? }
 
