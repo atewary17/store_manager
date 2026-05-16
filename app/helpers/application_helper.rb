@@ -39,6 +39,31 @@ module ApplicationHelper
     BRAND_HEX_MAP.each { |k, v| return v if key.include?(k) }
     '#4f8ef7'
   end
+  # Converts a numeric amount to Indian currency words
+  # e.g. 82200.00 → "INR Eighty Two Thousand Two Hundred Only"
+  def amount_in_words(amount)
+    ones = %w[Zero One Two Three Four Five Six Seven Eight Nine Ten Eleven Twelve
+              Thirteen Fourteen Fifteen Sixteen Seventeen Eighteen Nineteen]
+    tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+    two_d   = ->(n) { n < 20 ? ones[n] : tens[n / 10] + (n % 10 > 0 ? " #{ones[n % 10]}" : '') }
+    three_d = ->(n) { n < 100 ? two_d.(n) : "#{ones[n / 100]} Hundred#{n % 100 > 0 ? " #{two_d.(n % 100)}" : ''}" }
+
+    rupees = amount.to_f.round(2).to_i
+    paise  = ((amount.to_f.round(2) - rupees) * 100).round
+    return 'Zero Rupees Only' if rupees.zero? && paise.zero?
+
+    r, parts = rupees, []
+    parts << "#{three_d.(r / 10_000_000)} Crore" and r %= 10_000_000 if r >= 10_000_000
+    parts << "#{two_d.(r / 100_000)} Lakh"       and r %= 100_000    if r >= 100_000
+    parts << "#{two_d.(r / 1_000)} Thousand"      and r %= 1_000      if r >= 1_000
+    parts << three_d.(r) if r > 0
+
+    result = "INR #{parts.join(' ')} Only"
+    result += " and #{two_d.(paise)} Paise" if paise > 0
+    result
+  end
+
   def status_badge_class(status)
     case status.to_s
     when 'done'       then 'badge-active'

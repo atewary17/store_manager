@@ -56,11 +56,10 @@ class SalesInvoiceItem < ApplicationRecord
 
   private
 
-  # User enters total_amount; we back-calculate unit_rate and taxable/tax split.
-  # Also determines supply_type by comparing organisation.state vs customer.state
-  # and writes the per-head GST amounts to proper columns.
+  # JS submits total_amount as the NET (post-discount, GST-inclusive) amount.
+  # discount_percent and metadata['discount_amount'] are submitted separately by JS.
+  # Here we just back-calculate taxable/tax from the net total.
   def compute_amounts
-    # Always initialize NOT NULL columns so Rails never sends explicit NULL.
     self.supply_type  ||= 'intra_state'
     self.gst_rate     ||= 0
     self.cgst_amount  ||= 0

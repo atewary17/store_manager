@@ -95,7 +95,7 @@
           style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
                   padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
     <%= f.select :per_page,
-          [['50 / page', 50], ['100 / page', 100], ['200 / page', 200]],
+          [['25 / page', 25], ['50 / page', 50], ['75 / page', 75]],
           { selected: @per_page },
           style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
                   padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
@@ -130,12 +130,18 @@
           <td style="font-family:var(--mono);color:var(--text-dim);font-size:12px">
             <%= product.id %>
           </td>
-          <td style="max-width:220px">
+          <td style="max-width:240px">
             <div style="font-weight:500"><%= product.brand&.name %></div>
             <div style="font-size:12px;color:var(--text-dim);margin-top:2px;line-height:1.4">
               <%= link_to product.description.truncate(60), setup_product_path(product),
                     style: 'color:inherit;text-decoration:none' %>
             </div>
+            <% if product.shade_code.present? %>
+              <div style="font-size:11px;color:var(--accent);margin-top:4px;line-height:1.3;
+                          font-style:italic;opacity:0.85">
+                <%= product.full_display_name.truncate(70) %>
+              </div>
+            <% end %>
           </td>
           <td>
             <span class="badge badge-plan" style="font-size:10px">

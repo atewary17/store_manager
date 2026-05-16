@@ -1,0 +1,204 @@
+<%# app/views/setup/price_list_rows/index.html.erb %>
+<% content_for :title, "Price List" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Price List</span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+<%= render 'setup/shared/nav_tabs' %>
+
+<div class="actions" style="margin-bottom:24px;display:flex;gap:10px;align-items:center">
+  <%= link_to '↑ Import', import_setup_price_list_rows_path, class: 'btn btn-primary' %>
+  <%= link_to '↓ Export', export_setup_price_list_rows_path(date: params[:date]),
+        class: 'btn btn-secondary' %>
+  <%= link_to 'Template', template_setup_price_list_rows_path,
+        class: 'btn btn-secondary',
+        style: 'color:var(--text-dim)' %>
+</div>
+
+<%# ── Stats ── %>
+<div class="stats-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:24px">
+  <div class="stat-card">
+    <div class="stat-label">Total Rows</div>
+    <div class="stat-value accent"><%= @total_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" style="color:var(--warning)"><%= @pending_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Matched</div>
+    <div class="stat-value" style="color:var(--success)"><%= @matched_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Unmatched</div>
+    <div class="stat-value" style="color:var(--danger)"><%= @unmatched_count %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Ambiguous</div>
+    <div class="stat-value" style="color:var(--text-dim)"><%= @ambiguous_count %></div>
+  </div>
+</div>
+
+<%# ── Filters ── %>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+  <%= link_to 'All',       setup_price_list_rows_path(q: params[:q], date: params[:date]),
+        class: "btn btn-sm #{params[:status].blank? ? 'btn-primary' : 'btn-secondary'}" %>
+  <%= link_to 'Pending',   setup_price_list_rows_path(status: 'pending',   q: params[:q], date: params[:date]),
+        class: "btn btn-sm #{params[:status] == 'pending'   ? 'btn-primary' : 'btn-secondary'}" %>
+  <%= link_to 'Matched',   setup_price_list_rows_path(status: 'matched',   q: params[:q], date: params[:date]),
+        class: "btn btn-sm #{params[:status] == 'matched'   ? 'btn-primary' : 'btn-secondary'}" %>
+  <%= link_to 'Unmatched', setup_price_list_rows_path(status: 'unmatched', q: params[:q], date: params[:date]),
+        class: "btn btn-sm #{params[:status] == 'unmatched' ? 'btn-primary' : 'btn-secondary'}" %>
+  <%= link_to 'Ambiguous', setup_price_list_rows_path(status: 'ambiguous', q: params[:q], date: params[:date]),
+        class: "btn btn-sm #{params[:status] == 'ambiguous' ? 'btn-primary' : 'btn-secondary'}" %>
+
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <%= form_with url: setup_price_list_rows_path, method: :get, local: true,
+          style: 'display:flex;gap:8px;align-items:center' do |f| %>
+      <%= f.hidden_field :status, value: params[:status] %>
+      <% if @effective_dates.any? %>
+        <%= f.select :date,
+              [['All dates', '']] + @effective_dates.map { |d| [d.strftime('%d %b %Y'), d.to_s] },
+              { selected: params[:date] },
+              { class: 'form-control', style: 'width:160px;height:34px;font-size:13px' } %>
+      <% end %>
+      <%= f.text_field :q, value: params[:q],
+            placeholder: 'Search name, shade, code…',
+            class: 'form-control',
+            style: 'width:220px;height:34px;font-size:13px' %>
+      <%= f.submit 'Search', class: 'btn btn-secondary btn-sm' %>
+      <% if params[:q].present? || params[:date].present? %>
+        <%= link_to 'Clear', setup_price_list_rows_path(status: params[:status]),
+              class: 'btn btn-secondary btn-sm' %>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Table ── %>
+<div class="table-wrap">
+  <% if @rows.any? %>
+    <table>
+      <thead>
+        <tr>
+          <th>Product Name</th>
+          <th>Prod Code</th>
+          <th>Shade</th>
+          <th>Pack</th>
+          <th style="text-align:right">Size (L)</th>
+          <th style="text-align:right">DPL Grp</th>
+          <th style="text-align:right">Dealer Price</th>
+          <th>Effective</th>
+          <th>Status</th>
+          <th>Matched Product</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @rows.each do |row| %>
+          <tr>
+            <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                       font-size:13px" title="<%= row.product_base_name %>">
+              <%= row.product_base_name %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--accent)">
+              <%= row.prod_code.presence || '—' %>
+            </td>
+            <td style="font-size:13px">
+              <% if row.shade_code.present? %>
+                <span style="font-family:var(--mono);font-size:12px;color:var(--accent)">
+                  <%= row.shade_code %>
+                </span>
+                <% if row.shade_name.present? %>
+                  <span style="color:var(--text-dim);margin-left:4px"><%= row.shade_name %></span>
+                <% end %>
+              <% else %>
+                <span style="color:var(--text-dim)">—</span>
+              <% end %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px">
+              <%= row.pack_code.presence || '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;text-align:right">
+              <%= row.pack_size_litres.present? ? number_with_precision(row.pack_size_litres, precision: 3, strip_insignificant_zeros: true) : '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;text-align:right">
+              <%= row.dpl_group.presence || '—' %>
+            </td>
+            <td style="font-family:var(--mono);font-size:13px;text-align:right;font-weight:600">
+              ₹<%= number_with_precision(row.dealer_price, precision: 2) %>
+            </td>
+            <td style="font-size:12px;color:var(--text-dim);white-space:nowrap">
+              <%= row.effective_date.strftime('%d %b %Y') %>
+            </td>
+            <td>
+              <% case row.match_status
+                 when 'matched' %>
+                <span class="badge badge-active">Matched</span>
+              <% when 'pending' %>
+                <span class="badge" style="background:var(--warning-dim);color:var(--warning)">Pending</span>
+              <% when 'unmatched' %>
+                <span class="badge badge-inactive">Unmatched</span>
+              <% when 'ambiguous' %>
+                <span class="badge" style="background:var(--bg);color:var(--text-dim);border:1px solid var(--border)">Ambiguous</span>
+              <% end %>
+            </td>
+            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              <% if row.matched_product %>
+                <%= link_to row.matched_product.display_name,
+                      setup_product_path(row.matched_product),
+                      style: 'color:var(--accent)' %>
+              <% else %>
+                <span style="color:var(--text-dim)">—</span>
+              <% end %>
+            </td>
+            <td>
+              <%= link_to 'View', setup_price_list_row_path(row),
+                    class: 'btn btn-secondary btn-sm' %>
+              <%= link_to 'Edit', edit_setup_price_list_row_path(row),
+                    class: 'btn btn-secondary btn-sm' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <%# ── Pagination ── %>
+    <% if @total_pages > 1 %>
+      <div style="display:flex;justify-content:center;gap:6px;margin-top:20px;flex-wrap:wrap">
+        <% if @page > 1 %>
+          <%= link_to '← Prev',
+                setup_price_list_rows_path(page: @page - 1, status: params[:status],
+                                           q: params[:q], date: params[:date]),
+                class: 'btn btn-secondary btn-sm' %>
+        <% end %>
+        <span style="padding:6px 12px;font-size:13px;color:var(--text-dim)">
+          Page <%= @page %> of <%= @total_pages %>
+          &nbsp;·&nbsp; <%= @filtered_count %> rows
+        </span>
+        <% if @page < @total_pages %>
+          <%= link_to 'Next →',
+                setup_price_list_rows_path(page: @page + 1, status: params[:status],
+                                           q: params[:q], date: params[:date]),
+                class: 'btn btn-secondary btn-sm' %>
+        <% end %>
+      </div>
+    <% end %>
+
+  <% else %>
+    <div class="empty-state">
+      <p>
+        No price list rows
+        <% if params[:status].present? || params[:q].present? || params[:date].present? %>
+          matching the current filters.
+          <%= link_to 'Clear filters', setup_price_list_rows_path %>
+        <% else %>
+          yet — rows are imported by the price list importer.
+        <% end %>
+      </p>
+    </div>
+  <% end %>
+</div>

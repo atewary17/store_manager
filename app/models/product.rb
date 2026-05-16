@@ -49,6 +49,10 @@ class Product < ApplicationRecord
       .where(organisation_products: { organisation_id: org_id, active: true })
   }
 
+  scope :by_shade_code, ->(code) {
+    where('LOWER(shade_code) = LOWER(?)', code.to_s.strip)
+  }
+
   # Enrol this product in an org's catalogue (idempotent)
   def enrol_in!(org_or_id)
     org_id = org_or_id.is_a?(Organisation) ? org_or_id.id : org_or_id.to_i
@@ -67,7 +71,7 @@ class Product < ApplicationRecord
   validates :base_uom,         presence: true
   validates :material_code,    uniqueness: { conditions: -> { where(under_review: false) } },
                                allow_blank: true
-  validates :product_code,     uniqueness: true, allow_blank: true
+
   validates :mrp,              numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   # ── Callbacks ─────────────────────────────────────────────────
@@ -94,6 +98,61 @@ class Product < ApplicationRecord
 
   def full_code
     [material_code, product_code].compact_blank.join(' / ')
+  end
+
+  # ── Paint metadata helpers ────────────────────────────────────
+  def shade_name
+    metadata['shade_name']
+  end
+
+  def product_line_desc
+    metadata['product_line_desc']
+  end
+
+  def pack_size_litres
+    metadata['pack_size_litres']&.to_f
+  end
+
+  def pack_size_desc
+    metadata['pack_size_desc']
+  end
+
+  def dpl_group
+    metadata['dpl_group']&.to_i
+  end
+
+  def tinting_base?
+    metadata['is_tinting_base'] == true
+  end
+
+  # Returns a composite display name for paint products; falls back to
+  # description for non-paint products (shade_code absent).
+  # Example: "Asian Paints — Apcolite Premium Gloss Enamel — Phirozi — 1 Litre"
+  def full_display_name
+    return description if shade_code.blank?
+
+    parts = []
+    parts << brand&.name
+    parts << (metadata['product_line_desc'].presence || description)
+    parts << metadata['shade_name']
+    parts << metadata['pack_size_desc']
+    parts.compact_blank.join(' — ')
+  end
+
+  # Decodes an 11-digit Asian Paints material code into its component parts.
+  # Formula: product_code(4) + shade_code(4) + pack_code(3) = 11 digits, no leading prefix.
+  # Example: "00010121210" → { product_code: "0001", shade_code: "0121", pack_code: "210" }
+  #          "00010119050" → { product_code: "0001", shade_code: "0119", pack_code: "050" }
+  def self.decode_ap_material_code(code)
+    return nil if code.blank?
+    cleaned = code.to_s.strip
+    return nil unless cleaned.match?(/\A\d{11}\z/)
+
+    {
+      product_code: cleaned[0..3],
+      shade_code:   cleaned[4..7],
+      pack_code:    cleaned[8..10]
+    }
   end
 
   private
