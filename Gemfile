@@ -30,6 +30,7 @@ gem 'wkhtmltopdf-binary'
 gem 'dotenv-rails'  # not grouped, so it loads in production too
 gem 'caxlsx', '~> 3.4'
 gem 'caxlsx_rails', '~> 0.6'
+gem 'csv'
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]
