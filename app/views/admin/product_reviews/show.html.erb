@@ -1,0 +1,600 @@
+<%# app/views/admin/product_reviews/show.html.erb %>
+<% content_for :title, "Review: #{@product.description.truncate(40)}" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Admin</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Product Review', admin_product_reviews_path, style: 'color:var(--text-dim)' %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current"><%= @product.description.truncate(30) %></span>
+<% end %>
+
+<%
+  enrichment    = @enrichment
+  has_enrichment = enrichment.present?
+  confidence    = enrichment&.dig('confidence').to_f
+%>
+
+<div class="page-header" style="margin-bottom:20px">
+  <div>
+    <div class="page-title" style="display:flex;align-items:center;gap:10px">
+      <%= @product.description %>
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                   color:var(--warning);background:rgba(247,195,79,0.12);border:1px solid rgba(247,195,79,0.35);
+                   border-radius:4px;padding:3px 8px">Under Review</span>
+    </div>
+    <div style="font-size:13px;color:var(--text-dim);margin-top:4px">
+      Product #<%= @product.id %> · Created <%= @product.created_at.strftime('%d %b %Y, %H:%M') %>
+      <% if @org_names.any? %>
+        · Org: <strong style="color:var(--text)"><%= @org_names.join(', ') %></strong>
+      <% end %>
+    </div>
+  </div>
+  <%= link_to '← Back to Queue', admin_product_reviews_path, class: 'btn btn-secondary' %>
+</div>
+
+<%# ═══ TOP BAND: Quick actions ════════════════════════════════════════════ %>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            padding:16px 20px;margin-bottom:20px;
+            display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span style="font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
+               letter-spacing:.07em;margin-right:4px">Quick Actions:</span>
+
+  <%# Approve %>
+  <%= button_to approve_admin_product_review_path(@product), method: :post,
+        class: 'btn btn-primary btn-sm',
+        data: { confirm: "Approve '#{@product.description}' and make it available for sales?" } do %>
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    Approve & Activate
+  <% end %>
+
+  <%# Reject %>
+  <%= button_to reject_admin_product_review_path(@product), method: :post,
+        class: 'btn btn-secondary btn-sm',
+        style: 'color:var(--danger)',
+        data: { confirm: "Reject this product? It will be deactivated and removed from the queue." } do %>
+    Reject
+  <% end %>
+
+  <span style="flex:1"></span>
+  <span style="font-size:11px;color:var(--text-dim)">
+    Or select a match below and click <strong style="color:var(--accent)">Merge →</strong>
+  </span>
+</div>
+
+<%# ═══ TWO-COLUMN LAYOUT ════════════════════════════════════════════════ %>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+
+  <%# ── LEFT COLUMN ──────────────────────────────────────────────────────── %>
+  <div>
+
+    <%# PRODUCT DETAILS — editable ──────────────────────────────── %>
+    <div class="form-card" style="margin-bottom:14px">
+      <div class="form-section">
+        <div class="form-section-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Product Details</span>
+          <a href="https://www.google.com/search?q=<%= CGI.escape(@product.description.to_s) %>"
+             target="_blank" rel="noopener"
+             style="font-size:11px;font-weight:400;color:var(--accent);text-decoration:none;
+                    text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:4px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            Google Search
+          </a>
+        </div>
+
+        <%= form_with url: admin_product_review_path(@product), method: :patch,
+              scope: :product, style: 'display:contents' do |f| %>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+
+            <%# Description — full width %>
+            <div style="grid-column:1/-1;background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">Description</div>
+              <%= f.text_field :description, value: @product.description,
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:13px;color:var(--text);
+                            font-family:inherit;box-sizing:border-box' %>
+            </div>
+
+            <%# Material Code %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">Material Code</div>
+              <%= f.text_field :material_code, value: @product.material_code,
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:12px;color:var(--text);
+                            font-family:var(--mono);box-sizing:border-box' %>
+            </div>
+
+            <%# HSN Code %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">HSN Code</div>
+              <%= f.text_field :hsn_code, value: @product.hsn_code,
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:12px;color:var(--text);
+                            font-family:var(--mono);box-sizing:border-box' %>
+            </div>
+
+            <%# Brand %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">Brand</div>
+              <%= f.select :brand_id, @brands, { selected: @product.brand_id },
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:13px;color:var(--text);
+                            box-sizing:border-box' %>
+            </div>
+
+            <%# Category %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">Category</div>
+              <%= f.select :product_category_id, @categories, { selected: @product.product_category_id },
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:13px;color:var(--text);
+                            box-sizing:border-box' %>
+            </div>
+
+            <%# UOM %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">Unit of Measure</div>
+              <%= f.select :base_uom_id, @uoms, { selected: @product.base_uom_id },
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:13px;color:var(--text);
+                            box-sizing:border-box' %>
+            </div>
+
+            <%# GST Rate %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">GST Rate</div>
+              <%= f.select :gst_rate,
+                    Product::GST_RATES.map { |r| ["#{r.to_i}%", r] },
+                    { selected: @product.gst_rate },
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:13px;color:var(--text);
+                            box-sizing:border-box' %>
+            </div>
+
+            <%# Source — read-only %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                          letter-spacing:.07em;color:var(--text-dim);margin-bottom:4px">Source</div>
+              <div style="font-size:13px;color:var(--text-dim)"><%= @product.source.humanize %></div>
+            </div>
+
+          </div>
+
+          <div style="display:flex;justify-content:flex-end">
+            <%= f.submit 'Save Changes',
+                  style: 'background:var(--accent);color:#fff;border:none;border-radius:6px;
+                          padding:7px 18px;font-size:12px;font-weight:600;cursor:pointer;
+                          letter-spacing:.03em' %>
+          </div>
+
+        <% end %>
+
+        <% if @product.metadata.any? %>
+          <div style="margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:6px">
+            <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                        letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">
+              Raw Metadata from Invoice
+            </div>
+            <% @product.metadata.each do |key, val| %>
+              <div style="font-size:11px;font-family:var(--mono);color:var(--text-dim);
+                          display:flex;gap:8px;margin-bottom:2px">
+                <span style="color:var(--accent);min-width:120px"><%= key %></span>
+                <span><%= val %></span>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# AI ENRICHMENT ───────────────────────────────────────────── %>
+    <%
+      log        = @enrichment_log
+      ai_status  = if log.nil?
+                     :pending
+                   elsif log.status == 'success'
+                     :success
+                   else
+                     :failed
+                   end
+    %>
+    <div class="form-card" style="margin-bottom:14px">
+      <div class="form-section">
+
+        <%# ── Header row: title + status badge + timing ── %>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="form-section-title" style="margin-bottom:0">AI Enrichment (Groq)</span>
+            <% if ai_status == :success %>
+              <% conf_color = confidence >= 0.75 ? 'var(--success)' : confidence >= 0.5 ? 'var(--warning)' : 'var(--danger)' %>
+              <span style="font-size:10px;font-weight:700;color:<%= conf_color %>;
+                           background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 8px;font-family:var(--mono)">
+                &#10003; <%= (confidence * 100).round %>% confidence
+              </span>
+            <% elsif ai_status == :failed %>
+              <span style="font-size:10px;font-weight:700;color:var(--danger);
+                           background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);
+                           border-radius:4px;padding:2px 8px;font-family:var(--mono)">
+                &#10007; Failed
+              </span>
+            <% else %>
+              <span style="font-size:10px;color:var(--text-dim);font-family:var(--mono);
+                           background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 8px">
+                &#8987; Pending
+              </span>
+            <% end %>
+          </div>
+
+          <% if log %>
+            <div style="text-align:right;font-size:10px;font-family:var(--mono);color:var(--text-dim)">
+              <div>Requested: <strong style="color:var(--text)"><%= log.created_at.strftime('%d %b %Y, %H:%M:%S') %></strong></div>
+              <% if log.duration_ms.present? %>
+                <div style="margin-top:2px">Duration: <strong style="color:var(--text)"><%= log.duration_ms.round %>ms</strong></div>
+              <% end %>
+              <% if log.http_status.present? %>
+                <div style="margin-top:2px">HTTP: <strong style="color:var(--text)"><%= log.http_status %></strong></div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+
+        <% if ai_status == :pending %>
+          <div style="font-size:12px;color:var(--text-dim);font-style:italic;padding:4px 0">
+            No request has been made yet. The enrichment job runs asynchronously after invoice confirmation.
+          </div>
+
+        <% else %>
+          <%# ── Parsed result (success only) ── %>
+          <% if ai_status == :success && has_enrichment %>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+              <% [
+                ['Brand guess',    enrichment['brand_guess']],
+                ['Category guess', enrichment['category_guess']],
+                ['HSN Code',       enrichment['hsn_code']],
+                ['GST Rate',       enrichment['gst_rate'] ? "#{enrichment['gst_rate'].to_i}%" : nil],
+                ['Pack size',      enrichment['pack_size_guess']],
+                ['Description',    enrichment['description']],
+              ].each do |label, val| %>
+                <% next if val.blank? %>
+                <div style="background:rgba(74,222,128,0.05);border:1px solid rgba(74,222,128,0.2);
+                            border-radius:6px;padding:8px 10px;position:relative">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                                letter-spacing:.07em;color:var(--text-dim)"><%= label %></div>
+                    <% if label == 'Description' %>
+                      <button type="button"
+                              onclick="copyToClipboard(this, '<%= j(val) %>')"
+                              title="Copy description"
+                              style="background:none;border:none;padding:2px;cursor:pointer;
+                                     color:var(--text-dim);display:flex;align-items:center;
+                                     border-radius:3px;transition:color .15s"
+                              onmouseover="this.style.color='var(--accent)'"
+                              onmouseout="this.style.color='var(--text-dim)'">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <rect x="9" y="9" width="13" height="13" rx="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      </button>
+                    <% end %>
+                  </div>
+                  <div style="font-size:12px;color:var(--text)"><%= val %></div>
+                </div>
+              <% end %>
+            </div>
+            <% if enrichment['notes'].present? %>
+              <div style="font-size:11px;color:var(--text-dim);font-style:italic;padding:8px 10px;
+                          background:var(--bg);border-radius:6px;margin-bottom:12px">
+                <strong style="font-style:normal">AI notes:</strong> <%= enrichment['notes'] %>
+              </div>
+            <% end %>
+          <% end %>
+
+          <%# ── Raw request ── %>
+          <% if log.request_body.present? %>
+            <details style="margin-bottom:10px">
+              <summary style="font-size:11px;font-weight:600;color:var(--text-dim);cursor:pointer;
+                              text-transform:uppercase;letter-spacing:.07em;padding:6px 0;
+                              list-style:none;display:flex;align-items:center;gap:6px">
+                <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                     style="transition:transform .2s" class="details-chevron">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                Raw Request
+                <span style="font-size:10px;color:var(--accent);font-weight:400;
+                             font-family:var(--mono);text-transform:none;letter-spacing:0">
+                  sent <%= log.created_at.strftime('%H:%M:%S') %>
+                </span>
+              </summary>
+              <pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                          padding:10px 12px;font-size:11px;font-family:var(--mono);color:var(--text);
+                          overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:6px 0 0"><%= log.request_body %></pre>
+            </details>
+          <% end %>
+
+          <%# ── Raw response (success) or error (failed) ── %>
+          <% if ai_status == :success && log.response_body.present? %>
+            <details>
+              <summary style="font-size:11px;font-weight:600;color:var(--success);cursor:pointer;
+                              text-transform:uppercase;letter-spacing:.07em;padding:6px 0;
+                              list-style:none;display:flex;align-items:center;gap:6px">
+                <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                     style="transition:transform .2s" class="details-chevron">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                Raw Response
+                <span style="font-size:10px;color:var(--text-dim);font-weight:400;
+                             font-family:var(--mono);text-transform:none;letter-spacing:0">
+                  <%= log.duration_ms&.round %>ms
+                </span>
+              </summary>
+              <pre style="background:rgba(74,222,128,0.04);border:1px solid rgba(74,222,128,0.2);
+                          border-radius:6px;padding:10px 12px;font-size:11px;font-family:var(--mono);
+                          color:var(--text);overflow-x:auto;white-space:pre-wrap;
+                          word-break:break-all;margin:6px 0 0"><%= log.response_body %></pre>
+            </details>
+
+          <% elsif ai_status == :failed %>
+            <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.25);
+                        border-radius:8px;padding:12px 14px;margin-bottom:10px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+                          color:var(--danger);margin-bottom:6px">Error</div>
+              <div style="font-size:12px;color:var(--text);font-family:var(--mono);
+                          white-space:pre-wrap;word-break:break-all;line-height:1.6">
+                <%= log.error_message.presence || log.response_body.presence || 'No detail captured.' %>
+              </div>
+            </div>
+
+            <% if log.response_body.present? %>
+              <details>
+                <summary style="font-size:11px;font-weight:600;color:var(--danger);cursor:pointer;
+                                text-transform:uppercase;letter-spacing:.07em;padding:6px 0;
+                                list-style:none;display:flex;align-items:center;gap:6px">
+                  <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                       style="transition:transform .2s" class="details-chevron">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                  Raw Response Body
+                </summary>
+                <pre style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.2);
+                            border-radius:6px;padding:10px 12px;font-size:11px;font-family:var(--mono);
+                            color:var(--text);overflow-x:auto;white-space:pre-wrap;
+                            word-break:break-all;margin:6px 0 0"><%= log.response_body %></pre>
+              </details>
+            <% end %>
+          <% end %>
+        <% end %>
+
+      </div>
+    </div>
+
+    <%# LINKED PURCHASE INVOICES ────────────────────────────────── %>
+    <div class="form-card" style="margin-bottom:14px">
+      <div class="form-section">
+        <div class="form-section-title">Linked Purchase Invoices</div>
+        <% if @pi_items.any? %>
+          <% @pi_items.group_by(&:purchase_invoice).each do |pi, items| %>
+            <div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div>
+                  <%= link_to purchasing_purchase_invoice_path(pi),
+                        style: 'font-size:13px;font-weight:600;color:var(--accent);text-decoration:none' do %>
+                    <%= pi.display_number %>
+                  <% end %>
+                  <span style="font-size:11px;color:var(--text-dim);margin-left:8px">
+                    <%= pi.created_at.strftime('%d %b %Y') %>
+                  </span>
+                </div>
+                <div style="font-size:11px;color:var(--text-dim)">
+                  <%= pi.organisation.name %>
+                </div>
+              </div>
+              <% items.each do |item| %>
+                <div style="display:flex;gap:16px;font-size:11px;font-family:var(--mono);
+                            color:var(--text-dim);padding:4px 0;border-top:1px solid var(--border)">
+                  <span style="flex:1;color:var(--text)"><%= item.metadata['description'].presence || @product.description %></span>
+                  <span>Qty: <strong style="color:var(--text)"><%= item.quantity %></strong></span>
+                  <span>Total: <strong style="color:var(--text)">Rs. <%= number_with_precision(item.total_amount, precision: 2, delimiter: ',') %></strong></span>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        <% else %>
+          <div style="font-size:12px;color:var(--text-dim)">No linked purchase invoices found.</div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# DIGITISE IMPORT PREVIEW ─────────────────────────────────── %>
+    <% if @digitise_import %>
+      <div class="form-card">
+        <div class="form-section">
+          <div class="form-section-title">
+            Scanned Invoice Preview
+            <%= link_to 'Open →', purchasing_digitise_path(@digitise_import),
+                  style: 'font-size:11px;font-weight:400;color:var(--accent);margin-left:8px;
+                          text-decoration:none;text-transform:none;letter-spacing:0' %>
+          </div>
+          <% if @digitise_import.preview_image.present? %>
+            <img src="data:image/jpeg;base64,<%= @digitise_import.preview_image %>"
+                 alt="Invoice scan preview"
+                 style="width:100%;border-radius:6px;border:1px solid var(--border);display:block">
+          <% elsif @digitise_import.image? %>
+            <img src="data:<%= @digitise_import.file_content_type %>;base64,<%= @digitise_import.file_data %>"
+                 alt="Invoice scan preview"
+                 style="width:100%;border-radius:6px;border:1px solid var(--border);display:block">
+          <% else %>
+            <div style="font-size:12px;color:var(--text-dim)">
+              PDF — open the scan to view.
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+  </div><%# end left column %>
+
+  <%# ── RIGHT COLUMN: SIMILARITY MATCHES ───────────────────────────────── %>
+  <div>
+    <div class="form-card">
+      <div class="form-section">
+        <div class="form-section-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>
+            Similar Products in Catalogue
+            <span style="color:var(--text-dim);font-weight:400;font-size:11px;margin-left:6px">
+              (<%= @matches.size %> found)
+            </span>
+          </span>
+          <span style="font-size:10px;color:var(--text-dim)">
+            Select one to merge →
+          </span>
+        </div>
+
+        <% if @matches.empty? %>
+          <div style="padding:20px 0;text-align:center">
+            <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px">
+              No similar products found in the active catalogue.
+            </div>
+            <div style="font-size:11px;color:var(--text-dim)">
+              Use <strong style="color:var(--success)">Approve & Activate</strong> above to add this as a new product.
+            </div>
+          </div>
+        <% else %>
+          <%# Weight legend %>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            <% { 'Code 35%' => 'var(--accent)', 'Internet 20%' => '#a78bfa',
+                 'HSN 15%' => 'var(--warning)', 'Brand 15%' => '#34d399',
+                 'Desc 10%' => 'var(--text-dim)', 'Pack 5%' => 'var(--text-dim)' }.each do |label, color| %>
+              <span style="font-size:9px;font-family:var(--mono);color:<%= color %>;
+                           border:1px solid var(--border);border-radius:3px;padding:2px 6px">
+                <%= label %>
+              </span>
+            <% end %>
+          </div>
+
+          <% @matches.each_with_index do |(candidate, scores), idx| %>
+            <%
+              pct        = (scores[:total] * 100).round
+              bar_color  = pct >= 75 ? 'var(--success)' : pct >= 45 ? 'var(--warning)' : 'var(--danger)'
+              border_col = idx == 0 ? bar_color : 'var(--border)'
+            %>
+            <div style="border:1px solid <%= border_col %>;border-radius:8px;padding:12px 14px;
+                        margin-bottom:10px;position:relative">
+
+              <%# Match % badge %>
+              <div style="position:absolute;top:10px;right:12px;font-family:var(--mono);
+                          font-size:14px;font-weight:700;color:<%= bar_color %>">
+                <%= pct %>%
+              </div>
+
+              <%# Progress bar %>
+              <div style="background:var(--border);border-radius:99px;height:3px;
+                          margin-bottom:10px;overflow:hidden">
+                <div style="height:3px;border-radius:99px;width:<%= pct %>%;
+                            background:<%= bar_color %>;transition:width .3s"></div>
+              </div>
+
+              <%# Candidate product info %>
+              <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px;
+                          padding-right:50px">
+                <%= candidate.display_name %>
+              </div>
+              <div style="font-size:11px;font-family:var(--mono);color:var(--text-dim);
+                          margin-bottom:8px;display:flex;gap:10px;flex-wrap:wrap">
+                <% if candidate.material_code.present? %>
+                  <span>Code: <strong><%= candidate.material_code %></strong></span>
+                <% end %>
+                <span>HSN: <strong><%= candidate.hsn_code.presence || '—' %></strong></span>
+                <span>GST: <strong><%= candidate.gst_rate.to_i %>%</strong></span>
+                <span style="color:var(--success)">
+                  <%= candidate.product_category&.name %>
+                </span>
+              </div>
+
+              <%# Per-signal score bars %>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px">
+                <% {
+                  'Material Code' => [:material_code, 'var(--accent)'],
+                  'Internet Data' => [:internet_details, '#a78bfa'],
+                  'HSN Code'      => [:hsn_code, 'var(--warning)'],
+                  'Brand'         => [:brand, '#34d399'],
+                  'Description'   => [:description, 'var(--text-dim)'],
+                  'Pack Size'     => [:pack_size, 'var(--text-dim)'],
+                }.each do |label, (field, color)| %>
+                  <% sig_pct = (scores[field].to_f * 100).round %>
+                  <div style="display:flex;align-items:center;gap:5px">
+                    <div style="font-size:9px;color:var(--text-dim);min-width:72px"><%= label %></div>
+                    <div style="flex:1;background:var(--border);border-radius:99px;height:3px;overflow:hidden">
+                      <div style="height:3px;border-radius:99px;width:<%= sig_pct %>%;background:<%= color %>"></div>
+                    </div>
+                    <div style="font-size:9px;font-family:var(--mono);color:<%= color %>;min-width:24px;text-align:right">
+                      <%= sig_pct %>%
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+
+              <%# Merge action %>
+              <%= form_with url: merge_admin_product_review_path(@product), method: :post,
+                    data: { confirm: "Merge '#{@product.description}' into '#{candidate.display_name}'?\n\nAll stock, invoice data, and purchase history will be transferred. This cannot be undone." } do |f| %>
+                <%= f.hidden_field :target_product_id, value: candidate.id %>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <%= f.submit "Merge into this product →",
+                        class: 'btn btn-secondary btn-sm',
+                        style: "color:#{bar_color};border-color:#{border_col}" %>
+                  <%= link_to 'View product', setup_product_path(candidate),
+                        style: 'font-size:11px;color:var(--text-dim);text-decoration:none',
+                        target: '_blank' %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+
+        <%# Manual merge — type a product ID or code %>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                      color:var(--text-dim);margin-bottom:8px">
+            Merge into a specific product
+          </div>
+          <%= form_with url: merge_admin_product_review_path(@product), method: :post do |f| %>
+            <div style="display:flex;gap:8px;align-items:center">
+              <%= f.number_field :target_product_id, placeholder: 'Product ID',
+                    class: 'form-control',
+                    style: 'width:130px;font-family:var(--mono);font-size:12px' %>
+              <%= f.submit 'Merge →', class: 'btn btn-secondary btn-sm' %>
+            </div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:5px">
+              Find the product ID from Setup → Products.
+            </div>
+          <% end %>
+        </div>
+
+      </div>
+    </div>
+  </div><%# end right column %>
+
+</div><%# end two-column grid %>
+
+<script>
+  function copyToClipboard(btn, text) {
+    navigator.clipboard.writeText(text).then(function() {
+      var orig = btn.innerHTML;
+      btn.innerHTML = '<svg width="12" height="12" fill="none" stroke="var(--success)" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+      btn.style.color = 'var(--success)';
+      setTimeout(function() { btn.innerHTML = orig; btn.style.color = 'var(--text-dim)'; }, 1500);
+    });
+  }
+</script>

@@ -47,9 +47,17 @@
 
   <%= f.hidden_field :id %>
   <%= f.hidden_field :_destroy, value: item.marked_for_destruction? ? '1' : '0', class: 'destroy-input' %>
-  <%# Hidden fields for new proper columns — written on form submit, finalised by confirm! %>
-  <input type="hidden" class="gst-rate-input" value="<%= gst_rate %>">
-  <%= f.hidden_field :gst_rate,         class: 'gst-rate-field',    value: gst_rate %>
+  <%# Preserve metadata keys that the form doesn't re-send, so they survive the update %>
+  <% if item.persisted? %>
+    <input type="hidden"
+           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][material_code]"
+           value="<%= item.metadata['material_code'] %>">
+  <% end %>
+  <%# Always preserve raw_description so unmatched item names survive saves %>
+  <input type="hidden" class="raw-desc-field"
+         name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][raw_description]"
+         value="<%= item.metadata['raw_description'] %>">
+  <%# Hidden fields for proper columns — written on form submit, finalised by confirm! %>
   <%= f.hidden_field :taxable_amount,   class: 'taxable-field',     value: total_pre > 0 ? total_pre : '' %>
   <%= f.hidden_field :tax_amount,       class: 'tax-field',         value: gst_amt  > 0 ? gst_amt  : '' %>
   <%= f.hidden_field :discount_percent, class: 'disc-pct-field',    value: discount > 0 ? discount  : '' %>
@@ -151,19 +159,23 @@
     </span>
   </td>
 
-  <%# ══ 7. GST Amount (single rate from product table) ══ %>
+  <%# ══ 7. GST — editable rate, calculated amount ══ %>
   <td style="padding:14px 12px;text-align:right">
+    <input type="number"
+           class="gst-rate-input"
+           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][gst_rate]"
+           value="<%= gst_pct > 0 ? gst_pct : '' %>"
+           placeholder="0"
+           min="0" max="100" step="0.01"
+           style="width:60px;background:var(--bg);border:1px solid var(--border);
+                  border-radius:5px;padding:5px 7px;color:var(--text);
+                  font-family:var(--mono);font-size:11px;outline:none;text-align:right">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);
+                text-align:center;margin-top:1px">GST %</div>
     <div class="gst-display"
-         style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim)">
+         style="font-family:var(--mono);font-size:12.5px;color:var(--text-dim);margin-top:4px">
       <%= gst_amt > 0 ? number_with_precision(gst_amt, precision: 2) : '—' %>
-      <% if gst_pct > 0 %>
-        <span class="gst-breakdown"
-              style="font-size:10px;color:var(--text-dim);margin-left:3px">
-          (<%= gst_pct.to_i %>%)
-        </span>
-      <% else %>
-        <span class="gst-breakdown" style="display:none"></span>
-      <% end %>
+      <span class="gst-breakdown" style="display:none"></span>
     </div>
   </td>
 

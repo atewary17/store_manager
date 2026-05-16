@@ -46,11 +46,33 @@ class PurchaseInvoiceItem < ApplicationRecord
     product&.hsn_code.presence || '—'
   end
 
+  # Merge incoming metadata with the existing stored hash rather than replacing it.
+  # The edit form only sends metadata[discount_percent]; without this override every
+  # other key (material_code, raw_description, …) would be silently wiped on save,
+  # causing resolve_product to fail and leaving items with product_id = nil.
+  def metadata=(val)
+    if persisted?
+      super((read_attribute(:metadata) || {}).merge(val.to_h.stringify_keys))
+    else
+      super
+    end
+  end
+
   private
 
   # Try to auto-match product by material_code stored in metadata
   def resolve_product
-    return if product_id.present?
+    if product_id.present?
+      self.unmatched = false
+      return
+    end
+
+    # Manual entry: user typed a name but didn't select from catalogue
+    if metadata['raw_description'].present? && metadata['material_code'].blank?
+      self.unmatched = true
+      return
+    end
+
     raw_code = metadata['material_code'].to_s.strip
     return if raw_code.blank?
 
@@ -78,6 +100,9 @@ class PurchaseInvoiceItem < ApplicationRecord
   # supply_type, cgst/sgst/igst_amount default via the column default but
   # we guard them here too for safety.
   def initialize_gst_columns
+    self.gst_rate         = gst_rate.presence&.to_f || 0
+    self.tax_amount       = tax_amount.presence&.to_f || 0
+    self.taxable_amount   = taxable_amount.presence&.to_f || 0
     self.discount_percent ||= metadata['discount_percent'].presence&.to_f || 0
     self.discount_amount  ||= 0
     self.supply_type      ||= 'intra_state'

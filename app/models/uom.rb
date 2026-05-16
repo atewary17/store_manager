@@ -18,6 +18,24 @@ class Uom < ApplicationRecord
   validates :name,       presence: true, uniqueness: { case_sensitive: false }
   validates :short_name, presence: true, uniqueness: { case_sensitive: false }
 
+  # Fuzzy lookup used by UnmatchedProductCreator.
+  # Priority: exact name → exact short_name → alias array → trigram similarity.
+  # Returns nil when no match — caller must apply an "Others" fallback.
+  def self.match_fuzzy(raw)
+    return nil if raw.blank?
+    n = raw.to_s.strip.downcase
+
+    find_by('LOWER(name) = ?', n) ||
+      find_by('LOWER(short_name) = ?', n) ||
+      where('? = ANY(aliases)', n).first ||
+      where('similarity(LOWER(name), ?) > 0.45', n).order(Arel.sql("similarity(LOWER(name), #{connection.quote(n)}) DESC")).first
+  end
+
+  def self.others
+    find_by('LOWER(name) = ?', 'others') ||
+      find_or_create_by!(name: 'Others') { |u| u.short_name = 'OTH'; u.active = true }
+  end
+
   before_save :strip_whitespace
 
   def display

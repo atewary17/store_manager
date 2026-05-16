@@ -1,6 +1,7 @@
 # app/models/organisation.rb
 class Organisation < ApplicationRecord
-  has_many :users, dependent: :destroy
+  has_many :users,          dependent: :destroy
+  has_many :scrape_sources, dependent: :destroy
   has_many :organisation_product_categories, dependent: :destroy
   has_many :product_categories, through: :organisation_product_categories
 

@@ -120,7 +120,7 @@ class InvoiceAiService
             'hsn_code'       => '3208',
             'pack_size'      => '4 LT',
             'num_packs'      => 10,
-            'quantity'       => 40.0,
+            'quantity'       => 10,
             'unit'           => 'LT',
             'unit_rate'      => 200.0,
             'taxable_amount' => 8000.0,

@@ -17,11 +17,21 @@ class DigitiseImportJob < ApplicationJob
 
     user_pref = import.user&.preferences&.dig('ai_provider').presence
 
-    result = InvoiceAiService.call(
-      base64_data: base64_data,
-      mime_type:   import.file_content_type,
-      user_pref:   user_pref
-    )
+    provider = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase
+    result = ExternalApiLog.record(
+      service:         provider,
+      operation:       'invoice_parse',
+      organisation_id: import.organisation_id,
+      user_id:         import.user_id,
+      metadata:        { digitise_import_id: import.id, file_name: import.file_name,
+                         attempt: attempt_num }
+    ) do
+      InvoiceAiService.call(
+        base64_data: base64_data,
+        mime_type:   import.file_content_type,
+        user_pref:   user_pref
+      )
+    end
 
     log_entry = {
       attempt:  attempt_num,

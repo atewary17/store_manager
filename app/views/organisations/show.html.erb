@@ -24,13 +24,11 @@
       <%= link_to 'Edit', edit_organisation_path(@organisation), class: 'btn btn-secondary' %>
     <% end %>
     <%= link_to '+ Add User', new_organisation_user_path(@organisation), class: 'btn btn-primary' %>
-    <%= link_to 'Product Categories', organisation_product_categories_path(@organisation), class: 'btn btn-secondary' %>
   </div>
 </div>
 
-<!-- Org detail card -->
-<div class="detail-card" style="margin-bottom:28px">
-  <%# ── GST Details ── %>
+<%# ── Org detail card ── %>
+<div class="detail-card" style="margin-bottom:24px">
   <div class="detail-section">
     <div class="detail-section-title">GST & Tax Details</div>
     <div class="detail-grid">
@@ -54,8 +52,6 @@
       </div>
     </div>
   </div>
-
-  <%# ── Organisation Details ── %>
   <div class="detail-section">
     <div class="detail-section-title">Organisation Details</div>
     <div class="detail-grid">
@@ -77,15 +73,16 @@
   </div>
 </div>
 
-<!-- Members -->
+<%# ═══ TEAM MEMBERS ══════════════════════════════════════════════════════ %>
+
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-  <div style="font-size:15px;font-weight:600">
-    Team Members
-    <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);font-weight:400;margin-left:6px">
-      <%= @users.count %>
-    </span>
-  </div>
-  <div class="actions">
+    <div style="font-size:14px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
+                letter-spacing:.06em">
+      Team Members
+      <span style="font-family:var(--mono);font-size:12px;font-weight:400;margin-left:6px">
+        <%= @users.count %>
+      </span>
+    </div>
     <div class="search-input-wrap" style="max-width:220px">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -93,80 +90,79 @@
       <input type="text" class="search-input" placeholder="Search members..." id="memberSearch">
     </div>
   </div>
-</div>
 
-<div class="table-wrap">
-  <table id="membersTable">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>Role</th>
-        <th>Status</th>
-        <th>Joined</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @users.each do |user| %>
-      <tr>
-        <td style="font-family:var(--mono);color:var(--text-dim);font-size:12px">
-          <%= user.id %>
-        </td>
-        <td>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:30px;height:30px;border-radius:50%;background:var(--accent-dim);
-                        color:var(--accent);display:flex;align-items:center;justify-content:center;
-                        font-family:var(--mono);font-size:11px;font-weight:500;flex-shrink:0">
-              <%= user.initials %>
-            </div>
-            <div>
-              <%= link_to user.full_name, organisation_user_path(@organisation, user) %>
-              <% if user == current_user %>
-                <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-left:4px">(you)</span>
-              <% end %>
-            </div>
-          </div>
-        </td>
-        <td style="font-size:13px;color:var(--text-dim)"><%= user.email %></td>
-        <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
-          <%= user.phone_number.presence || '—' %>
-        </td>
-        <td>
-          <span class="badge badge-role" data-role="<%= user.role %>">
-            <%= user.role.humanize %>
-          </span>
-        </td>
-        <td>
-          <span class="badge <%= user.active? ? 'badge-active' : 'badge-inactive' %>"
-                data-status="<%= user.status %>">
-            <%= user.status %>
-          </span>
-        </td>
-        <td style="color:var(--text-dim);font-size:12px;font-family:var(--mono)">
-          <%= user.created_at.strftime('%d %b %Y') %>
-        </td>
-        <td>
-          <div class="actions">
-            <%= link_to 'View', organisation_user_path(@organisation, user), class: 'btn btn-secondary btn-sm' %>
-            <% if current_user.super_admin? || current_user.owner? || current_user.admin? %>
-              <%= link_to 'Edit', edit_organisation_user_path(@organisation, user), class: 'btn btn-secondary btn-sm' %>
-            <% end %>
-          </div>
-        </td>
-      </tr>
-      <% end %>
-    </tbody>
-  </table>
-</div>
+  <div class="table-wrap">
+    <table id="membersTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Joined</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @users.each do |user| %>
+          <tr>
+            <td style="font-family:var(--mono);color:var(--text-dim);font-size:12px"><%= user.id %></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:30px;height:30px;border-radius:50%;background:var(--accent-dim);
+                            color:var(--accent);display:flex;align-items:center;justify-content:center;
+                            font-family:var(--mono);font-size:11px;font-weight:500;flex-shrink:0">
+                  <%= user.initials %>
+                </div>
+                <div>
+                  <%= link_to user.full_name, organisation_user_path(@organisation, user) %>
+                  <% if user == current_user %>
+                    <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-left:4px">(you)</span>
+                  <% end %>
+                </div>
+              </div>
+            </td>
+            <td style="font-size:13px;color:var(--text-dim)"><%= user.email %></td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+              <%= user.phone_number.presence || '—' %>
+            </td>
+            <td>
+              <span class="badge badge-role" data-role="<%= user.role %>">
+                <%= user.role.humanize %>
+              </span>
+            </td>
+            <td>
+              <span class="badge <%= user.active? ? 'badge-active' : 'badge-inactive' %>"
+                    data-status="<%= user.status %>">
+                <%= user.status %>
+              </span>
+            </td>
+            <td style="color:var(--text-dim);font-size:12px;font-family:var(--mono)">
+              <%= user.created_at.strftime('%d %b %Y') %>
+            </td>
+            <td>
+              <div class="actions">
+                <%= link_to 'View', organisation_user_path(@organisation, user), class: 'btn btn-secondary btn-sm' %>
+                <% if current_user.super_admin? || current_user.owner? || current_user.admin? %>
+                  <%= link_to 'Edit', edit_organisation_user_path(@organisation, user), class: 'btn btn-secondary btn-sm' %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
 
-<script>
-  document.getElementById('memberSearch').addEventListener('input', function() {
-    const q = this.value.toLowerCase();
-    document.querySelectorAll('#membersTable tbody tr').forEach(row => {
-      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  <script>
+    document.getElementById('memberSearch').addEventListener('input', function() {
+      const q = this.value.toLowerCase();
+      document.querySelectorAll('#membersTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
     });
-  });
-</script>
+  </script>
+
+<%# ════════════════════════════════════════════════════════════════════════ %>

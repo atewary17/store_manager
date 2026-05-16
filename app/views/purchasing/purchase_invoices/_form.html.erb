@@ -290,9 +290,8 @@
                     font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
     </td>
     <%# Hidden fields for proper columns — synced by recalcRow, finalised by confirm! %>
-    <input type="hidden" class="gst-rate-input" value="0">
-    <input type="hidden" class="gst-rate-field"
-           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][gst_rate]" value="">
+    <input type="hidden" class="raw-desc-field"
+           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][raw_description]" value="">
     <input type="hidden" class="taxable-field"
            name="purchase_invoice[purchase_invoice_items_attributes][INDEX][taxable_amount]" value="">
     <input type="hidden" class="tax-field"
@@ -319,8 +318,15 @@
       <span class="total-pre-display">—</span>
     </td>
     <td style="padding:6px 8px;text-align:right">
-      <div class="gst-display" style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
-        —<span class="gst-breakdown" style="font-size:10px;color:var(--text-dim);margin-left:3px"></span>
+      <input type="number" class="gst-rate-input"
+             name="purchase_invoice[purchase_invoice_items_attributes][INDEX][gst_rate]"
+             placeholder="0" min="0" max="100" step="0.01"
+             style="width:60px;background:var(--bg);border:1px solid var(--border);
+                    border-radius:5px;padding:5px 7px;color:var(--text);
+                    font-family:var(--mono);font-size:11px;outline:none;text-align:right">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);text-align:center;margin-top:1px">GST %</div>
+      <div class="gst-display" style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:4px">
+        —<span class="gst-breakdown" style="display:none"></span>
       </div>
     </td>
     <td style="padding:6px 8px">
@@ -434,16 +440,12 @@
     var discLbl = row.querySelector('.disc-amt-label');
     if (discLbl) discLbl.textContent = discAmt > 0 ? '₹' + discAmt.toFixed(2) : '';
 
-    // ── Sync new proper-column hidden fields ──────────────────────────────
-    // These are written to the DB on save; confirm! will recalculate them
-    // precisely from the stored gst_rate, but having them pre-filled means
-    // the show page and draft totals display correctly before confirmation.
-    var gstRateField = row.querySelector('.gst-rate-field');
+    // ── Sync proper-column hidden fields ──────────────────────────────────
+    // gst_rate is now a visible editable input (gst-rate-input) — no sync needed.
     var taxableField = row.querySelector('.taxable-field');
     var taxField     = row.querySelector('.tax-field');
     var discPctField = row.querySelector('.disc-pct-field');
     var discAmtField = row.querySelector('.disc-amt-field');
-    if (gstRateField) gstRateField.value = gstPct > 0 ? gstPct.toFixed(2) : '';
     if (taxableField) taxableField.value = totalPre > 0 ? totalPre.toFixed(2) : '';
     if (taxField)     taxField.value     = gstAmt  > 0 ? gstAmt.toFixed(2)  : '';
     if (discPctField) discPctField.value = discPct > 0 ? discPct.toFixed(2) : '';
@@ -474,8 +476,10 @@
     var totalEl = row.querySelector('.total-editable');
     if (!qtyEl || !totalEl) return;
 
-    // qty or total changes → recalc unit rate
+    // qty, gst rate, or total changes → recalc
     qtyEl.addEventListener('input', function() { recalcRow(row); });
+    var gstRateEl = row.querySelector('.gst-rate-input');
+    if (gstRateEl) gstRateEl.addEventListener('input', function() { recalcRow(row); });
     totalEl.addEventListener('input', function() {
       var t = parseFloat(this.value) || 0;
       var hi = row.querySelector('.total-input');
@@ -515,6 +519,9 @@
     input.addEventListener('input', function() {
       idField.value = '';
       if (metaLine) metaLine.textContent = '';
+      // Keep raw description in sync so unmatched items save their name
+      var rawDescField = wrap.querySelector('.raw-desc-field');
+      if (rawDescField) rawDescField.value = this.value.trim();
       clearTimeout(timer);
       var q = this.value.trim();
       if (q.length < 2) { dropdown.style.display = 'none'; return; }
@@ -573,13 +580,12 @@
         if (uomCell)  uomCell.textContent  = p.uom || '—';
         if (metaLine) metaLine.textContent = metaParts.join('  ·  ');
 
-        // Set gst-rate on both the JS-read input and the proper-column hidden field
-        var gstRateInp   = row.querySelector('.gst-rate-input');
-        var gstRateField = row.querySelector('.gst-rate-field');
-        if (p.gst_rate != null) {
-          if (gstRateInp)   gstRateInp.value   = p.gst_rate;
-          if (gstRateField) gstRateField.value = p.gst_rate;
-        }
+        // Set editable GST rate from product catalogue
+        var gstRateInp = row.querySelector('.gst-rate-input');
+        if (p.gst_rate != null && gstRateInp) gstRateInp.value = p.gst_rate;
+        // Clear the unmatched description — product is now linked
+        var rawDescField = wrap.querySelector('.raw-desc-field');
+        if (rawDescField) rawDescField.value = '';
         // Trigger recalc so taxable/tax fields get populated immediately
         recalcRow(row);
         dropdown.style.display = 'none';

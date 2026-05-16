@@ -15,6 +15,23 @@ Rails.application.routes.draw do
       module: :organisations
   end
 
+  # SuperAdmin — Admin namespace
+  namespace :admin do
+    resources :product_reviews, only: [:index, :show, :update] do
+      member do
+        post :approve
+        post :reject
+        post :merge
+      end
+    end
+    get  'system_processes',                to: 'system_processes#index',           as: :system_processes
+    post 'system_processes/send_test_email', to: 'system_processes#send_test_email', as: :system_processes_send_test_email
+  end
+
+  authenticate :user, ->(u) { u.super_admin? } do
+    mount GoodJob::Engine => '/good_job'
+  end
+
   # Setup / Master Data
   namespace :setup do
     resources :uoms

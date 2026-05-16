@@ -10,15 +10,24 @@ class Product < ApplicationRecord
     Rails.cache.fetch('product/active_count', expires_in: 10.minutes) { where(active: true).count }
   end
 
+  # ── Constants ─────────────────────────────────────────────────
+  CATALOGUE_STATUSES = %w[active under_review merged rejected].freeze
+
   # ── Associations ─────────────────────────────────────────────
   belongs_to :product_category
   belongs_to :base_uom, class_name: 'Uom', foreign_key: :base_uom_id
   belongs_to :brand, optional: true
-  has_many   :organisation_products, dependent: :destroy
+  has_many   :organisation_products,  dependent: :destroy
+  has_many   :purchase_invoice_items, dependent: :nullify
+  belongs_to :merged_into, class_name: 'Product', optional: true,
+             foreign_key: :merged_into_product_id
+  belongs_to :reviewed_by, class_name: 'User', optional: true
 
   # ── Scopes ───────────────────────────────────────────────────
   scope :active,          -> { where(active: true) }
   scope :inactive,        -> { where(active: false) }
+  scope :under_review,    -> { where(under_review: true) }
+  scope :review_pending,  -> { where(under_review: true, catalogue_status: 'under_review').order(created_at: :desc) }
   scope :ordered,         -> { joins(:brand).order('brands.name, products.description') }
   scope :for_brand,       ->(brand_id) { where(brand_id: brand_id) }
   scope :for_category,    ->(cat_id)   { where(product_category_id: cat_id) }
@@ -46,7 +55,7 @@ class Product < ApplicationRecord
     OrganisationProduct.find_or_create_by!(organisation_id: org_id, product_id: id)
   end
 
-  # ── Constants ─────────────────────────────────────────────────
+  # ── GST / Catalogue constants ─────────────────────────────────
   GST_RATES = [0.0, 5.0, 12.0, 18.0, 28.0].freeze
 
   # ── Validations ───────────────────────────────────────────────
@@ -56,13 +65,26 @@ class Product < ApplicationRecord
                                  message: "must be one of: #{GST_RATES.join(', ')}%" }
   validates :product_category, presence: true
   validates :base_uom,         presence: true
-  validates :material_code,    uniqueness: true, allow_blank: true
+  validates :material_code,    uniqueness: { conditions: -> { where(under_review: false) } },
+                               allow_blank: true
   validates :product_code,     uniqueness: true, allow_blank: true
   validates :mrp,              numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   # ── Callbacks ─────────────────────────────────────────────────
   before_save :strip_whitespace
   before_save :nullify_blank_codes
+
+  # ── Review helpers ────────────────────────────────────────────
+  def approvable?
+    under_review? && catalogue_status == 'under_review'
+  end
+
+  # Snap the raw GST rate from a scanned invoice to the nearest legal rate.
+  def self.nearest_gst_rate(raw)
+    rate = raw.to_f
+    return 18.0 if rate <= 0 && raw.to_s.strip != '0'
+    GST_RATES.min_by { |r| (r - rate).abs }
+  end
 
   # ── Display helpers ───────────────────────────────────────────
   def display_name
