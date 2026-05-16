@@ -1,65 +1,65 @@
-# docker-compose.yml
-#
-# LOCAL DEV (uses local Postgres):
-#   docker compose up
-#
-# TEST AGAINST NEON (uses your Neon DB):
-#   DATABASE_URL=postgres://... docker compose up web worker
+# # docker-compose.yml
+# #
+# # LOCAL DEV (uses local Postgres):
+# #   docker compose up
+# #
+# # TEST AGAINST NEON (uses your Neon DB):
+# #   DATABASE_URL=postgres://... docker compose up web worker
 
-services:
+# services:
 
-  # ── PostgreSQL (local dev only) ────────────────────────────────────────────
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: store_manager
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
-      POSTGRES_DB: store_manager_development
-    ports:
-      - "5432:5432"   # expose to host so local `rails s` can connect
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U store_manager"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#   # ── PostgreSQL (local dev only) ────────────────────────────────────────────
+#   # db:
+#   #   image: postgres:16-alpine
+#   #   restart: unless-stopped
+#   #   environment:
+#   #     POSTGRES_USER: store_manager
+#   #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+#   #     POSTGRES_DB: store_manager_development
+#   #   ports:
+#   #     - "5432:5432"   # expose to host so local `rails s` can connect
+#   #   volumes:
+#   #     - postgres_data:/var/lib/postgresql/data
+#   #   healthcheck:
+#   #     test: ["CMD-SHELL", "pg_isready -U store_manager"]
+#   #     interval: 10s
+#   #     timeout: 5s
+#   #     retries: 5
 
-  # ── Rails Web ──────────────────────────────────────────────────────────────
-  web:
-    build: .
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_development}
-      # REDIS_URL intentionally omitted — app falls back to memory store
-    ports:
-      - "3000:3000"
-    volumes:
-      - storage_data:/app/storage
-    command: >
-      sh -c "
-        bundle exec rails db:migrate &&
-        bundle exec rails db:seed &&
-        bundle exec puma -C config/puma.rb
-      "
+#   # ── Rails Web ──────────────────────────────────────────────────────────────
+#   web:
+#     build: .
+#     restart: unless-stopped
+#     depends_on:
+#       db:
+#         condition: service_healthy
+#     env_file: .env
+#     environment:
+#       DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_development}
+#       # REDIS_URL intentionally omitted — app falls back to memory store
+#     ports:
+#       - "3000:3000"
+#     volumes:
+#       - storage_data:/app/storage
+#     command: >
+#       sh -c "
+#         bundle exec rails db:migrate &&
+#         bundle exec rails db:seed &&
+#         bundle exec puma -C config/puma.rb
+#       "
 
-  # ── GoodJob Worker ─────────────────────────────────────────────────────────
-  worker:
-    build: .
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_development}
-    command: bundle exec good_job start  # uses PostgreSQL, no Redis needed
+#   # ── GoodJob Worker ─────────────────────────────────────────────────────────
+#   worker:
+#     build: .
+#     restart: unless-stopped
+#     depends_on:
+#       db:
+#         condition: service_healthy
+#     env_file: .env
+#     environment:
+#       DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:devpassword@db:5432/store_manager_development}
+#     command: bundle exec good_job start  # uses PostgreSQL, no Redis needed
 
-volumes:
-  postgres_data:
-  storage_data:
+# volumes:
+#   postgres_data:
+#   storage_data:
