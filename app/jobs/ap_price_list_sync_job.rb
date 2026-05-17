@@ -2,9 +2,15 @@
 #
 # Enriches existing Asian Paints products from staged price list rows.
 # Never creates products. Never touches product.description.
-# Only updates metadata and blank column fields (shade_code, product_code, pack_code).
-# Runs rules 1–4 per product; stops at first matched/partial result.
+#
+# Rule 1  — Three-field exact match on product columns        (confidence: highest)
+# Rule 2A — Decoded material code, full 3-field row match     (confidence: high)
+# Rule 2B — Decoded material code, independent sub-queries    (confidence: medium / low_medium)
+# NMPL    — No Match with Price List                          (confidence: none)
+#
+# Stops at the first rule that returns a result.
 # One ApPriceListSyncLog entry is written per product per run.
+# Products with metadata price_list_match_status of 'matched' or 'partial' are skipped.
 
 class ApPriceListSyncJob < ApplicationJob
   queue_as :enrichment
@@ -22,13 +28,8 @@ class ApPriceListSyncJob < ApplicationJob
       process_product(product, import_batch_id)
     rescue => e
       Rails.logger.error "[ApPriceListSyncJob] product ##{product.id} failed: #{e.message}"
-      write_log(
-        product:    product,
-        rule:       0,
-        status:     'unmatched',
-        confidence: 'none',
-        notes:      "Unexpected error: #{e.message}"
-      )
+      write_log(product: product, rule: 'NMPL', status: 'nmpl',
+                confidence: 'none', notes: "Unexpected error: #{e.message}")
     end
 
     Rails.logger.info "[ApPriceListSyncJob] Completed"
@@ -50,28 +51,28 @@ class ApPriceListSyncJob < ApplicationJob
 
   def process_product(product, import_batch_id)
     if already_matched?(product)
-      write_log(product: product, rule: 0, status: 'already_matched',
-                confidence: 'high', notes: 'Skipped — already matched in previous run')
+      write_log(product: product, rule: 'SKIP', status: 'already_matched',
+                confidence: 'none',
+                notes: "Skipped — prior run status: #{product.metadata&.dig('price_list_match_status')}")
       return
     end
 
     @row_scope = scoped_rows(import_batch_id)
 
     result = run_rule1(product) ||
-             run_rule2(product) ||
-             run_rule3(product) ||
-             run_rule4(product)
+             run_rule2a(product) ||
+             run_rule2b(product) ||
+             run_nmpl(product)
 
-    # Retry up to 2 more times for transient save failures (e.g. brief DB lock).
     if result == :save_failed
       2.times do |attempt|
         break unless result == :save_failed
         sleep(0.5 * (attempt + 1))
         product.reload
         result = run_rule1(product) ||
-                 run_rule2(product) ||
-                 run_rule3(product) ||
-                 run_rule4(product)
+                 run_rule2a(product) ||
+                 run_rule2b(product) ||
+                 run_nmpl(product)
       end
     end
 
@@ -79,8 +80,7 @@ class ApPriceListSyncJob < ApplicationJob
   end
 
   def already_matched?(product)
-    product.metadata&.dig('price_list_matched_at').present? &&
-      PriceListRow.where(matched_product_id: product.id, match_status: 'matched').exists?
+    product.metadata&.dig('price_list_match_status') == 'matched'
   end
 
   def scoped_rows(import_batch_id)
@@ -92,12 +92,14 @@ class ApPriceListSyncJob < ApplicationJob
         PriceListRow.all
       end
     else
-      latest = PriceListRow.maximum(:effective_date)
+      latest = PriceListRow.where('effective_date <= ?', Date.today).maximum(:effective_date)
       latest ? PriceListRow.where(effective_date: latest) : PriceListRow.none
     end
   end
 
-  # ── Rule 1: Three-field exact match ────────────────────────────────────────
+  # ── Rule 1: Three-field exact match on product columns ────────────────────
+  # Requires product_code, pack_code, shade_code all present on the product.
+  # Confidence: highest — direct column match, most reliable path.
 
   def run_rule1(product)
     return nil unless product.product_code.present? &&
@@ -121,14 +123,14 @@ class ApPriceListSyncJob < ApplicationJob
 
     return nil if row.nil?
 
-    enriched, skipped, saved = enrich_product(product, row, rule: 1)
+    enriched, skipped, saved = enrich_from_row(product, row, rule: '1', confidence: 'highest')
     mark_row_matched(row, product) if saved
     write_log(
       product:    product,
       row:        row,
-      rule:       1,
+      rule:       '1',
       status:     saved ? 'matched' : 'save_failed',
-      confidence: 'high',
+      confidence: 'highest',
       enriched:   enriched,
       skipped:    skipped,
       details:    { prod_code: product.product_code,
@@ -139,43 +141,81 @@ class ApPriceListSyncJob < ApplicationJob
     saved ? :matched : :save_failed
   end
 
-  # ── Rule 2: Material code decode, independent field enrichment ─────────────
+  # ── Rule 2A: Decoded material code — full 3-field row match ───────────────
+  # Cascades: shade_code → prod_code → pack_code in a single price list row.
+  # Confidence: high — all three decoded components confirmed in one row.
 
-  def run_rule2(product)
-    return nil unless product.material_code.present? &&
-                      product.material_code.match?(/\A\d{11}\z/)
+  def run_rule2a(product)
+    return nil unless valid_material_code?(product)
 
-    decoded = Product.decode_ap_material_code(product.material_code)
-    return nil if decoded.nil?
+    dp, ds, dk = decode_material_code(product.material_code)
 
-    dp = decoded[:product_code]
-    ds = decoded[:shade_code]
-    dk = decoded[:pack_code]
+    row = @row_scope
+            .where(shade_code: ds)
+            .where(prod_code:  dp)
+            .where(pack_code:  dk)
+            .order(effective_date: :desc)
+            .first
+
+    return nil if row.nil?
+
+    enriched, skipped, saved = enrich_from_row(product, row, rule: '2A', confidence: 'high',
+                                                decoded: { dp: dp, ds: ds, dk: dk })
+    mark_row_matched(row, product) if saved
+    write_log(
+      product:    product,
+      row:        row,
+      rule:       '2A',
+      status:     saved ? 'matched' : 'save_failed',
+      confidence: 'high',
+      enriched:   enriched,
+      skipped:    skipped,
+      details:    { decoded_product_code: dp, decoded_shade_code: ds,
+                    decoded_pack_code: dk, material_code: product.material_code }
+    )
+    saved ? :matched : :save_failed
+  end
+
+  # ── Rule 2B: Decoded material code — independent sub-queries ─────────────
+  # Each decoded component (prod_code, shade_code, pack_code) is looked up
+  # independently. Confidence depends on how many find a price list row.
+  # No pricing fields synced here — 2A handles those when available.
+
+  def run_rule2b(product)
+    return nil unless valid_material_code?(product)
+
+    dp, ds, dk = decode_material_code(product.material_code)
 
     enriched = []
     skipped  = {}
     meta     = product.metadata.dup
 
-    # Step A — product_line_desc from prod_code
+    # Step A — product_line_desc from prod_code match
     row_a = @row_scope.where(prod_code: dp)
                       .where.not(product_base_name: [nil, ''])
                       .order(effective_date: :desc).first
     if row_a
       meta['product_line_desc'] = row_a.product_base_name
       enriched << 'product_line_desc'
+      if product.product_code.blank?
+        if Product.where(product_code: dp).where.not(id: product.id).exists?
+          skipped['product_code'] = "conflict — '#{dp}' already assigned to another product"
+        else
+          product.product_code = dp
+          enriched << 'product_code'
+        end
+      end
     end
 
-    # Step B — shade_name + shade_code + is_tinting_base from shade_code.
-    # If the price list shade_name is comma-separated (multiple shades share the
-    # same shade_code), resolve_shade_name picks the one that best matches the
-    # product description using token-level fuzzy matching.
+    # Step B — shade_name from shade_code match (with fuzzy disambiguation)
     row_b = @row_scope.where(shade_code: ds)
                       .where.not(shade_name: [nil, ''])
                       .order(effective_date: :desc).first
     if row_b
-      resolved_shade          = resolve_shade_name(row_b.shade_name, product.description)
-      meta['shade_name']      = resolved_shade
-      meta['is_tinting_base'] = tinting_base_shade?(resolved_shade)
+      resolved_shade, shade_conf  = resolve_shade_name_with_confidence(row_b.shade_name, product.description)
+      meta['shade_name']           = resolved_shade
+      meta['shade_match_confidence'] = shade_conf
+      meta['is_tinting_base']      = tinting_base_shade?(resolved_shade)
       enriched << 'shade_name'
       enriched << 'is_tinting_base'
       if product.shade_code.blank?
@@ -184,7 +224,7 @@ class ApPriceListSyncJob < ApplicationJob
       end
     end
 
-    # Step C — pack_size from pack_code
+    # Step C — pack_size from pack_code match
     row_c = @row_scope.where(pack_code: dk)
                       .where.not(pack_size_litres: nil)
                       .order(effective_date: :desc).first
@@ -193,73 +233,77 @@ class ApPriceListSyncJob < ApplicationJob
       meta['pack_size_desc']   = format_pack_size(row_c.pack_size_litres)
       enriched << 'pack_size_litres'
       enriched << 'pack_size_desc'
+      product.pack_code = dk if product.pack_code.blank?
     end
 
-    # Step D — dpl_group + dealer_price + price_effective when full 3-field row found
-    row_d = @row_scope.where(prod_code: dp, shade_code: ds, pack_code: dk)
-                      .order(effective_date: :desc).first
-    if row_d
-      meta['dpl_group']       = row_d.dpl_group
-      meta['dealer_price']    = row_d.dealer_price
-      meta['price_effective'] = row_d.effective_date&.iso8601
-      enriched += %w[dpl_group dealer_price price_effective]
-    end
+    matched_steps = [row_a, row_b, row_c].count(&:present?)
+    return nil if matched_steps == 0
 
-    return nil if enriched.empty?
+    confidence = matched_steps >= 2 ? 'medium' : 'low_medium'
 
-    confidence   = row_d ? 'high'    : 'medium'
-    match_status = row_d ? 'matched' : 'partial'
-
-    meta.merge!(price_list_audit_fields(rule: 2, confidence: confidence, row: row_d || row_a))
-    apply_column_fields(product, row_d || row_a, skipped: skipped)
+    meta['enriched_description'] = build_enriched_description(product, meta)
+    meta.merge!(price_list_audit_fields(rule: '2B', confidence: confidence,
+                                        status: 'partial', row: row_a || row_b || row_c))
     product.metadata = meta
     saved = save_product(product, skipped)
 
-    mark_row_matched(row_d, product) if row_d && saved
-
-    final_status = saved ? match_status : 'save_failed'
     write_log(
       product:    product,
-      row:        row_d || row_a,
-      rule:       2,
-      status:     final_status,
+      row:        row_a || row_b || row_c,
+      rule:       '2B',
+      status:     saved ? 'partial' : 'save_failed',
       confidence: confidence,
       enriched:   enriched,
       skipped:    skipped,
       details:    { decoded_product_code: dp, decoded_shade_code: ds,
-                    decoded_pack_code: dk, full_row_found: row_d.present? }
+                    decoded_pack_code: dk, material_code: product.material_code,
+                    steps_matched: matched_steps,
+                    step_a: row_a.present?, step_b: row_b.present?, step_c: row_c.present? }
     )
-    final_status.to_sym
+    saved ? :partial : :save_failed
   end
 
-  # ── Rule 3: Two-field match, no shade_code ─────────────────────────────────
+  # ── NMPL: No Match with Price List ────────────────────────────────────────
 
-  def run_rule3(product)
-    return nil unless product.product_code.present? && product.pack_code.present?
-    return nil if product.shade_code.present?
+  def run_nmpl(product)
+    write_log(
+      product:    product,
+      rule:       'NMPL',
+      status:     'nmpl',
+      confidence: 'none',
+      details:    { material_code: product.material_code,
+                    product_code:  product.product_code,
+                    pack_code:     product.pack_code,
+                    shade_code:    product.shade_code },
+      notes:      build_nmpl_note(product)
+    )
+    :nmpl
+  end
 
-    rows = @row_scope.where(prod_code: product.product_code, pack_code: product.pack_code)
-                     .order(effective_date: :desc)
+  def build_nmpl_note(product)
+    reasons = []
 
-    if rows.many?
-      @row_scope.where(prod_code: product.product_code, pack_code: product.pack_code)
-                .update_all(match_status: 'ambiguous')
-      write_log(
-        product:    product,
-        rule:       3,
-        status:     'ambiguous',
-        confidence: 'low',
-        details:    { matching_row_ids: rows.pluck(:id),
-                      prod_code: product.product_code,
-                      pack_code: product.pack_code },
-        notes:      'Multiple price list rows for same product+pack — admin review needed'
-      )
-      return :ambiguous
+    unless product.product_code.present? && product.pack_code.present? && product.shade_code.present?
+      reasons << "Rule 1 skipped: product_code/pack_code/shade_code not all present on product"
     end
 
-    return nil if rows.empty?
+    if product.material_code.blank?
+      reasons << "Rules 2A/2B skipped: no material_code"
+    elsif !product.material_code.match?(/\A[A-Z0-9]{11}\z/i)
+      reasons << "Rules 2A/2B skipped: material_code '#{product.material_code}' is not 11 alphanumeric characters"
+    else
+      dp, ds, dk = decode_material_code(product.material_code)
+      reasons << "Rules 2A/2B: no price list rows found for decoded codes " \
+                 "(prod_code=#{dp}, shade_code=#{ds}, pack_code=#{dk})"
+    end
 
-    row      = rows.first
+    reasons.join(' | ')
+  end
+
+  # ── Shared enrichment — used by Rule 1 and Rule 2A ───────────────────────
+  # Both have a single confirmed row with all fields available.
+
+  def enrich_from_row(product, row, rule:, confidence:, decoded: nil)
     enriched = []
     skipped  = {}
     meta     = product.metadata.dup
@@ -268,142 +312,89 @@ class ApPriceListSyncJob < ApplicationJob
       meta['product_line_desc'] = row.product_base_name
       enriched << 'product_line_desc'
     end
+
+    if row.shade_name.present?
+      resolved_shade, shade_conf    = resolve_shade_name_with_confidence(row.shade_name, product.description)
+      meta['shade_name']             = resolved_shade
+      meta['shade_match_confidence'] = shade_conf
+      meta['is_tinting_base']        = tinting_base_shade?(resolved_shade)
+      enriched << 'shade_name'
+      enriched << 'is_tinting_base'
+    end
+
     if row.pack_size_litres.present?
       meta['pack_size_litres'] = row.pack_size_litres
       meta['pack_size_desc']   = format_pack_size(row.pack_size_litres)
       enriched << 'pack_size_litres'
       enriched << 'pack_size_desc'
     end
+
     if row.dpl_group.present?
       meta['dpl_group'] = row.dpl_group
       enriched << 'dpl_group'
     end
-    meta['dealer_price']    = row.dealer_price
-    meta['price_effective'] = row.effective_date&.iso8601
-    enriched << 'dealer_price'
-    enriched << 'price_effective'
 
-    # Shade fields intentionally skipped — two-field match can't confirm shade
-    skipped['shade_name']      = 'two-field match — shade not enriched, verify manually'
-    skipped['shade_code']      = 'two-field match — shade not enriched, verify manually'
-    skipped['is_tinting_base'] = 'two-field match — cannot determine without shade'
-
-    meta.merge!(price_list_audit_fields(rule: 3, confidence: 'medium', row: row))
-    apply_column_fields(product, row, skip_shade: true, skipped: skipped)
-    product.metadata = meta
-    saved = save_product(product, skipped)
-    mark_row_matched(row, product) if saved
-
-    write_log(
-      product:    product,
-      row:        row,
-      rule:       3,
-      status:     saved ? 'matched' : 'save_failed',
-      confidence: 'medium',
-      enriched:   enriched,
-      skipped:    skipped,
-      details:    { prod_code: product.product_code, pack_code: product.pack_code },
-      notes:      'Two-field match — shade not enriched, verify manually'
-    )
-    saved ? :matched : :save_failed
-  end
-
-  # ── Rule 4: No match ────────────────────────────────────────────────────────
-
-  def run_rule4(product)
-    write_log(
-      product:    product,
-      rule:       4,
-      status:     'unmatched',
-      confidence: 'none',
-      details:    { material_code: product.material_code,
-                    product_code:  product.product_code,
-                    pack_code:     product.pack_code,
-                    shade_code:    product.shade_code },
-      notes:      build_rule4_note(product)
-    )
-    :unmatched
-  end
-
-  def build_rule4_note(product)
-    reasons = []
-    unless product.product_code.present? && product.pack_code.present? && product.shade_code.present?
-      reasons << "Rule 1 skipped: product_code/pack_code/shade_code not all present"
+    if row.dealer_price.present?
+      meta['dealer_price']    = row.dealer_price
+      meta['price_effective'] = row.effective_date&.iso8601
+      enriched << 'dealer_price'
+      enriched << 'price_effective'
     end
-    if product.material_code.present?
-      unless product.material_code.match?(/\A\d{11}\z/)
-        reasons << "Rule 2 skipped: material_code '#{product.material_code}' is not 11 digits"
+
+    # Column fields — only overwrite if blank
+    dp = decoded&.dig(:dp)
+    ds = decoded&.dig(:ds)
+    dk = decoded&.dig(:dk)
+
+    if product.product_code.blank?
+      src = dp || row.prod_code
+      if src.present?
+        if Product.where(product_code: src).where.not(id: product.id).exists?
+          skipped['product_code'] = "conflict — '#{src}' already assigned to another product"
+        else
+          product.product_code = src
+          enriched << 'product_code'
+        end
       end
-    else
-      reasons << "Rule 2 skipped: no material_code"
-    end
-    unless product.product_code.present? && product.pack_code.present?
-      reasons << "Rule 3 skipped: product_code or pack_code missing"
-    end
-    reasons.join(' | ')
-  end
-
-  # ── Enrichment helpers ──────────────────────────────────────────────────────
-
-  # Used by Rule 1 (full 3-field match) — all fields available from one row.
-  def enrich_product(product, row, rule:)
-    enriched = []
-    skipped  = {}
-    meta     = product.metadata.dup
-
-    {
-      'product_line_desc' => row.product_base_name,
-      'shade_name'        => row.shade_name,
-      'pack_size_litres'  => row.pack_size_litres,
-      'pack_size_desc'    => format_pack_size(row.pack_size_litres),
-      'dpl_group'         => row.dpl_group,
-      'dealer_price'      => row.dealer_price,
-      'price_effective'   => row.effective_date&.iso8601
-    }.each do |field, value|
-      next if value.blank?
-      meta[field] = value
-      enriched << field
     end
 
-    if row.shade_name.present?
-      meta['is_tinting_base'] = tinting_base_shade?(row.shade_name)
-      enriched << 'is_tinting_base'
-    end
+    product.shade_code = (ds || row.shade_code) if product.shade_code.blank? && (ds || row.shade_code).present?
+    product.pack_code  = (dk || row.pack_code)  if product.pack_code.blank?  && (dk || row.pack_code).present?
 
-    meta.merge!(price_list_audit_fields(rule: rule, confidence: 'high', row: row))
-    apply_column_fields(product, row, skipped: skipped)
+    meta['enriched_description'] = build_enriched_description(product, meta)
+    meta.merge!(price_list_audit_fields(rule: rule, confidence: confidence,
+                                        status: 'matched', row: row))
     product.metadata = meta
     saved = save_product(product, skipped)
 
     [enriched, skipped, saved]
   end
 
-  # Only set column fields if currently blank — never overwrite.
-  # product_code has a unique DB constraint: pre-check before assigning.
-  def apply_column_fields(product, row, skip_shade: false, skipped: {})
-    return unless row
+  # ── Enriched description ──────────────────────────────────────────────────
 
-    product.shade_code = row.shade_code if product.shade_code.blank? && !skip_shade
-
-    if product.product_code.blank? && row.prod_code.present?
-      if Product.where(product_code: row.prod_code).where.not(id: product.id).exists?
-        skipped['product_code'] = "conflict — '#{row.prod_code}' already assigned to another product"
-      else
-        product.product_code = row.prod_code
-      end
-    end
-
-    product.pack_code = row.pack_code if product.pack_code.blank?
+  def build_enriched_description(product, meta)
+    parts = [
+      product.brand&.name,
+      meta['product_line_desc'].presence,
+      meta['shade_name'].presence,
+      meta['pack_size_desc'].presence
+    ].compact_blank
+    parts.any? ? parts.join(' — ') : nil
   end
 
-  def price_list_audit_fields(rule:, confidence:, row:)
+  # ── Audit fields stored in metadata ──────────────────────────────────────
+
+  def price_list_audit_fields(rule:, confidence:, status:, row:)
     {
       'price_list_match_rule'       => rule,
       'price_list_match_confidence' => confidence,
+      'price_list_match_status'     => status,
       'price_list_matched_at'       => @run_at.iso8601,
       'price_list_row_id'           => row&.id
     }
   end
+
+  # ── Save helpers ──────────────────────────────────────────────────────────
 
   def save_product(product, skipped)
     product.save!(validate: false)
@@ -423,7 +414,17 @@ class ApPriceListSyncJob < ApplicationJob
     )
   end
 
-  # ── Format helpers ──────────────────────────────────────────────────────────
+  # ── Material code helpers ─────────────────────────────────────────────────
+
+  def valid_material_code?(product)
+    product.material_code.present? && product.material_code.match?(/\A[A-Z0-9]{11}\z/i)
+  end
+
+  def decode_material_code(material_code)
+    [material_code[0..3], material_code[4..7], material_code[8..10]]
+  end
+
+  # ── Format helpers ────────────────────────────────────────────────────────
 
   def format_pack_size(litres)
     return nil if litres.nil?
@@ -437,52 +438,61 @@ class ApPriceListSyncJob < ApplicationJob
     end
   end
 
-  # Detects tinting base products from shade name.
-  # Asian Paints typically names these "TINTING BASE", "TINT BASE", or appends "TB".
   def tinting_base_shade?(shade_name)
     return false if shade_name.blank?
     shade_name.to_s.match?(/tint(ing)?\s*base|\bTB\b|T\.B\./i)
   end
 
-  # ── Shade name disambiguation ────────────────────────────────────────────────
+  # ── Shade name disambiguation ─────────────────────────────────────────────
+  # Returns [resolved_name, confidence_level].
+  # When shade_name is comma-separated, picks the candidate that best matches
+  # the product description via token-level fuzzy scoring.
 
-  # When a price list shade_name is comma-separated (multiple shade names share
-  # the same shade_code), pick the candidate that best matches the product
-  # description. Falls back to the first candidate if nothing scores above zero.
-  #
-  # Example:
-  #   shade_name_raw = "OxBlue, Bus Green, Brown, Golden brown"
-  #   description    = "AP APCO GLS ENML OX BLUE 100ML"
-  #   → returns "OxBlue"
-  def resolve_shade_name(shade_name_raw, description)
-    return shade_name_raw if shade_name_raw.blank?
+  def resolve_shade_name_with_confidence(shade_name_raw, description)
+    return [shade_name_raw, 'single'] if shade_name_raw.blank?
 
     candidates = shade_name_raw.split(',').map(&:strip).reject(&:blank?)
-    return shade_name_raw if candidates.size <= 1
-    return candidates.first if description.blank?
+    return [shade_name_raw, 'single'] if candidates.size <= 1
+
+    if description.blank?
+      return [candidates.first, 'fallback']
+    end
 
     desc_tokens = tokenize_shade(description)
-    return candidates.first if desc_tokens.empty?
+    if desc_tokens.empty?
+      return [candidates.first, 'fallback']
+    end
 
     best = candidates.max_by do |candidate|
       c_tokens = tokenize_shade(candidate)
       [shade_score(c_tokens, desc_tokens), c_tokens.size]
     end
 
-    shade_score(tokenize_shade(best), desc_tokens) > 0 ? best : candidates.first
+    score = shade_score(tokenize_shade(best), desc_tokens)
+
+    confidence = if score >= 1.0
+                   'high'
+                 elsif score >= 0.5
+                   'medium'
+                 elsif score > 0
+                   'low'
+                 else
+                   'fallback'
+                 end
+
+    resolved = score > 0 ? best : candidates.first
+    [resolved, confidence]
   end
 
-  # Fraction of candidate tokens that fuzzy-match at least one description token.
-  # Tiebroken externally by candidate token count (more specific candidate wins).
   def shade_score(candidate_tokens, desc_tokens)
     return 0 if candidate_tokens.empty?
     matched = candidate_tokens.count { |ct| desc_tokens.any? { |dt| tokens_similar?(ct, dt) } }
     matched.to_f / candidate_tokens.size
   end
 
-  # Normalise a shade name or product description into lowercase alpha tokens.
-  # Splits camelCase so "OxBlue" becomes ["ox", "blue"].
-  # Drops pure-number tokens and single-character tokens.
+  # Normalises a shade name or product description into lowercase alpha tokens.
+  # Splits camelCase ("OxBlue" → ["ox", "blue"]).
+  # Drops single-character tokens.
   def tokenize_shade(str)
     str.to_s
        .gsub(/([a-z])([A-Z])/, '\1 \2')
@@ -492,19 +502,18 @@ class ApPriceListSyncJob < ApplicationJob
        .reject { |t| t.length < 2 }
   end
 
-  # Three-tier fuzzy match between two normalised tokens:
+  # Four-tier fuzzy match:
   #   1. Exact equality
-  #   2. One is a full prefix of the other — handles abbreviations in both
-  #      directions, e.g. "sm" ↔ "smoke", "ox" ↔ "oxblue"
-  #   3. Levenshtein distance ≤ 1 (tokens ≥ 3 chars only) — handles truncated
-  #      words like "gry" ↔ "grey", "blu" ↔ "blue"
+  #   2. Prefix match — handles abbreviations ("ox" ↔ "oxblue", "blu" ↔ "blue")
+  #   3. Levenshtein ≤ 1 (tokens ≥ 3 chars) — handles truncations ("gry" ↔ "grey")
+  #   4. Substring inclusion (min 5 chars) — handles AP concat codes (e.g. "dp-orange" token contains "orange")
   def tokens_similar?(a, b)
     return true if a == b
     return true if a.start_with?(b) || b.start_with?(a)
-    a.length >= 3 && b.length >= 3 && levenshtein_distance(a, b) <= 1
+    return true if a.length >= 3 && b.length >= 3 && levenshtein_distance(a, b) <= 1
+    (a.length >= 5 || b.length >= 5) && (a.include?(b) || b.include?(a))
   end
 
-  # Space-efficient two-row Levenshtein implementation.
   def levenshtein_distance(a, b)
     return b.length if a.empty?
     return a.length if b.empty?
@@ -527,7 +536,7 @@ class ApPriceListSyncJob < ApplicationJob
     prev[b.length]
   end
 
-  # ── Log writer ──────────────────────────────────────────────────────────────
+  # ── Log writer ────────────────────────────────────────────────────────────
 
   def write_log(product:, rule:, status:, confidence:,
                 row: nil, enriched: [], skipped: {}, details: {}, notes: nil)
@@ -547,5 +556,4 @@ class ApPriceListSyncJob < ApplicationJob
   rescue => e
     Rails.logger.error "[ApPriceListSyncJob] log write failed for product ##{product.id}: #{e.message}"
   end
-
 end

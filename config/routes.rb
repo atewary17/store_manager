@@ -1,5 +1,9 @@
 # config/routes.rb
 Rails.application.routes.draw do
+  # Public status page — PIN protected, no Devise auth
+  get  '/status',              to: 'status#index',        as: :status
+  post '/status/authenticate', to: 'status#authenticate', as: :status_authenticate
+
   devise_for :users
 
   # User profile — any logged-in user
@@ -28,7 +32,8 @@ Rails.application.routes.draw do
       end
     end
     get  'system_processes',                to: 'system_processes#index',           as: :system_processes
-    post 'system_processes/send_test_email', to: 'system_processes#send_test_email', as: :system_processes_send_test_email
+    post 'system_processes/send_test_email',        to: 'system_processes#send_test_email',        as: :system_processes_send_test_email
+    post 'system_processes/trigger_price_list_sync', to: 'system_processes#trigger_price_list_sync', as: :system_processes_trigger_price_list_sync
   end
 
   authenticate :user, ->(u) { u.super_admin? } do
@@ -65,7 +70,8 @@ Rails.application.routes.draw do
         post :import, action: :import_create
         get  :export
         get  :template
-        get  'imports/:id', action: :import_show, as: :import_show
+        get  'imports/:id',                action: :import_show,           as: :import_show
+        get  'imports/:id/download_errors', action: :download_errors,       as: :import_download_errors
       end
     end
 

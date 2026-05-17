@@ -35,8 +35,15 @@ class Product < ApplicationRecord
     return all if q.blank?
     term = "%#{q.downcase}%"
     left_joins(:brand).where(
-      'LOWER(brands.name) LIKE ? OR LOWER(products.description) LIKE ? OR LOWER(products.material_code) LIKE ? OR LOWER(products.product_code) LIKE ?',
-      term, term, term, term
+      'LOWER(brands.name) LIKE ? OR ' \
+      'LOWER(products.description) LIKE ? OR ' \
+      'LOWER(products.material_code) LIKE ? OR ' \
+      'LOWER(products.product_code) LIKE ? OR ' \
+      'LOWER(COALESCE(products.shade_code, \'\')) LIKE ? OR ' \
+      'LOWER(COALESCE(products.pack_code, \'\')) LIKE ? OR ' \
+      'LOWER(COALESCE(products.metadata->>\'shade_name\', \'\')) LIKE ? OR ' \
+      'LOWER(COALESCE(products.metadata->>\'product_line_desc\', \'\')) LIKE ?',
+      term, term, term, term, term, term, term, term
     )
   }
 

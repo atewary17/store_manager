@@ -158,9 +158,11 @@ class Setup::ShadeCataloguesController < Setup::BaseController
     package = Axlsx::Package.new
     wb = package.workbook
 
-    hdr     = wb.styles.add_style bg_color: '1F3864', fg_color: 'FFFFFF', b: true, sz: 11
-    even    = wb.styles.add_style bg_color: 'F1F5F9', fg_color: '334155', sz: 10
-    odd     = wb.styles.add_style bg_color: 'FFFFFF', fg_color: '334155', sz: 10
+    hdr      = wb.styles.add_style bg_color: '1F3864', fg_color: 'FFFFFF', b: true, sz: 11
+    even     = wb.styles.add_style bg_color: 'F1F5F9', fg_color: '334155', sz: 10
+    odd      = wb.styles.add_style bg_color: 'FFFFFF', fg_color: '334155', sz: 10
+    txt_even = wb.styles.add_style bg_color: 'F1F5F9', fg_color: '334155', sz: 10, format_code: '@'
+    txt_odd  = wb.styles.add_style bg_color: 'FFFFFF', fg_color: '334155', sz: 10, format_code: '@'
 
     wb.add_worksheet(name: 'Shade Catalogue') do |ws|
       ws.add_row(
@@ -169,17 +171,19 @@ class Setup::ShadeCataloguesController < Setup::BaseController
       )
 
       @shades.each_with_index do |s, i|
-        row_style = i.even? ? even : odd
+        rs  = i.even? ? even : odd
+        txt = i.even? ? txt_even : txt_odd
         ws.add_row([
           s.product_category&.name,
-          s.shade_code,
+          s.shade_code.to_s,
           s.shade_name,
           s.brand&.name,
           s.product_family,
           s.colour_family,
           s.notes,
           s.active
-        ], style: row_style)
+        ], style: [rs, txt, rs, rs, rs, rs, rs, rs],
+           types: [nil, :string, nil, nil, nil, nil, nil, nil])
       end
 
       ws.column_widths 20, 14, 24, 18, 26, 16, 30, 8

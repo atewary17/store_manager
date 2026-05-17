@@ -15,7 +15,12 @@
   known_meta  = %w[tint family_colour canister_volume_ml source validation_status
                    ai_confidence ai_brand_guess ai_category_guess ai_notes
                    original_name created_at created_by_org approved_by approved_at
-                   needs_review ai_pack_size_guess ai_hsn_code ai_gst_rate]
+                   needs_review ai_pack_size_guess ai_hsn_code ai_gst_rate
+                   enriched_description shade_name product_line_desc
+                   pack_size_litres pack_size_desc dealer_price price_effective
+                   dpl_group is_tinting_base shade_match_confidence
+                   price_list_match_rule price_list_match_confidence
+                   price_list_match_status price_list_matched_at price_list_row_id]
   custom_meta = meta.reject { |k, _| known_meta.include?(k) }
   total_stock = @stock_levels.sum { |s| s.quantity.to_f }
   active_org_count = @org_products.count(&:active?)
@@ -134,10 +139,57 @@
       <%= @product.description %>
     </div>
     <% if @product.pack_code.present? %>
-      <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:16px">
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:12px">
         Pack: <%= @product.pack_code %>
       </div>
-    <% else %>
+    <% end %>
+
+    <% if meta['enriched_description'].present? %>
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;line-height:1.6;
+                  border-left:3px solid var(--accent);padding-left:12px;
+                  display:flex;flex-direction:column;gap:4px">
+        <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+                     color:var(--accent)">Enriched Description</span>
+        <span style="font-size:14px;color:var(--text);font-weight:500">
+          <%= meta['enriched_description'] %>
+        </span>
+        <% sync_status = meta['price_list_match_status'] %>
+        <% sync_rule   = meta['price_list_match_rule'] %>
+        <% sync_conf   = meta['price_list_match_confidence'] %>
+        <% if sync_status.present? %>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+            <%
+              sc = case sync_status
+                   when 'matched' then 'var(--success)'
+                   when 'partial' then 'var(--accent)'
+                   else 'var(--text-dim)'
+                   end
+              cc = case sync_conf
+                   when 'highest'    then '#7c3aed'
+                   when 'high'       then 'var(--success)'
+                   when 'medium'     then 'var(--warning)'
+                   when 'low_medium' then '#ea580c'
+                   else 'var(--text-dim)'
+                   end
+            %>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+                         color:<%= sc %>;background:<%= sc %>22;border-radius:4px;padding:2px 7px">
+              <%= sync_status %>
+            </span>
+            <% if sync_rule.present? %>
+              <span style="font-size:10px;font-family:var(--mono);font-weight:600;
+                           background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 6px">
+                R<%= sync_rule %>
+              </span>
+            <% end %>
+            <% if sync_conf.present? %>
+              <span style="font-size:10px;font-weight:600;color:<%= cc %>"><%= sync_conf %></span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% elsif @product.pack_code.blank? %>
       <div style="margin-bottom:16px"></div>
     <% end %>
 
@@ -577,6 +629,152 @@
               <% end %>
             </div>
           <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# Price List Sync card %>
+    <% sync_keys = %w[price_list_match_rule price_list_match_confidence price_list_match_status
+                      enriched_description shade_name product_line_desc pack_size_litres
+                      pack_size_desc dealer_price price_effective dpl_group is_tinting_base
+                      shade_match_confidence price_list_matched_at price_list_row_id] %>
+    <% if sync_keys.any? { |k| meta[k].present? } %>
+      <%
+        sync_status = meta['price_list_match_status']
+        sync_rule   = meta['price_list_match_rule']
+        sync_conf   = meta['price_list_match_confidence']
+        sc = case sync_status
+             when 'matched' then 'var(--success)'
+             when 'partial' then 'var(--accent)'
+             when 'nmpl'    then 'var(--danger)'
+             else 'var(--text-dim)'
+             end
+        cc = case sync_conf
+             when 'highest'    then '#7c3aed'
+             when 'high'       then 'var(--success)'
+             when 'medium'     then 'var(--warning)'
+             when 'low_medium' then '#ea580c'
+             else 'var(--text-dim)'
+             end
+      %>
+      <div class="prod-card">
+        <div class="prod-card-head">
+          <span class="prod-card-label">Price List Sync</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <% if sync_status.present? %>
+              <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+                           color:<%= sc %>;background:<%= sc %>22;border-radius:4px;padding:2px 7px">
+                <%= sync_status %>
+              </span>
+            <% end %>
+            <% if sync_rule.present? %>
+              <span style="font-size:10px;font-family:var(--mono);font-weight:600;
+                           background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 6px">
+                R<%= sync_rule %>
+              </span>
+            <% end %>
+            <% if sync_conf.present? %>
+              <span style="font-size:10px;font-weight:600;color:<%= cc %>"><%= sync_conf %></span>
+            <% end %>
+          </div>
+        </div>
+        <div class="prod-card-body" style="display:flex;flex-direction:column;gap:16px">
+
+          <% if meta['enriched_description'].present? %>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                        padding:12px 14px;border-left:3px solid var(--accent)">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                          color:var(--text-dim);margin-bottom:6px">Full Enriched Description</div>
+              <div style="font-size:14px;font-weight:500;color:var(--text);line-height:1.5">
+                <%= meta['enriched_description'] %>
+              </div>
+            </div>
+          <% end %>
+
+          <div class="kv-grid">
+            <% if meta['product_line_desc'].present? %>
+              <div class="kv-field">
+                <label>Product Line</label>
+                <div class="val"><%= meta['product_line_desc'] %></div>
+              </div>
+            <% end %>
+            <% if meta['shade_name'].present? %>
+              <div class="kv-field">
+                <label>
+                  Shade Name
+                  <% if meta['shade_match_confidence'].present? && meta['shade_match_confidence'] != 'single' %>
+                    <span style="font-size:9px;color:var(--text-dim);font-weight:400;
+                                 text-transform:none;letter-spacing:0;margin-left:4px">
+                      (<%= meta['shade_match_confidence'] %> confidence)
+                    </span>
+                  <% end %>
+                </label>
+                <div class="val"><%= meta['shade_name'] %></div>
+              </div>
+            <% end %>
+            <% if meta['pack_size_desc'].present? || meta['pack_size_litres'].present? %>
+              <div class="kv-field">
+                <label>Pack Size</label>
+                <div class="val mono">
+                  <%= meta['pack_size_desc'].presence || "#{meta['pack_size_litres']} L" %>
+                </div>
+              </div>
+            <% end %>
+            <% if meta['dealer_price'].present? %>
+              <div class="kv-field">
+                <label>
+                  Dealer Price
+                  <% if meta['price_effective'].present? %>
+                    <span style="font-size:9px;color:var(--text-dim);font-weight:400;
+                                 text-transform:none;letter-spacing:0;margin-left:4px">
+                      (eff. <%= Date.parse(meta['price_effective'].to_s).strftime('%d %b %Y') rescue meta['price_effective'] %>)
+                    </span>
+                  <% end %>
+                </label>
+                <div class="val mono" style="font-size:16px;font-weight:700;color:var(--text)">
+                  ₹<%= number_with_precision(meta['dealer_price'].to_f, precision: 2, delimiter: ',') %>
+                </div>
+              </div>
+            <% end %>
+            <% if meta['dpl_group'].present? %>
+              <div class="kv-field">
+                <label>DPL Group</label>
+                <div class="val mono"><%= meta['dpl_group'] %></div>
+              </div>
+            <% end %>
+            <% if meta['is_tinting_base'].present? %>
+              <div class="kv-field">
+                <label>Tinting Base</label>
+                <div class="val">
+                  <% if meta['is_tinting_base'].to_s == 'true' %>
+                    <span style="color:var(--accent);font-weight:600">Yes</span>
+                  <% else %>
+                    <span style="color:var(--text-dim)">No</span>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+
+          <% if meta['price_list_matched_at'].present? %>
+            <div style="border-top:1px solid var(--border);padding-top:12px;
+                        display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+              <span style="font-size:11px;color:var(--text-dim)">
+                Synced
+                <span style="font-family:var(--mono);color:var(--text)">
+                  <%= Time.parse(meta['price_list_matched_at'].to_s).strftime('%d %b %Y at %H:%M') rescue meta['price_list_matched_at'] %>
+                </span>
+              </span>
+              <% if meta['price_list_row_id'].present? %>
+                <span style="font-size:11px;color:var(--text-dim)">
+                  Row
+                  <span style="font-family:var(--mono);color:var(--text)">#<%= meta['price_list_row_id'] %></span>
+                </span>
+              <% end %>
+            </div>
+          <% end %>
+
         </div>
       </div>
     <% end %>

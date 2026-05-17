@@ -168,23 +168,79 @@
 
     <%# ── Pagination ── %>
     <% if @total_pages > 1 %>
-      <div style="display:flex;justify-content:center;gap:6px;margin-top:20px;flex-wrap:wrap">
-        <% if @page > 1 %>
-          <%= link_to '← Prev',
-                setup_price_list_rows_path(page: @page - 1, status: params[:status],
-                                           q: params[:q], date: params[:date]),
-                class: 'btn btn-secondary btn-sm' %>
-        <% end %>
-        <span style="padding:6px 12px;font-size:13px;color:var(--text-dim)">
-          Page <%= @page %> of <%= @total_pages %>
-          &nbsp;·&nbsp; <%= @filtered_count %> rows
+      <%
+        pg_params = { status: params[:status], q: params[:q], date: params[:date] }
+        window    = 2
+        first_p   = 1
+        last_p    = @total_pages
+        range_lo  = [@page - window, first_p].max
+        range_hi  = [@page + window, last_p].min
+      %>
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  margin-top:20px;flex-wrap:wrap;gap:10px">
+        <span style="font-size:12px;color:var(--text-dim)">
+          Showing
+          <strong style="color:var(--text)"><%= ((@page - 1) * 50) + 1 %>–<%= [@page * 50, @filtered_count].min %></strong>
+          of <strong style="color:var(--text)"><%= @filtered_count %></strong> rows
         </span>
-        <% if @page < @total_pages %>
-          <%= link_to 'Next →',
-                setup_price_list_rows_path(page: @page + 1, status: params[:status],
-                                           q: params[:q], date: params[:date]),
-                class: 'btn btn-secondary btn-sm' %>
-        <% end %>
+
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          <%# Prev %>
+          <% if @page > 1 %>
+            <%= link_to '←', setup_price_list_rows_path(pg_params.merge(page: @page - 1)),
+                  style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                          border:1px solid var(--border);border-radius:6px;
+                          color:var(--text);text-decoration:none" %>
+          <% end %>
+
+          <%# First page + ellipsis %>
+          <% if range_lo > first_p %>
+            <%= link_to '1', setup_price_list_rows_path(pg_params.merge(page: 1)),
+                  style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                          border:1px solid var(--border);border-radius:6px;
+                          color:var(--text);text-decoration:none" %>
+            <% if range_lo > first_p + 1 %>
+              <span style="padding:5px 4px;font-size:12px;color:var(--text-dim)">…</span>
+            <% end %>
+          <% end %>
+
+          <%# Window pages %>
+          <% (range_lo..range_hi).each do |p| %>
+            <% if p == @page %>
+              <span style="padding:5px 10px;font-size:12px;font-weight:600;
+                           background:var(--accent);color:#fff;border-radius:6px;
+                           border:1px solid var(--accent)"><%= p %></span>
+            <% else %>
+              <%= link_to p, setup_price_list_rows_path(pg_params.merge(page: p)),
+                    style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                            border:1px solid var(--border);border-radius:6px;
+                            color:var(--text);text-decoration:none" %>
+            <% end %>
+          <% end %>
+
+          <%# Ellipsis + last page %>
+          <% if range_hi < last_p %>
+            <% if range_hi < last_p - 1 %>
+              <span style="padding:5px 4px;font-size:12px;color:var(--text-dim)">…</span>
+            <% end %>
+            <%= link_to last_p, setup_price_list_rows_path(pg_params.merge(page: last_p)),
+                  style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                          border:1px solid var(--border);border-radius:6px;
+                          color:var(--text);text-decoration:none" %>
+          <% end %>
+
+          <%# Next %>
+          <% if @page < @total_pages %>
+            <%= link_to '→', setup_price_list_rows_path(pg_params.merge(page: @page + 1)),
+                  style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                          border:1px solid var(--border);border-radius:6px;
+                          color:var(--text);text-decoration:none" %>
+          <% end %>
+        </div>
+
+        <span style="font-size:12px;color:var(--text-dim)">
+          Page <strong style="color:var(--text)"><%= @page %></strong> of <%= @total_pages %>
+        </span>
       </div>
     <% end %>
 

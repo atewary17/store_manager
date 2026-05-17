@@ -3,7 +3,17 @@ class PriceListImport < ApplicationRecord
 
   belongs_to :user
 
-  scope :recent, -> { order(created_at: :desc) }
+  scope :recent,      -> { order(created_at: :desc) }
+  scope :pending,     -> { where(status: 'pending') }
+  scope :processing,  -> { where(status: 'processing') }
+  scope :done,        -> { where(status: 'done') }
+  scope :failed,      -> { where(status: 'failed') }
+
+  def pending?    = status == 'pending'
+  def processing? = status == 'processing'
+  def done?       = status == 'done'
+  def failed?     = status == 'failed'
+  def in_progress? = pending? || processing?
 
   def has_errors?
     error_count.to_i > 0

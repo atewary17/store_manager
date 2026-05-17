@@ -3,9 +3,9 @@
 <% content_for :breadcrumb do %>
   <span style="color:var(--text-dim)">Setup</span>
   <span class="breadcrumb-sep">/</span>
-  <%= link_to 'Imports', setup_product_imports_path %>
+  <%= link_to 'Price List', setup_price_list_rows_path %>
   <span class="breadcrumb-sep">/</span>
-  <%= link_to 'Price List Imports', import_setup_price_list_rows_path %>
+  <%= link_to 'Imports', import_setup_price_list_rows_path %>
   <span class="breadcrumb-sep">/</span>
   <span class="breadcrumb-current">#<%= @import.id %></span>
 <% end %>
@@ -13,16 +13,45 @@
 <div class="page-header">
   <div>
     <div class="page-title"><%= @import.file_name %></div>
-    <div class="page-subtitle">
-      Uploaded by <%= @import.user.full_name %>
-      · <%= @import.created_at.strftime('%d %b %Y, %H:%M') %>
-      <% if @import.effective_date %>
-        · Effective <%= @import.effective_date.strftime('%d %b %Y') %>
-      <% end %>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+      <span class="badge <%= status_badge_class(@import.status) %>">
+        <%= @import.status.humanize %>
+      </span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+        Uploaded by <%= @import.user.full_name %>
+        · <%= @import.created_at.strftime('%d %b %Y, %H:%M') %>
+        <% if @import.effective_date %>
+          · Effective <%= @import.effective_date.strftime('%d %b %Y') %>
+        <% end %>
+      </span>
     </div>
   </div>
-  <%= link_to '← Back', import_setup_price_list_rows_path, class: 'btn btn-secondary' %>
+  <div class="actions">
+    <% if @import.has_errors? %>
+      <%= link_to 'Download Error Report ↓',
+            import_download_errors_setup_price_list_rows_path(@import),
+            class: 'btn btn-danger btn-sm' %>
+    <% end %>
+    <%= link_to '← Back', import_setup_price_list_rows_path, class: 'btn btn-secondary' %>
+  </div>
 </div>
+
+<%# ── Processing / failed banners ── %>
+<% if @import.in_progress? %>
+  <div style="padding:16px 20px;background:var(--accent-dim);border-radius:8px;
+              border:1px solid var(--border);margin-bottom:24px;
+              font-size:13px;color:var(--text-dim);text-align:center">
+    ⏳ Processing in background — this page will refresh automatically…
+  </div>
+  <script>setTimeout(function(){ location.reload() }, 5000)</script>
+<% elsif @import.failed? %>
+  <div style="padding:16px 20px;background:rgba(192,0,0,0.06);border-radius:8px;
+              border:1px solid rgba(192,0,0,0.2);margin-bottom:24px;
+              font-size:13px;color:var(--danger)">
+    ✗ Import failed —
+    <%= @import.error_rows.first&.dig('error') || 'unknown error' %>
+  </div>
+<% end %>
 
 <%# ── Summary stats ── %>
 <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px">
@@ -76,9 +105,14 @@
 <%# ── Error rows ── %>
 <% if @import.has_errors? %>
   <div style="margin-bottom:24px">
-    <div style="font-family:var(--mono);font-size:11px;color:var(--danger);
-                letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">
-      <%= @import.error_count %> Error<%= 's' if @import.error_count != 1 %>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--danger);
+                  letter-spacing:.08em;text-transform:uppercase">
+        <%= @import.error_count %> Error<%= 's' if @import.error_count != 1 %>
+      </div>
+      <%= link_to 'Download Error Report ↓',
+            import_download_errors_setup_price_list_rows_path(@import),
+            class: 'btn btn-danger btn-sm' %>
     </div>
     <div class="table-wrap">
       <table>

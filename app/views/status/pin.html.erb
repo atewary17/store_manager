@@ -1,0 +1,22 @@
+<%# app/views/status/pin.html.erb %>
+<div class="pin-page">
+  <div class="pin-card">
+    <div class="logo">Store Manager</div>
+    <h1>System Status</h1>
+    <p>Enter your PIN to continue</p>
+
+    <%= form_with url: status_authenticate_path, method: :post, local: true do |f| %>
+      <%= f.password_field :pin,
+            placeholder: '••••••',
+            maxlength: 6,
+            autocomplete: 'off',
+            autofocus: true,
+            class: 'pin-input' %>
+      <%= f.submit 'View Status →', class: 'pin-btn' %>
+    <% end %>
+
+    <% if flash[:alert] %>
+      <div class="pin-error"><%= flash[:alert] %></div>
+    <% end %>
+  </div>
+</div>

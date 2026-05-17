@@ -41,10 +41,11 @@ class Setup::ProductsController < Setup::BaseController
       return
     end
 
-    @products = Product.includes(:product_category, :base_uom, :brand,
+    @products = Product.includes(:product_category, :brand,
                                   organisation_products: :organisation)
                        .ordered
 
+    @products = @products.search(params[:q])                  if params[:q].present?
     @products = @products.for_category(params[:category_id]) if params[:category_id].present?
     @products = @products.for_brand(params[:brand_id])       if params[:brand_id].present?
 
@@ -206,7 +207,7 @@ class Setup::ProductsController < Setup::BaseController
           p.product_category&.name,
           p.base_uom&.short_name,
           p.brand&.name,
-          p.pack_code,
+          p.pack_code.to_s,
           p.shade_code.to_s,
           p.description,
           p.material_code.to_s,
@@ -227,11 +228,15 @@ class Setup::ProductsController < Setup::BaseController
           meta['ai_notes'].to_s,
           meta['original_name'].to_s,
           meta['created_by_org'].to_s
-        ], style: [row_style, row_style, row_style, row_style, code_style, row_style,
+        ], style: [row_style, row_style, row_style, code_style, code_style, row_style,
                    code_style, code_style, code_style, num, row_style, row_style,
                    meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell],
+           types: [nil, nil, nil, :string, :string, nil,
+                   :string, :string, :string, nil, nil, nil,
+                   :string, :string, :string, :string, :string, :string,
+                   :string, :string, :string, :string, :string, :string],
            height: 18)
       end
 
@@ -313,7 +318,7 @@ class Setup::ProductsController < Setup::BaseController
           p.product_category&.name,
           p.base_uom&.short_name,
           p.brand&.name,
-          p.pack_code,
+          p.pack_code.to_s,
           p.shade_code.to_s,
           p.description,
           p.material_code.to_s,
@@ -337,12 +342,17 @@ class Setup::ProductsController < Setup::BaseController
           meta['ai_notes'].to_s,
           meta['original_name'].to_s,
           meta['created_by_org'].to_s
-        ], style: [row_style, row_style, row_style, row_style, code_style, row_style,
+        ], style: [row_style, row_style, row_style, code_style, code_style, row_style,
                    code_style, code_style, code_style, num, num,
                    row_style, row_style, row_style,
                    meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell,
                    meta_cell, meta_cell, meta_cell, meta_cell],
+           types: [nil, nil, nil, :string, :string, nil,
+                   :string, :string, :string, nil, nil,
+                   nil, nil, nil,
+                   :string, :string, :string, :string, :string, :string,
+                   :string, :string, :string, :string, :string, :string],
            height: 18)
       end
 

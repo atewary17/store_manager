@@ -1,0 +1,471 @@
+<%# app/views/status/index.html.erb %>
+<%
+  status_label = { 'ok' => 'All Systems Operational',
+                   'degraded' => 'Degraded Performance',
+                   'down' => 'System Down' }[@overall_status]
+  status_color = { 'ok' => '#22c55e', 'degraded' => '#f59e0b', 'down' => '#ef4444' }[@overall_status]
+
+  type_colors = {
+    'sales'            => 'rgba(22,163,74,0.75)',
+    'purchase'         => 'rgba(37,99,235,0.75)',
+    'gst'              => 'rgba(124,58,237,0.75)',
+    'tinting_update'   => 'rgba(8,145,178,0.75)',
+    'stock_adjustment' => 'rgba(217,119,6,0.75)',
+    'invoice_scan'     => 'rgba(234,88,12,0.75)',
+    'user_login'       => 'rgba(100,116,139,0.75)',
+    'product_approval' => 'rgba(219,39,119,0.75)',
+    'price_list_sync'  => 'rgba(101,163,13,0.75)'
+  }
+  default_color = 'rgba(148,163,184,0.75)'
+  activity_type_labels  = @activity_by_type.keys
+  activity_type_counts  = @activity_by_type.values
+  activity_type_colors  = activity_type_labels.map { |t| type_colors[t] || default_color }
+%>
+
+<%# ── Header ──────────────────────────────────────────────────── %>
+<div class="status-header">
+  <div class="brand">Store Manager</div>
+
+  <div class="status-badge">
+    <div class="status-dot <%= @overall_status %>"></div>
+    <span style="color:<%= status_color %>"><%= status_label %></span>
+  </div>
+
+  <div class="status-meta">
+    <div>Checked at <strong style="color:#cbd5e1"><%= @checked_at.strftime('%d %b %Y, %H:%M:%S %Z') %></strong></div>
+    <% if @build_sha %>
+      <div>Build <code><%= @build_sha %></code></div>
+    <% end %>
+    <div>Last 24 hours</div>
+  </div>
+</div>
+
+<div class="status-wrap">
+
+  <%# ── Top stat cards ─────────────────────────────────────────── %>
+  <div class="stat-grid" style="margin-bottom:32px">
+    <div class="stat-card">
+      <div class="label">Database</div>
+      <div class="value" style="color:<%= @db_ok ? 'var(--success)' : 'var(--danger)' %>">
+        <%= @db_ok ? 'Online' : 'Offline' %>
+      </div>
+      <div class="sub">
+        <% if @db_ping_ms %>
+          Ping <%= @db_ping_ms %> ms
+        <% else %>
+          Connection failed
+        <% end %>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="label">Jobs Queued</div>
+      <div class="value" style="color:<%= @jobs_queued > 20 ? 'var(--warning)' : 'var(--text)' %>">
+        <%= @jobs_queued %>
+      </div>
+      <div class="sub"><%= @jobs_running %> running now</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="label">Jobs (24h)</div>
+      <div class="value" style="color:var(--success)"><%= @jobs_succeeded %></div>
+      <div class="sub">
+        <%= @jobs_failed %> failed · <%= @jobs_total %> total
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="label">Activity Events (24h)</div>
+      <div class="value" style="color:var(--accent)"><%= @activity_total %></div>
+      <div class="sub"><%= @activity_by_type.keys.size %> event types</div>
+    </div>
+
+    <% if @api_stats.any? %>
+      <% overall_api_rate = begin
+           total = @api_stats.sum { |s| s[:total] }
+           succ  = @api_stats.sum { |s| s[:succeeded] }
+           total > 0 ? ((succ.to_f / total) * 100).round(1) : 100.0
+         end %>
+      <div class="stat-card">
+        <div class="label">API Success Rate</div>
+        <div class="value" style="color:<%= overall_api_rate >= 95 ? 'var(--success)' : overall_api_rate >= 80 ? 'var(--warning)' : 'var(--danger)' %>">
+          <%= overall_api_rate %>%
+        </div>
+        <div class="sub"><%= @api_stats.sum { |s| s[:total] } %> calls · <%= @api_stats.size %> services</div>
+      </div>
+    <% end %>
+
+    <% if @last_sync_at %>
+      <div class="stat-card">
+        <div class="label">Last Price Sync</div>
+        <div class="value" style="color:<%= @sync_match_pct >= 80 ? 'var(--success)' : 'var(--warning)' %>">
+          <%= @sync_match_pct %>%
+        </div>
+        <div class="sub">
+          <%= @sync_matched + @sync_partial %> matched · <%= @sync_unmatched %> unmatched
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Activity ─────────────────────────────────────────────── %>
+  <div class="section-title">Activity Logs — Last 24 Hours</div>
+
+  <div class="chart-card full">
+    <div class="chart-title">Events Over Time <span>hourly</span></div>
+    <div class="chart-wrap">
+      <canvas id="activityTimeline"></canvas>
+    </div>
+  </div>
+
+  <% if @activity_by_type.any? %>
+    <div class="chart-grid-2" style="margin-bottom:28px">
+      <div class="chart-card">
+        <div class="chart-title">Activity by Type</div>
+        <div class="chart-wrap tall">
+          <canvas id="activityByType"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Type Distribution</div>
+        <div class="chart-wrap tall">
+          <canvas id="activityDoughnut"></canvas>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Background Jobs ─────────────────────────────────────── %>
+  <div class="section-title">Background Jobs — Last 24 Hours</div>
+
+  <div class="chart-grid-3" style="margin-bottom:28px">
+    <div class="chart-card">
+      <div class="chart-title">Succeeded vs Failed <span>hourly</span></div>
+      <div class="chart-wrap">
+        <canvas id="jobsTimeline"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Job Health</div>
+      <div class="chart-wrap">
+        <canvas id="jobDoughnut"></canvas>
+      </div>
+      <div style="display:flex;justify-content:center;gap:20px;margin-top:12px;font-size:11px;color:var(--text-dim)">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(22,163,74,0.8);margin-right:5px"></span>Succeeded <%= @jobs_succeeded %></span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(220,38,38,0.8);margin-right:5px"></span>Failed <%= @jobs_failed %></span>
+      </div>
+    </div>
+  </div>
+
+  <% if @recent_failures.any? %>
+    <div class="chart-card" style="margin-bottom:28px">
+      <div class="chart-title">Recent Job Failures <span>last 6</span></div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Job Class</th>
+            <th>Time</th>
+            <th>How long ago</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_failures.each do |job| %>
+            <tr>
+              <td><span class="mono badge badge-error"><%= job.job_class&.gsub('Job', '') %></span></td>
+              <td class="mono" style="color:var(--text-dim)"><%= job.created_at.strftime('%d %b, %H:%M') %></td>
+              <td style="color:var(--text-dim)"><%= time_ago_in_words(job.created_at) %> ago</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <%# ── External APIs ────────────────────────────────────────── %>
+  <% if @api_stats.any? %>
+    <div class="section-title">External API Health — Last 24 Hours</div>
+
+    <div class="chart-grid-2" style="margin-bottom:28px">
+      <div class="chart-card">
+        <div class="chart-title">Success Rate by Service</div>
+        <div class="chart-wrap short">
+          <canvas id="apiSuccessChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Avg Response Time (ms)</div>
+        <div class="chart-wrap short">
+          <canvas id="apiLatencyChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-bottom:28px">
+      <div class="chart-title">API Call Summary</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Total Calls</th>
+            <th>Succeeded</th>
+            <th>Failed</th>
+            <th>Success Rate</th>
+            <th>Avg Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @api_stats.sort_by { |s| -s[:total] }.each do |api| %>
+            <tr>
+              <td style="font-weight:600"><%= api[:service]&.humanize %></td>
+              <td class="mono"><%= api[:total] %></td>
+              <td class="mono" style="color:var(--success)"><%= api[:succeeded] %></td>
+              <td class="mono" style="color:<%= api[:total] - api[:succeeded] > 0 ? 'var(--danger)' : 'var(--text-dim)' %>"><%= api[:total] - api[:succeeded] %></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                    <div style="width:<%= api[:success_rate] %>%;height:100%;background:<%= api[:success_rate] >= 95 ? 'var(--success)' : api[:success_rate] >= 80 ? 'var(--warning)' : 'var(--danger)' %>;border-radius:3px"></div>
+                  </div>
+                  <span class="mono" style="font-size:11px;min-width:38px"><%= api[:success_rate] %>%</span>
+                </div>
+              </td>
+              <td class="mono" style="color:var(--text-dim)"><%= api[:avg_ms].round(0) %> ms</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <%# ── Price List Sync ─────────────────────────────────────── %>
+  <% if @last_sync_at %>
+    <div class="section-title">Price List Sync — Last Run</div>
+    <div class="chart-card" style="margin-bottom:28px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:20px">
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:6px">Run At</div>
+          <div class="mono" style="font-size:13px"><%= @last_sync_at.strftime('%d %b %Y, %H:%M') %></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:6px">Processed</div>
+          <div class="mono" style="font-size:22px;font-weight:700"><%= @sync_total_run %></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:6px">Matched</div>
+          <div class="mono" style="font-size:22px;font-weight:700;color:var(--success)"><%= @sync_matched %></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:6px">Partial</div>
+          <div class="mono" style="font-size:22px;font-weight:700;color:var(--accent)"><%= @sync_partial %></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:6px">Unmatched</div>
+          <div class="mono" style="font-size:22px;font-weight:700;color:var(--danger)"><%= @sync_unmatched %></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:6px">Match Rate</div>
+          <div class="mono" style="font-size:22px;font-weight:700;color:<%= @sync_match_pct >= 80 ? 'var(--success)' : 'var(--warning)' %>"><%= @sync_match_pct %>%</div>
+        </div>
+      </div>
+
+      <% if @sync_total_run > 0 %>
+        <div style="margin-top:20px">
+          <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px">
+            <% if @sync_matched > 0 %>
+              <div style="flex:<%= @sync_matched %>;background:var(--success)" title="Matched"></div>
+            <% end %>
+            <% if @sync_partial > 0 %>
+              <div style="flex:<%= @sync_partial %>;background:var(--accent)" title="Partial"></div>
+            <% end %>
+            <% if @sync_unmatched > 0 %>
+              <div style="flex:<%= @sync_unmatched %>;background:var(--danger)" title="Unmatched"></div>
+            <% end %>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text-dim)">
+            <span><span style="color:var(--success)">■</span> Matched</span>
+            <span><span style="color:var(--accent)">■</span> Partial</span>
+            <span><span style="color:var(--danger)">■</span> Unmatched</span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+</div>
+
+<%# ── Chart.js scripts ─────────────────────────────────────────── %>
+<script>
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  Chart.defaults.font.size   = 11;
+  Chart.defaults.color       = '#64748b';
+
+  const gridColor  = 'rgba(0,0,0,0.05)';
+  const hourLabels = <%= raw @chart_labels.to_json %>;
+
+  // ── Activity Timeline ─────────────────────────────────────────
+  new Chart(document.getElementById('activityTimeline'), {
+    type: 'line',
+    data: {
+      labels: hourLabels,
+      datasets: [{
+        label: 'Events',
+        data: <%= raw @chart_activity.to_json %>,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.07)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 3,
+        pointBackgroundColor: '#2563eb',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { beginAtZero: true, grid: { color: gridColor } }
+      }
+    }
+  });
+
+  <% if @activity_by_type.any? %>
+  // ── Activity by Type (horizontal bar) ────────────────────────
+  new Chart(document.getElementById('activityByType'), {
+    type: 'bar',
+    data: {
+      labels: <%= raw activity_type_labels.map { |t| t.humanize }.to_json %>,
+      datasets: [{
+        data: <%= raw activity_type_counts.to_json %>,
+        backgroundColor: <%= raw activity_type_colors.to_json %>,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, grid: { color: gridColor } }, y: { grid: { display: false } } }
+    }
+  });
+
+  // ── Activity doughnut ─────────────────────────────────────────
+  new Chart(document.getElementById('activityDoughnut'), {
+    type: 'doughnut',
+    data: {
+      labels: <%= raw activity_type_labels.map { |t| t.humanize }.to_json %>,
+      datasets: [{
+        data: <%= raw activity_type_counts.to_json %>,
+        backgroundColor: <%= raw activity_type_colors.to_json %>,
+        borderWidth: 2,
+        borderColor: '#fff',
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 10 } } }
+    }
+  });
+  <% end %>
+
+  // ── Jobs timeline (stacked bar) ───────────────────────────────
+  new Chart(document.getElementById('jobsTimeline'), {
+    type: 'bar',
+    data: {
+      labels: hourLabels,
+      datasets: [
+        {
+          label: 'Succeeded',
+          data: <%= raw @chart_jobs_succ.to_json %>,
+          backgroundColor: 'rgba(22,163,74,0.75)',
+          stack: 'jobs',
+          borderRadius: 3
+        },
+        {
+          label: 'Failed',
+          data: <%= raw @chart_jobs_fail.to_json %>,
+          backgroundColor: 'rgba(220,38,38,0.75)',
+          stack: 'jobs',
+          borderRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true, grid: { color: gridColor } }
+      }
+    }
+  });
+
+  // ── Job health doughnut ───────────────────────────────────────
+  new Chart(document.getElementById('jobDoughnut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Succeeded', 'Failed'],
+      datasets: [{
+        data: [<%= @jobs_succeeded %>, <%= @jobs_failed %>],
+        backgroundColor: ['rgba(22,163,74,0.8)', 'rgba(220,38,38,0.8)'],
+        borderWidth: 2,
+        borderColor: '#fff',
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  <% if @api_stats.any? %>
+  const apiLabels = <%= raw @api_stats.map { |s| s[:service]&.humanize }.to_json %>;
+
+  // ── API success rate ──────────────────────────────────────────
+  new Chart(document.getElementById('apiSuccessChart'), {
+    type: 'bar',
+    data: {
+      labels: apiLabels,
+      datasets: [{
+        data: <%= raw @api_stats.map { |s| s[:success_rate] }.to_json %>,
+        backgroundColor: <%= raw @api_stats.map { |s| s[:success_rate] >= 95 ? 'rgba(22,163,74,0.75)' : s[:success_rate] >= 80 ? 'rgba(217,119,6,0.75)' : 'rgba(220,38,38,0.75)' }.to_json %>,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, max: 100, grid: { color: gridColor } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+
+  // ── API latency ────────────────────────────────────────────────
+  new Chart(document.getElementById('apiLatencyChart'), {
+    type: 'bar',
+    data: {
+      labels: apiLabels,
+      datasets: [{
+        data: <%= raw @api_stats.map { |s| s[:avg_ms].round(0) }.to_json %>,
+        backgroundColor: 'rgba(37,99,235,0.65)',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, grid: { color: gridColor } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+  <% end %>
+</script>

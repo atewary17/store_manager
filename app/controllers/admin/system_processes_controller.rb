@@ -134,21 +134,59 @@ class Admin::SystemProcessesController < Admin::BaseController
                           .group("DATE_TRUNC('hour', run_at)")
                           .select("DATE_TRUNC('hour', run_at) AS run_hour,
                                    COUNT(*) AS total,
-                                   SUM(CASE WHEN match_status = 'matched' THEN 1 ELSE 0 END) AS matched,
+                                   SUM(CASE WHEN match_status IN ('matched','partial') THEN 1 ELSE 0 END) AS matched,
+                                   SUM(CASE WHEN match_status = 'partial' THEN 1 ELSE 0 END) AS partial_count,
                                    SUM(CASE WHEN match_status = 'unmatched' THEN 1 ELSE 0 END) AS unmatched")
                           .order('run_hour DESC')
                           .limit(24)
                           .to_a rescue []
 
       @sync_logs = sync_base.includes(:product, :run_by)
-      @sync_logs = @sync_logs.where(match_status: params[:sync_status]) if params[:sync_status].present?
-      @sync_logs = @sync_logs.where(rule_applied: params[:sync_rule].to_i) if params[:sync_rule].present?
+      @sync_logs = @sync_logs.where(match_status: params[:sync_status])  if params[:sync_status].present?
+      @sync_logs = @sync_logs.where(rule_applied: params[:sync_rule].to_s) if params[:sync_rule].present?
+      @sync_logs = @sync_logs.where(confidence: params[:sync_conf])      if params[:sync_conf].present?
+      if params[:sync_step].present?
+        field_key = case params[:sync_step]
+                    when 'prod_code'  then 'product_line_desc'
+                    when 'shade_code' then 'shade_name'
+                    when 'pack_code'  then 'pack_size_litres'
+                    end
+        @sync_logs = @sync_logs.where('fields_enriched @> ?', [field_key].to_json) if field_key
+      end
+      if params[:sync_q].present?
+        q = "%#{params[:sync_q].strip.downcase}%"
+        @sync_logs = @sync_logs.where(
+          "EXISTS (SELECT 1 FROM products p WHERE p.id = ap_price_list_sync_logs.product_id " \
+          "AND (LOWER(p.description) LIKE :q OR LOWER(COALESCE(p.material_code,'')) LIKE :q " \
+          "OR LOWER(COALESCE(p.shade_code,'')) LIKE :q)) " \
+          "OR LOWER(COALESCE(ap_price_list_sync_logs.notes,'')) LIKE :q",
+          q: q
+        )
+      end
       @sync_logs_total = @sync_logs.count
       @sync_logs_pages = [(@sync_logs_total.to_f / PER_PAGE).ceil, 1].max
       @sync_logs = @sync_logs.order(run_at: :desc)
                              .offset((@page - 1) * PER_PAGE)
                              .limit(PER_PAGE)
     end
+  end
+
+  # POST /admin/system_processes/trigger_price_list_sync
+  def trigger_price_list_sync
+    already_running = GoodJob::Job
+                        .where(job_class: 'ApPriceListSyncJob')
+                        .where(finished_at: nil)
+                        .exists?
+
+    if already_running
+      redirect_to admin_system_processes_path(tab: 'sync'),
+        alert: 'A price list sync job is already running or queued — wait for it to finish.'
+      return
+    end
+
+    ApPriceListSyncJob.perform_later(triggered_by_user_id: current_user.id)
+    redirect_to admin_system_processes_path(tab: 'sync'),
+      notice: 'Price list sync job queued — refresh in a moment to see results.'
   end
 
   # POST /admin/system_processes/send_test_email

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_15_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_17_134649) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
@@ -42,7 +42,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_15_000001) do
   create_table "ap_price_list_sync_logs", force: :cascade do |t|
     t.bigint "product_id", null: false
     t.integer "ap_price_list_row_id"
-    t.integer "rule_applied", null: false
+    t.string "rule_applied", default: "NMPL", null: false
     t.string "match_status", null: false
     t.string "confidence", null: false
     t.jsonb "fields_enriched", default: []
@@ -320,8 +320,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_15_000001) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "status", default: "pending", null: false
+    t.text "file_data"
     t.index ["created_at"], name: "index_price_list_imports_on_created_at"
     t.index ["effective_date"], name: "index_price_list_imports_on_effective_date"
+    t.index ["status"], name: "index_price_list_imports_on_status"
     t.index ["user_id"], name: "index_price_list_imports_on_user_id"
   end
 

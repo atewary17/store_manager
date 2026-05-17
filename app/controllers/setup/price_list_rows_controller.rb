@@ -1,16 +1,14 @@
 # app/controllers/setup/price_list_rows_controller.rb
-require 'roo'
 require 'axlsx'
+require 'base64'
 
 class Setup::PriceListRowsController < Setup::BaseController
 
   before_action :require_super_admin!
   before_action :set_row,    only: [:show, :edit, :update]
-  before_action :set_import, only: [:import_show]
+  before_action :set_import, only: [:import_show, :download_errors]
 
   PER_PAGE = 50
-  # Columns whose leading zeros must be preserved — read as formatted text
-  CODE_HEADERS = %w[prod_code product_code shade_code pack_code].freeze
 
   # ── Index ─────────────────────────────────────────────────────
   def index
@@ -82,42 +80,36 @@ class Setup::PriceListRowsController < Setup::BaseController
       return
     end
 
-    log = PriceListImport.create!(
+    import = PriceListImport.create!(
       user:           current_user,
       file_name:      file.original_filename,
       file_size:      file.size,
-      effective_date: effective_date
+      effective_date: effective_date,
+      status:         'pending',
+      file_data:      Base64.strict_encode64(file.read)
     )
 
-    begin
-      result = process_import(file, effective_date, log)
-      log.update!(
-        total_rows:    result[:total],
-        success_count: result[:created],
-        update_count:  result[:updated],
-        skip_count:    result[:skipped],
-        error_count:   result[:errors].size,
-        error_rows:    result[:errors],
-        completed_at:  Time.current
-      )
+    PriceListImportJob.perform_later(import.id)
 
-      msg = []
-      msg << "#{result[:created]} row#{'s' if result[:created] != 1} added"   if result[:created] > 0
-      msg << "#{result[:updated]} row#{'s' if result[:updated] != 1} updated"  if result[:updated] > 0
-      msg << "#{result[:skipped]} skipped"                                      if result[:skipped] > 0
-      msg << "#{result[:errors].size} error#{'s' if result[:errors].size != 1}" if result[:errors].any?
-
-      redirect_to import_show_setup_price_list_rows_path(log),
-        notice: "Import complete — #{msg.join(', ')}."
-    rescue => e
-      log.update!(error_count: 1, error_rows: [{ 'error' => e.message }], completed_at: Time.current)
-      redirect_to import_setup_price_list_rows_path,
-        alert: "Import failed: #{e.message}"
-    end
+    redirect_to import_show_setup_price_list_rows_path(import),
+      notice: 'Import queued — processing in background. This page will refresh automatically.'
   end
 
   # ── Import show ───────────────────────────────────────────────
   def import_show
+  end
+
+  # ── Download errors ───────────────────────────────────────────
+  def download_errors
+    unless @import.has_errors?
+      redirect_to import_show_setup_price_list_rows_path(@import), alert: 'No errors to download.'
+      return
+    end
+
+    send_data generate_error_xlsx(@import),
+      filename:    "price_list_import_errors_#{@import.id}_#{Date.today}.xlsx",
+      type:        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment'
   end
 
   # ── Export ────────────────────────────────────────────────────
@@ -173,151 +165,28 @@ class Setup::PriceListRowsController < Setup::BaseController
     ]
   end
 
-  # ── Import processing ─────────────────────────────────────────
-  def process_import(file, form_effective_date, _log)
-    tmp = Tempfile.new(['price_list', '.xlsx'])
-    tmp.binmode
-    tmp.write(file.read)
-    tmp.flush
+  # ── Error report XLSX ─────────────────────────────────────────
+  def generate_error_xlsx(import)
+    package = Axlsx::Package.new
+    wb      = package.workbook
+    hdr     = wb.styles.add_style(b: true, sz: 10, bg_color: '1F3864', fg_color: 'FFFFFF')
+    txt     = wb.styles.add_style(format_code: '@', sz: 10)
+    reg     = wb.styles.add_style(sz: 10)
+    err     = wb.styles.add_style(sz: 10, fg_color: 'C00000')
 
-    # Use Roo::Excelx directly so we can call formatted_value for code columns
-    xlsx = Roo::Excelx.new(tmp.path)
-    xlsx.default_sheet = xlsx.sheets.first
-    sheet = xlsx.sheet(0)
-
-    # Normalise header row
-    raw_headers = sheet.row(1)
-    headers     = raw_headers.map { |h| normalise_header(h) }
-
-    # Map header name → 1-indexed column number (needed for formatted_value)
-    col_index = headers.each_with_index.to_h { |h, i| [h, i + 1] }
-
-    # Skip template guide rows (Required/Optional marker rows, description rows)
-    data_start = 2
-    (2..4).each do |r|
-      first = sheet.cell(r, 1).to_s.strip.downcase
-      if first.in?(%w[required optional]) ||
-         first.start_with?('brand', 'for ref', 'must', 'full product', 'human')
-        data_start = r + 1
-      else
-        break
+    wb.add_worksheet(name: 'Import Errors') do |sheet|
+      headers = %w[row product_base_name prod_code shade_code effective_date error]
+      sheet.add_row headers, style: hdr
+      import.error_rows.each do |row|
+        sheet.add_row(
+          headers.map { |h| row[h].to_s },
+          style: [reg, reg, txt, txt, reg, err],
+          types: [nil, nil, :string, :string, nil, nil]
+        )
       end
     end
 
-    # Pre-load all brands into a case-insensitive lookup cache
-    brand_cache = Brand.all.index_by { |b| b.name.downcase.strip }
-
-    created = 0
-    updated = 0
-    skipped = 0
-    errors  = []
-    now     = Time.current
-
-    (data_start..sheet.last_row).each do |row_num|
-      row_values = sheet.row(row_num)
-      next if row_values.all? { |v| v.to_s.strip.blank? }
-
-      # Build base hash from parsed values
-      row_data = headers.zip(row_values).to_h.with_indifferent_access
-
-      # ── Override code columns with formatted_value to preserve leading zeros ──
-      CODE_HEADERS.each do |key|
-        next unless col_index.key?(key)
-        fv = xlsx.formatted_value(row_num, col_index[key]).to_s.strip
-        row_data[key] = fv
-      end
-
-      base_name    = plain_text(row_data[:product_base_name]).presence ||
-                     plain_text(row_data[:product_name]).presence
-      raw_price    = plain_text(row_data[:dealer_price])
-
-      # Skip rows that are clearly header/guide rows or empty
-      next if base_name.blank? || raw_price.blank?
-      next unless raw_price.gsub(/[,\s]/, '').match?(/\A\d[\d.]*\z/)
-
-      dealer_price = raw_price.gsub(',', '').to_f
-
-      # effective_date: prefer per-row column, else form value
-      row_date = plain_text(row_data[:effective_date]).presence
-      eff_date = row_date.present? ? parse_date(row_date) : form_effective_date
-
-      prod_code  = plain_text(row_data[:prod_code]).presence ||
-                   plain_text(row_data[:product_code]).presence
-      shade_code = plain_text(row_data[:shade_code]).presence
-      pack_code  = plain_text(row_data[:pack_code]).presence
-
-      # Brand lookup (case-insensitive, cached)
-      brand_name = plain_text(row_data[:brand])
-      brand      = brand_cache[brand_name.downcase] if brand_name.present?
-
-      # Duplicate check: same base_name + codes + effective_date = update price only
-      existing = PriceListRow.find_by(
-        product_base_name: base_name,
-        prod_code:         prod_code,
-        shade_code:        shade_code,
-        pack_code:         pack_code,
-        effective_date:    eff_date
-      )
-
-      if existing
-        existing.update!(
-          dealer_price:     dealer_price,
-          brand_id:         brand&.id,
-          dpl_group:        plain_text(row_data[:dpl_group]).presence&.to_i || existing.dpl_group,
-          pack_size_litres: parse_decimal(row_data[:pack_size_litres]) || existing.pack_size_litres,
-          shade_name:       plain_text(row_data[:shade_name]).presence || existing.shade_name
-        )
-        updated += 1
-      else
-        PriceListRow.create!(
-          brand_id:          brand&.id,
-          product_base_name: base_name,
-          prod_code:         prod_code,
-          shade_name:        plain_text(row_data[:shade_name]).presence,
-          shade_code:        shade_code,
-          dpl_group:         plain_text(row_data[:dpl_group]).presence&.to_i,
-          pack_size_litres:  parse_decimal(row_data[:pack_size_litres]),
-          pack_code:         pack_code,
-          dealer_price:      dealer_price,
-          effective_date:    eff_date,
-          match_status:      'pending',
-          imported_at:       now
-        )
-        created += 1
-      end
-
-    rescue ActiveRecord::RecordInvalid => e
-      errors << { 'row' => row_num, 'product_base_name' => base_name.to_s,
-                  'prod_code' => prod_code.to_s, 'error' => e.message }
-      skipped += 1
-    end
-
-    { total: created + updated + skipped + errors.size,
-      created: created, updated: updated, skipped: skipped, errors: errors }
-  ensure
-    tmp&.close
-    tmp&.unlink
-  end
-
-  def normalise_header(h)
-    plain_text(h).downcase.gsub(/[^a-z0-9]+/, '_').squeeze('_').delete_suffix('_')
-  end
-
-  # Roo returns rich-text cells as "<html><b>...</b></html>".
-  # Strip all tags and collapse whitespace to recover plain text.
-  def plain_text(val)
-    val.to_s.gsub(/<[^>]+>/, ' ').gsub(/\s+/, ' ').strip
-  end
-
-  def parse_date(str)
-    Date.parse(str.to_s)
-  rescue ArgumentError
-    Date.today
-  end
-
-  def parse_decimal(val)
-    return nil if val.to_s.strip.blank?
-    val.to_s.gsub(',', '').to_f.presence
+    package.to_stream.read
   end
 
   # ── Export XLSX ───────────────────────────────────────────────
@@ -371,7 +240,9 @@ class Setup::PriceListRowsController < Setup::BaseController
           row.effective_date.to_s,
           row.match_status,
           row.matched_product_id
-        ], style: [rs, rs, txt, rs, txt, rs, num, txt, num, rs, st, rs], height: 18)
+        ], style: [rs, rs, txt, rs, txt, rs, num, txt, num, rs, st, rs],
+           types: [nil, nil, :string, nil, :string, nil, nil, :string, nil, nil, nil, nil],
+           height: 18)
       end
 
       sheet.column_widths 18, 40, 12, 20, 14, 10, 14, 12, 14, 14, 14, 16
@@ -445,6 +316,7 @@ class Setup::PriceListRowsController < Setup::BaseController
       example_rows.each do |data|
         sheet.add_row(data,
           style: [ex, ex, txt_ex, ex, txt_ex, num_ex, num_ex, txt_ex, num_ex, ex],
+          types: [nil, nil, :string, nil, :string, nil, nil, :string, nil, nil],
           height: 18)
       end
       sheet.column_widths 18, 46, 12, 22, 14, 10, 16, 12, 14, 16

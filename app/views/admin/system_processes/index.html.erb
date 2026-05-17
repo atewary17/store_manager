@@ -11,12 +11,16 @@
   filter   = params[:filter]
   op       = params[:operation]
   api_st   = params[:api_status]
-  sync_st  = params[:sync_status]
-  sync_rl  = params[:sync_rule]
+  sync_st   = params[:sync_status]
+  sync_rl   = params[:sync_rule]
+  sync_conf = params[:sync_conf]
+  sync_sp   = params[:sync_step]
   tab_url     = ->(t) { admin_system_processes_path(tab: t) }
   jobs_url    = ->(f) { admin_system_processes_path(tab: 'jobs',    filter: f,  page: 1) }
   api_url     = ->(o, s) { admin_system_processes_path(tab: 'api', operation: o, api_status: s, page: 1) }
-  sync_url    = ->(st, rl) { admin_system_processes_path(tab: 'sync', sync_status: st, sync_rule: rl, page: 1) }
+  sync_url      = ->(st, rl) { admin_system_processes_path(tab: 'sync', sync_status: st, sync_rule: rl, sync_conf: sync_conf, sync_step: sync_sp, sync_q: params[:sync_q], page: 1) }
+  sync_conf_url = ->(cf) { admin_system_processes_path(tab: 'sync', sync_status: sync_st, sync_rule: sync_rl, sync_conf: cf, sync_step: sync_sp, sync_q: params[:sync_q], page: 1) }
+  sync_step_url = ->(sp) { admin_system_processes_path(tab: 'sync', sync_status: sync_st, sync_rule: sync_rl, sync_conf: sync_conf, sync_step: sp, sync_q: params[:sync_q], page: 1) }
   al_url      = ->(org, type, sub) { admin_system_processes_path(tab: 'activity', al_org: org, al_type: type, al_subtype: sub, page: 1) }
   sa_url      = ->(org) { admin_system_processes_path(tab: 'sales_activity', sa_org: org, page: 1, date_from: params[:date_from], date_to: params[:date_to]) }
   al_org      = params[:al_org]
@@ -652,44 +656,44 @@
 
         <% [
           {
-            rule: 1,
+            rule: '1',
             label: 'Exact 3-Field Match',
+            color: '#7c3aed',
+            status: 'matched',
+            confidence: 'Highest',
+            fields: 'product_code + pack_code + shade_code',
+            detail: 'All three product columns match a price list row exactly. Case-insensitive fallback handles OCR/capitalisation differences. Most reliable path.',
+            updates: 'All metadata + dealer_price + dpl_group + shade_name + pack_size + is_tinting_base; codes written if blank'
+          },
+          {
+            rule: '2A',
+            label: 'Decoded — Full Row Match',
             color: 'var(--success)',
             status: 'matched',
             confidence: 'High',
-            fields: 'product_code + pack_code + shade_code',
-            detail: 'All three codes match exactly. Case-insensitive fallback handles OCR differences. Safest match — all metadata and codes enriched.',
-            updates: 'All metadata fields + shade_code / product_code / pack_code (if blank)'
+            fields: 'material_code[0..3] + [4..7] + [8..10]',
+            detail: 'Decodes the 11-char material_code into prod_code(4) + shade_code(4) + pack_code(3) and finds a single price list row matching all three. Requires all three decoded fields to exist in one row.',
+            updates: 'All metadata + dealer_price + dpl_group + shade_name + pack_size + is_tinting_base; codes written if blank'
           },
           {
-            rule: 2,
-            label: 'Material Code Decode',
-            color: 'var(--accent)',
-            status: 'matched / partial',
-            confidence: 'High / Medium',
-            fields: '11-digit material_code',
-            detail: 'Splits material_code into product(4) + shade(4) + pack(3). Enriches each field independently. Full row → matched/high. Partial rows → partial/medium.',
-            updates: 'product_line_desc, shade_name, pack_size, dpl_group, dealer_price, price_effective, is_tinting_base'
-          },
-          {
-            rule: 3,
-            label: 'Two-Field Match (No Shade)',
+            rule: '2B',
+            label: 'Decoded — Independent Sub-queries',
             color: 'var(--warning)',
-            status: 'matched / ambiguous',
-            confidence: 'Medium',
-            fields: 'product_code + pack_code',
-            detail: 'Used when product has no shade_code. Single row → matched. Multiple rows for same product+pack → ambiguous (needs admin review). Shade fields intentionally skipped.',
-            updates: 'product_line_desc, pack_size, dpl_group, dealer_price, price_effective — shade_name/shade_code deliberately skipped'
+            status: 'partial',
+            confidence: 'Medium / Low-Medium',
+            fields: 'material_code decoded independently per field',
+            detail: 'Each decoded component (prod_code, shade_code, pack_code) is searched in separate queries. 2+ hits → medium confidence, 1 hit → low_medium. Useful when pack format differs between product and price list.',
+            updates: 'product_line_desc, shade_name, pack_size_litres, pack_size_desc, is_tinting_base; codes written if blank'
           },
           {
-            rule: 4,
-            label: 'No Match',
+            rule: 'NMPL',
+            label: 'No Match with Price List',
             color: 'var(--danger)',
-            status: 'unmatched',
+            status: 'nmpl',
             confidence: 'None',
             fields: '—',
-            detail: 'No rule produced a match. Log records exactly which rules were skipped and why (missing codes, wrong material_code length, etc.).',
-            updates: 'Nothing written to product. Log notes explain the gap.'
+            detail: 'No rule produced a match. Log notes explain exactly why — missing codes, material_code not 11 alphanumeric chars, no matching rows in current effective-date scope, etc.',
+            updates: 'Nothing written to product. Review notes column for the reason.'
           }
         ].each do |r| %>
           <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
@@ -718,6 +722,35 @@
 
       </div>
     </details>
+
+    <%# Trigger button + last run info %>
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                margin-bottom:16px;padding:12px 16px;background:var(--surface);
+                border:1px solid var(--border);border-radius:8px">
+      <div style="font-size:12px;color:var(--text-dim)">
+        <% last_run = @sync_run_stats.first %>
+        <% if last_run %>
+          Last run: <span style="font-family:var(--mono);color:var(--text)">
+            <%= last_run.run_hour.strftime('%d %b %Y, %H:%M') %>
+          </span>
+          &nbsp;·&nbsp;
+          <span style="color:var(--success)"><%= last_run.matched %> matched/partial</span>
+          &nbsp;/&nbsp;
+          <span style="color:var(--danger)"><%= last_run.unmatched %> unmatched</span>
+          &nbsp;/&nbsp;
+          <span><%= last_run.total %> total</span>
+        <% else %>
+          No sync runs yet in the selected date range.
+        <% end %>
+      </div>
+      <%= button_to admin_system_processes_trigger_price_list_sync_path,
+            method: :post,
+            class: 'btn btn-primary btn-sm',
+            data: { confirm: 'Queue the AP price list sync job now?' },
+            form: { style: 'display:inline' } do %>
+        ▶ Run Sync Now
+      <% end %>
+    </div>
 
     <%# Summary stat cards %>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px">
@@ -750,8 +783,8 @@
             <thead>
               <tr>
                 <th>Run Hour</th>
-                <th style="text-align:right">Products Processed</th>
-                <th style="text-align:right">Matched</th>
+                <th style="text-align:right">Processed</th>
+                <th style="text-align:right">Matched + Partial</th>
                 <th style="text-align:right">Unmatched</th>
                 <th style="text-align:right">Match Rate</th>
               </tr>
@@ -759,17 +792,24 @@
             <tbody>
               <% @sync_run_stats.each do |r| %>
                 <%
-                  total    = r.total.to_i
-                  matched  = r.matched.to_i
+                  total     = r.total.to_i
+                  matched   = r.matched.to_i
+                  partial   = r.respond_to?(:partial_count) ? r.partial_count.to_i : 0
                   unmatched = r.unmatched.to_i
-                  pct      = total > 0 ? (matched.to_f / total * 100).round : 0
+                  pct       = total > 0 ? (matched.to_f / total * 100).round : 0
                 %>
                 <tr>
                   <td style="font-family:var(--mono);font-size:11px">
                     <%= r.run_hour.strftime('%d %b %Y %H:%M') %>
                   </td>
                   <td style="text-align:right;font-family:var(--mono)"><%= total %></td>
-                  <td style="text-align:right;font-family:var(--mono);color:var(--success)"><%= matched %></td>
+                  <td style="text-align:right;font-family:var(--mono)">
+                    <span style="color:var(--success)"><%= matched - partial %></span>
+                    <% if partial > 0 %>
+                      <span style="color:var(--text-dim)"> + </span>
+                      <span style="color:var(--accent)"><%= partial %></span>
+                    <% end %>
+                  </td>
                   <td style="text-align:right;font-family:var(--mono);color:<%= unmatched > 0 ? 'var(--danger)' : 'var(--text-dim)' %>">
                     <%= unmatched %>
                   </td>
@@ -791,31 +831,114 @@
       </div>
     <% end %>
 
-    <%# Filters %>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-      <span style="font-size:11px;color:var(--text-dim);font-weight:600">Status:</span>
-      <% { nil => 'All', 'matched' => 'Matched', 'partial' => 'Partial',
-           'ambiguous' => 'Ambiguous', 'unmatched' => 'Unmatched',
-           'already_matched' => 'Already Matched',
-           'save_failed' => 'Save Failed' }.each do |s, lbl| %>
-        <%= link_to lbl, sync_url.call(s, sync_rl),
-              style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;font-weight:600;
-                      background:#{sync_st == s.to_s ? 'var(--accent)' : 'var(--surface)'};
-                      color:#{sync_st == s.to_s ? '#fff' : 'var(--text-dim)'};
-                      border:1px solid #{sync_st == s.to_s ? 'var(--accent)' : 'var(--border)'}" %>
+    <%# Search + Filters %>
+    <%= form_with url: admin_system_processes_path, method: :get, local: true,
+          style: 'display:flex;gap:8px;align-items:center;margin-bottom:12px' do |f| %>
+      <%= f.hidden_field :tab,         value: 'sync' %>
+      <%= f.hidden_field :sync_status, value: sync_st %>
+      <%= f.hidden_field :sync_rule,   value: sync_rl %>
+      <%= f.hidden_field :sync_conf,   value: sync_conf %>
+      <%= f.hidden_field :sync_step,   value: sync_sp %>
+      <%= f.hidden_field :date_from,   value: params[:date_from] %>
+      <%= f.hidden_field :date_to,     value: params[:date_to] %>
+      <%= f.hidden_field :page,        value: 1 %>
+      <div style="position:relative;flex:1;max-width:380px">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
+             viewBox="0 0 24 24"
+             style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
+                    color:var(--text-dim);pointer-events:none">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <%= f.text_field :sync_q, value: params[:sync_q],
+              placeholder: 'Search product, material code, shade, notes…',
+              style: 'width:100%;padding:7px 10px 7px 30px;background:var(--surface);
+                      border:1px solid var(--border);border-radius:7px;font-size:12px;
+                      color:var(--text);outline:none;box-sizing:border-box' %>
+      </div>
+      <%= f.submit 'Search', class: 'btn btn-secondary btn-sm' %>
+      <% if params[:sync_q].present? %>
+        <%= link_to 'Clear',
+              admin_system_processes_path(tab: 'sync', sync_status: sync_st,
+                sync_rule: sync_rl, sync_conf: sync_conf, sync_step: sync_sp,
+                date_from: params[:date_from], date_to: params[:date_to]),
+              class: 'btn btn-secondary btn-sm',
+              style: 'color:var(--danger);border-color:var(--danger)' %>
       <% end %>
-      <span style="color:var(--border)">|</span>
-      <span style="font-size:11px;color:var(--text-dim);font-weight:600">Rule:</span>
-      <% { nil => 'All', '1' => 'Rule 1', '2' => 'Rule 2', '3' => 'Rule 3', '4' => 'Rule 4' }.each do |r, lbl| %>
-        <%= link_to lbl, sync_url.call(sync_st, r),
-              style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;font-weight:600;
-                      background:#{sync_rl == r.to_s ? 'var(--accent)' : 'var(--surface)'};
-                      color:#{sync_rl == r.to_s ? '#fff' : 'var(--text-dim)'};
-                      border:1px solid #{sync_rl == r.to_s ? 'var(--accent)' : 'var(--border)'}" %>
-      <% end %>
-      <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">
-        <%= @sync_logs_total %> log<%= @sync_logs_total == 1 ? '' : 's' %>
-      </span>
+    <% end %>
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+      <%# Row 1: Status + Rule %>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:11px;color:var(--text-dim);font-weight:600;min-width:46px">Status:</span>
+        <% { nil => 'All', 'matched' => 'Matched', 'partial' => 'Partial',
+             'unmatched' => 'Unmatched', 'already_matched' => 'Already Matched',
+             'save_failed' => 'Save Failed' }.each do |s, lbl| %>
+          <%= link_to lbl, sync_url.call(s, sync_rl),
+                style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;font-weight:600;
+                        background:#{sync_st == s.to_s ? 'var(--accent)' : 'var(--surface)'};
+                        color:#{sync_st == s.to_s ? '#fff' : 'var(--text-dim)'};
+                        border:1px solid #{sync_st == s.to_s ? 'var(--accent)' : 'var(--border)'}" %>
+        <% end %>
+        <span style="color:var(--border)">|</span>
+        <span style="font-size:11px;color:var(--text-dim);font-weight:600">Rule:</span>
+        <% { nil => 'All', '1' => 'R1', '2A' => 'R2A', '2B' => 'R2B', 'NMPL' => 'NMPL', 'SKIP' => 'Skip' }.each do |r, lbl| %>
+          <%= link_to lbl, sync_url.call(sync_st, r),
+                style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;font-weight:600;
+                        background:#{sync_rl == r.to_s ? 'var(--accent)' : 'var(--surface)'};
+                        color:#{sync_rl == r.to_s ? '#fff' : 'var(--text-dim)'};
+                        border:1px solid #{sync_rl == r.to_s ? 'var(--accent)' : 'var(--border)'}" %>
+        <% end %>
+      </div>
+
+      <%# Row 2: Confidence %>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:11px;color:var(--text-dim);font-weight:600;min-width:46px">Conf:</span>
+        <%
+          conf_pills = {
+            nil          => ['All',        'var(--text-dim)'],
+            'highest'    => ['Highest',    '#7c3aed'],
+            'high'       => ['High',       'var(--success)'],
+            'medium'     => ['Medium',     'var(--warning)'],
+            'low_medium' => ['Low-Medium', '#ea580c'],
+            'none'       => ['None',       'var(--text-dim)'],
+          }
+        %>
+        <% conf_pills.each do |cf, (lbl, color)| %>
+          <% active = sync_conf == cf.to_s %>
+          <%= link_to lbl, sync_conf_url.call(cf),
+                style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;font-weight:600;
+                        background:#{active ? color : 'var(--surface)'};
+                        color:#{active ? '#fff' : color};
+                        border:1px solid #{active ? color : 'var(--border)'}" %>
+        <% end %>
+        <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">
+          <%= @sync_logs_total %> log<%= @sync_logs_total == 1 ? '' : 's' %>
+          <% if params[:sync_q].present? %>
+            <span style="color:var(--accent)"> for "<%= h(params[:sync_q]) %>"</span>
+          <% end %>
+        </span>
+      </div>
+
+      <%# Row 3: Step matched %>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:11px;color:var(--text-dim);font-weight:600;min-width:46px">Step:</span>
+        <%
+          step_pills = {
+            nil          => ['All Steps',  'var(--text-dim)'],
+            'prod_code'  => ['Prod Code',  'var(--accent)'],
+            'shade_code' => ['Shade Code', '#7c3aed'],
+            'pack_code'  => ['Pack Code',  '#ea580c'],
+          }
+        %>
+        <% step_pills.each do |sp, (lbl, color)| %>
+          <% active = sync_sp == sp.to_s %>
+          <%= link_to lbl, sync_step_url.call(sp),
+                style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;font-weight:600;
+                        background:#{active ? color : 'var(--surface)'};
+                        color:#{active ? '#fff' : color};
+                        border:1px solid #{active ? color : 'var(--border)'}" %>
+        <% end %>
+      </div>
     </div>
 
     <%# Log detail table %>
@@ -846,16 +969,20 @@
                            when 'partial'         then 'var(--accent)'
                            when 'already_matched' then 'var(--text-dim)'
                            when 'ambiguous'       then 'var(--warning)'
-                           when 'unmatched'       then 'var(--danger)'
+                           when 'unmatched', 'nmpl' then 'var(--danger)'
                            when 'save_failed'     then '#f97316'
                            else                        'var(--text-dim)'
                            end
                 conf_color = case log.confidence
-                             when 'high'   then 'var(--success)'
-                             when 'medium' then 'var(--warning)'
-                             when 'low'    then 'var(--danger)'
-                             else               'var(--text-dim)'
+                             when 'highest'    then '#7c3aed'
+                             when 'high'       then 'var(--success)'
+                             when 'medium'     then 'var(--warning)'
+                             when 'low_medium' then '#ea580c'
+                             when 'low'        then 'var(--danger)'
+                             else                   'var(--text-dim)'
                              end
+                rule_label = %w[1 2A 2B].include?(log.rule_applied.to_s) ?
+                               "R#{log.rule_applied}" : log.rule_applied.to_s
               %>
               <tr>
                 <td>
@@ -878,7 +1005,7 @@
                   <span style="font-size:11px;font-weight:700;font-family:var(--mono);
                                background:var(--bg);border:1px solid var(--border);
                                border-radius:4px;padding:2px 7px">
-                    R<%= log.rule_applied %>
+                    <%= rule_label %>
                   </span>
                 </td>
                 <td>
@@ -926,8 +1053,17 @@
                         <% end %>
                       </div>
                     </details>
+                    <% if note.present? %>
+                      <div style="margin-top:4px;font-size:9px;color:var(--text-dim)"
+                           title="<%= h(note) %>">
+                        <%= note.truncate(50) %>
+                      </div>
+                    <% end %>
                   <% elsif note.present? %>
-                    <span style="font-size:10px;color:var(--text-dim)"><%= note.truncate(60) %></span>
+                    <span style="font-size:10px;color:var(--text-dim);cursor:default"
+                          title="<%= h(note) %>">
+                      <%= note.truncate(60) %>
+                    </span>
                   <% else %>
                     <span style="color:var(--text-dim)">—</span>
                   <% end %>
@@ -936,7 +1072,7 @@
                   <%= log.run_at.strftime('%d %b %H:%M') %>
                 </td>
                 <td style="font-size:11px;color:var(--text-dim)">
-                  <%= log.run_by&.email&.truncate(20) || 'scheduled' %>
+                  <%= log.run_by&.full_name&.truncate(22) || 'scheduled' %>
                 </td>
               </tr>
             <% end %>
@@ -947,16 +1083,53 @@
 
     <%# Pagination %>
     <% if @sync_logs_pages.to_i > 1 %>
-      <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px">
-        <% if @page > 1 %>
-          <%= link_to '← Prev', sync_url.call(sync_st, sync_rl) + "&page=#{@page - 1}",
-                class: 'btn btn-secondary btn-sm' %>
-        <% end %>
-        <span style="font-size:12px;color:var(--text-dim)">Page <%= @page %> of <%= @sync_logs_pages %></span>
-        <% if @page < @sync_logs_pages %>
-          <%= link_to 'Next →', sync_url.call(sync_st, sync_rl) + "&page=#{@page + 1}",
-                class: 'btn btn-secondary btn-sm' %>
-        <% end %>
+      <%
+        sync_pg = ->(p) { admin_system_processes_path(tab: 'sync', sync_status: sync_st,
+                            sync_rule: sync_rl, sync_conf: sync_conf, sync_step: sync_sp,
+                            sync_q: params[:sync_q],
+                            date_from: params[:date_from], date_to: params[:date_to], page: p) }
+        last_p   = @sync_logs_pages
+        range_lo = [@page - 2, 1].max
+        range_hi = [@page + 2, last_p].min
+        pg_btn   = ->(lbl, p, active: false) {
+          style = active \
+            ? "padding:5px 10px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border-radius:6px;border:1px solid var(--accent);text-decoration:none" \
+            : "padding:5px 10px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);text-decoration:none"
+          link_to lbl, sync_pg.call(p), style: style
+        }
+      %>
+      <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <span style="font-size:12px;color:var(--text-dim)">
+          <%= @sync_logs_total %> log<%= @sync_logs_total == 1 ? '' : 's' %> total
+        </span>
+
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          <%= pg_btn.call('←', @page - 1) if @page > 1 %>
+
+          <% if range_lo > 1 %>
+            <%= pg_btn.call('1', 1) %>
+            <% if range_lo > 2 %>
+              <span style="padding:5px 2px;font-size:12px;color:var(--text-dim)">…</span>
+            <% end %>
+          <% end %>
+
+          <% (range_lo..range_hi).each do |p| %>
+            <%= pg_btn.call(p.to_s, p, active: p == @page) %>
+          <% end %>
+
+          <% if range_hi < last_p %>
+            <% if range_hi < last_p - 1 %>
+              <span style="padding:5px 2px;font-size:12px;color:var(--text-dim)">…</span>
+            <% end %>
+            <%= pg_btn.call(last_p.to_s, last_p) %>
+          <% end %>
+
+          <%= pg_btn.call('→', @page + 1) if @page < last_p %>
+        </div>
+
+        <span style="font-size:12px;color:var(--text-dim)">
+          Page <strong style="color:var(--text)"><%= @page %></strong> of <%= last_p %>
+        </span>
       </div>
     <% end %>
 
