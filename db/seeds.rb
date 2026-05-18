@@ -146,58 +146,8 @@ puts "  UOMs          : #{Uom.count} total"
 # PRODUCT CATEGORIES
 # ══════════════════════════════════════════════════════════════════════════════
 category_data = [
-  # ── Fallback ──────────────────────────────────────────────────────────────
-  { name: "Others",               description: "Uncategorised or unclassified products",                                     is_paint_type: false },
-
-  # ── Paints & Coatings ─────────────────────────────────────────────────────
-  { name: "Paints",               description: "All types of paint products — enamel, emulsion, primer, distemper",          is_paint_type: true  },
-  { name: "Exterior Paints",      description: "Weather-resistant exterior wall paints and coatings",                        is_paint_type: true  },
-  { name: "Interior Paints",      description: "Interior wall paints — emulsion, distemper, texture",                        is_paint_type: true  },
-  { name: "Enamel Paints",        description: "Glossy enamel paints for metal, wood, and surfaces",                         is_paint_type: true  },
-  { name: "Primers",              description: "Primers and undercoats for walls, wood, and metal",                           is_paint_type: true  },
-  { name: "Wood Finishes",        description: "Varnishes, wood stains, lacquers, and sealers",                               is_paint_type: true  },
-  { name: "Metal Coatings",       description: "Anti-rust, galvanising, and metal protective coatings",                      is_paint_type: true  },
-  { name: "Waterproofing",        description: "Waterproofing compounds, sealants, and solutions",                           is_paint_type: false },
-  { name: "Texture Finishes",     description: "Textured wall finishes and decorative coatings",                              is_paint_type: true  },
-  { name: "Putty & Filler",       description: "Wall putty, crack filler, and surface preparation compounds",                is_paint_type: false },
-  { name: "Distemper",            description: "Dry and oil-bound distemper products",                                        is_paint_type: true  },
-  { name: "Thinners & Solvents",  description: "Paint thinners, turpentine, and cleaning solvents",                          is_paint_type: false },
-  { name: "Painting Accessories", description: "Brushes, rollers, masking tape, mixing tools, and other painting aids",     is_paint_type: false },
-
-  # ── Hardware & Fasteners ──────────────────────────────────────────────────
-  { name: "Hardware",             description: "General hardware items — fasteners, fittings, fixtures",                    is_paint_type: false },
-  { name: "Fasteners",            description: "Screws, nails, bolts, nuts, washers, and rivets",                           is_paint_type: false },
-  { name: "Locks & Hinges",       description: "Door locks, padlocks, hinges, door closers, and security fittings",        is_paint_type: false },
-  { name: "Handles & Knobs",      description: "Door handles, cabinet knobs, drawer pulls",                                 is_paint_type: false },
-
-  # ── Plumbing & Sanitary ───────────────────────────────────────────────────
-  { name: "Plumbing",             description: "Pipes, fittings, taps, valves, and plumbing accessories",                   is_paint_type: false },
-  { name: "Sanitary Ware",        description: "Bathroom fittings — basins, commodes, showers, and accessories",           is_paint_type: false },
-
-  # ── Electrical ────────────────────────────────────────────────────────────
-  { name: "Electrical",           description: "Wires, switches, sockets, MCBs, and electrical accessories",                is_paint_type: false },
-
-  # ── Adhesives & Sealants ──────────────────────────────────────────────────
-  { name: "Adhesives & Sealants", description: "Adhesives, construction chemicals, silicone sealants, and bonding agents", is_paint_type: false },
-
-  # ── Flooring & Tiles ──────────────────────────────────────────────────────
-  { name: "Flooring",             description: "Floor tiles, laminates, vinyl, and flooring accessories",                   is_paint_type: false },
-  { name: "Tiles",                description: "Wall and floor tiles — ceramic, vitrified, mosaic",                         is_paint_type: false },
-
-  # ── Tools ─────────────────────────────────────────────────────────────────
-  { name: "Hand Tools",           description: "Hammers, screwdrivers, wrenches, pliers, and manual tools",                 is_paint_type: false },
-  { name: "Power Tools",          description: "Drills, grinders, sanders, and power tool accessories",                    is_paint_type: false },
-  { name: "Safety Equipment",     description: "Helmets, gloves, goggles, safety harnesses, and PPE",                      is_paint_type: false },
-
-  # ── Construction Materials ────────────────────────────────────────────────
-  { name: "Cement & Concrete",    description: "Cement, concrete mix, ready-mix, and construction compounds",              is_paint_type: false },
-  { name: "Steel & Iron",         description: "TMT bars, steel sections, pipes, and ferrous materials",                   is_paint_type: false },
-  { name: "Timber & Boards",      description: "Plywood, MDF, hardboard, timber, and wood panels",                        is_paint_type: false },
-  { name: "Glass & Mirrors",      description: "Float glass, toughened glass, mirrors, and glazing accessories",           is_paint_type: false },
-
-  # ── Stationery & Packaging ────────────────────────────────────────────────
-  { name: "Stationery",           description: "Stationery, office supplies, and printed material",                         is_paint_type: false },
-  { name: "Packaging Material",   description: "Cartons, wrapping, bubble wrap, and packing supplies",                     is_paint_type: false },
+  { name: "Paints", description: "All paint and coating products — enamel, emulsion, primer, distemper, texture", is_paint_type: true  },
+  { name: "Others", description: "Uncategorised or non-paint products",                                            is_paint_type: false },
 ]
 
 category_data.each do |d|
@@ -219,59 +169,10 @@ puts "  Categories    : #{ProductCategory.count} total"
 # BRANDS
 # ══════════════════════════════════════════════════════════════════════════════
 brand_data = [
-  # ── Fallback ──────────────────────────────────────────────────────────────
-  { name: "Others",             short_name: "OTH", aliases: %w[other others misc unknown unbranded generic] },
-
-  # ── Paints ────────────────────────────────────────────────────────────────
-  { name: "Asian Paints",       short_name: "AP",  aliases: %w[asian ap asian-paints asianpaints a.p. ap-ltd] },
-  { name: "Berger Paints",      short_name: "BRG", aliases: %w[berger brg bergerpaint bergerpaints berger-paints] },
-  { name: "Nerolac",            short_name: "NRL", aliases: %w[nerolac nrl kansai kansai-nerolac goodlass] },
-  { name: "Dulux",              short_name: "DLX", aliases: %w[dulux dlx akzo akzo-nobel ici paints] },
-  { name: "Indigo Paints",      short_name: "IND", aliases: %w[indigo ind indigo-paints indigopaints] },
-  { name: "Shalimar Paints",    short_name: "SHL", aliases: %w[shalimar shl shalimar-paints] },
-  { name: "Nippon Paint",       short_name: "NIP", aliases: %w[nippon nip nippon-paint nipponpaint] },
-  { name: "JSW Paints",         short_name: "JSW", aliases: %w[jsw jsw-paints jswpaints] },
-
-  # ── Hardware & Tools ──────────────────────────────────────────────────────
-  { name: "Stanley",            short_name: "STN", aliases: %w[stanley stn stanley-tools] },
-  { name: "Taparia",            short_name: "TAP", aliases: %w[taparia tap] },
-  { name: "Bosch",              short_name: "BSH", aliases: %w[bosch bsh] },
-  { name: "Makita",             short_name: "MKT", aliases: %w[makita mkt] },
-  { name: "Black & Decker",     short_name: "BND", aliases: %w[black-decker blackdecker b-and-d] },
-  { name: "Dewalt",             short_name: "DWT", aliases: %w[dewalt dwt de-walt] },
-
-  # ── Fasteners & Fittings ──────────────────────────────────────────────────
-  { name: "Hettich",            short_name: "HTT", aliases: %w[hettich htt] },
-  { name: "Dorset",             short_name: "DRS", aliases: %w[dorset drs] },
-  { name: "Hafele",             short_name: "HFL", aliases: %w[hafele hfl hafele] },
-  { name: "Godrej",             short_name: "GDJ", aliases: %w[godrej gdj] },
-  { name: "Yale",               short_name: "YLE", aliases: %w[yale yle] },
-
-  # ── Plumbing ──────────────────────────────────────────────────────────────
-  { name: "Astral Pipes",       short_name: "AST", aliases: %w[astral ast astral-pipes astralpipes] },
-  { name: "Finolex",            short_name: "FNX", aliases: %w[finolex fnx] },
-  { name: "Supreme Industries", short_name: "SUP", aliases: %w[supreme sup supreme-ind] },
-  { name: "Prince Pipes",       short_name: "PRP", aliases: %w[prince prp prince-pipes] },
-  { name: "Jaguar",             short_name: "JAG", aliases: %w[jaguar jag] },
-  { name: "Jaquar",             short_name: "JQR", aliases: %w[jaquar jqr] },
-  { name: "Cera",               short_name: "CRA", aliases: %w[cera cra] },
-  { name: "Hindware",           short_name: "HNW", aliases: %w[hindware hnw hind-ware] },
-
-  # ── Electrical ────────────────────────────────────────────────────────────
-  { name: "Havells",            short_name: "HVL", aliases: %w[havells hvl] },
-  { name: "Polycab",            short_name: "PLY", aliases: %w[polycab ply] },
-  { name: "Finolex Cables",     short_name: "FNC", aliases: %w[finolex-cables fnc finolex-cable] },
-  { name: "Legrand",            short_name: "LGR", aliases: %w[legrand lgr] },
-  { name: "Schneider",          short_name: "SCH", aliases: %w[schneider sch schneider-electric] },
-  { name: "Anchor",             short_name: "ANC", aliases: %w[anchor anc anchor-electricals] },
-
-  # ── Adhesives & Construction Chemicals ────────────────────────────────────
-  { name: "Pidilite",           short_name: "PDL", aliases: %w[pidilite pdl fevicol fevicryl dr-fixit] },
-  { name: "Fevicol",            short_name: "FVC", aliases: %w[fevicol fvc pidilite-fevicol] },
-  { name: "Dr. Fixit",          short_name: "DRF", aliases: %w[drfixit dr-fixit drf] },
-  { name: "Ultratech",          short_name: "UTC", aliases: %w[ultratech utc ultratech-cement] },
-  { name: "ACC",                short_name: "ACC", aliases: %w[acc a-c-c acc-cement] },
-  { name: "Ambuja Cement",      short_name: "AMB", aliases: %w[ambuja amb ambuja-cement] },
+  { name: "Asian Paints",   short_name: "AP",  aliases: %w[asian ap asian-paints asianpaints a.p.] },
+  { name: "Shalimar Paints", short_name: "SHL", aliases: %w[shalimar shl shalimar-paints salimar] },
+  { name: "Duke Paints",    short_name: "DUK", aliases: %w[duke duk duke-paints] },
+  { name: "Others",         short_name: "OTH", aliases: %w[other others misc unknown unbranded generic] },
 ]
 
 brand_data.each do |d|

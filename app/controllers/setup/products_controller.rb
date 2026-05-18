@@ -12,6 +12,7 @@ class Setup::ProductsController < Setup::BaseController
 
     @products = base.includes(:product_category, :base_uom, :brand).order('products.id ASC')
 
+    @products = @products.search(params[:q])                  if params[:q].present?
     @products = @products.for_category(params[:category_id]) if params[:category_id].present?
     @products = @products.for_brand(params[:brand_id])       if params[:brand_id].present?
 

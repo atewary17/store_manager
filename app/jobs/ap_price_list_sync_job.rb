@@ -17,6 +17,10 @@ class ApPriceListSyncJob < ApplicationJob
 
   retry_on StandardError, wait: 5.minutes, attempts: 2
 
+  AP_PACK_CODES = JSON.parse(
+    File.read(Rails.root.join('config/asian_paints_pack_codes.json'))
+  ).freeze
+
   def perform(import_batch_id: nil, triggered_by_user_id: nil)
     @triggered_by_user_id = triggered_by_user_id
     @run_at               = Time.current
@@ -224,32 +228,33 @@ class ApPriceListSyncJob < ApplicationJob
       end
     end
 
-    # Step C — pack_size from pack_code match
-    row_c = @row_scope.where(pack_code: dk)
-                      .where.not(pack_size_litres: nil)
-                      .order(effective_date: :desc).first
-    if row_c
-      meta['pack_size_litres'] = row_c.pack_size_litres
-      meta['pack_size_desc']   = format_pack_size(row_c.pack_size_litres)
+    # Step C — pack_size from AP pack code lookup table
+    pack_info = AP_PACK_CODES[dk]
+    if pack_info
+      meta['pack_size_litres']    = pack_info['pack_size_litres']
+      meta['pack_size_desc']      = pack_info['pack_size_desc']
+      meta['is_tinting_base']   ||= pack_info['is_tinting_base']
+      meta['tinting_base_group']  = pack_info['tinting_base_group'] if pack_info['tinting_base_group']
       enriched << 'pack_size_litres'
       enriched << 'pack_size_desc'
       product.pack_code = dk if product.pack_code.blank?
     end
 
-    matched_steps = [row_a, row_b, row_c].count(&:present?)
+    matched_steps = [row_a.present?, row_b.present?, pack_info.present?].count(true)
     return nil if matched_steps == 0
 
     confidence = matched_steps >= 2 ? 'medium' : 'low_medium'
+    best_row   = row_a || row_b
 
     meta['enriched_description'] = build_enriched_description(product, meta)
     meta.merge!(price_list_audit_fields(rule: '2B', confidence: confidence,
-                                        status: 'partial', row: row_a || row_b || row_c))
+                                        status: 'partial', row: best_row))
     product.metadata = meta
     saved = save_product(product, skipped)
 
     write_log(
       product:    product,
-      row:        row_a || row_b || row_c,
+      row:        best_row,
       rule:       '2B',
       status:     saved ? 'partial' : 'save_failed',
       confidence: confidence,
@@ -258,7 +263,7 @@ class ApPriceListSyncJob < ApplicationJob
       details:    { decoded_product_code: dp, decoded_shade_code: ds,
                     decoded_pack_code: dk, material_code: product.material_code,
                     steps_matched: matched_steps,
-                    step_a: row_a.present?, step_b: row_b.present?, step_c: row_c.present? }
+                    step_a: row_a.present?, step_b: row_b.present?, step_c: pack_info.present? }
     )
     saved ? :partial : :save_failed
   end

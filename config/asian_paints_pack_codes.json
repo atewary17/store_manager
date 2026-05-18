@@ -1,0 +1,302 @@
+{
+  "050": {
+    "pack_size_litres": 0.050,
+    "pack_size_ml": 50,
+    "pack_size_desc": "50ml",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Trial/sample size"
+  },
+  "110": {
+    "pack_size_litres": 0.100,
+    "pack_size_ml": 100,
+    "pack_size_desc": "100ml",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Small touch-up"
+  },
+  "120": {
+    "pack_size_litres": 0.200,
+    "pack_size_ml": 200,
+    "pack_size_desc": "200ml",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Small coverage"
+  },
+  "150": {
+    "pack_size_litres": 0.500,
+    "pack_size_ml": 500,
+    "pack_size_desc": "500ml",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Half litre standard"
+  },
+  "210": {
+    "pack_size_litres": 1.000,
+    "pack_size_ml": 1000,
+    "pack_size_desc": "1 Litre",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Most popular size"
+  },
+  "240": {
+    "pack_size_litres": 4.000,
+    "pack_size_ml": 4000,
+    "pack_size_desc": "4 Litres",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Standard large"
+  },
+  "310": {
+    "pack_size_litres": 10.000,
+    "pack_size_ml": 10000,
+    "pack_size_desc": "10 Litres",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Bulk size"
+  },
+  "320": {
+    "pack_size_litres": 20.000,
+    "pack_size_ml": 20000,
+    "pack_size_desc": "20 Litres",
+    "category": "standard",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": true,
+    "typical_use": "Contractor size"
+  },
+  "079": {
+    "pack_size_litres": 0.495,
+    "pack_size_ml": 495,
+    "pack_size_desc": "495ml (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB1/EB6"
+  },
+  "080": {
+    "pack_size_litres": 0.990,
+    "pack_size_ml": 990,
+    "pack_size_desc": "990ml (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB1/EB6"
+  },
+  "081": {
+    "pack_size_litres": 3.960,
+    "pack_size_ml": 3960,
+    "pack_size_desc": "3.96L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB1/EB6"
+  },
+  "082": {
+    "pack_size_litres": 9.900,
+    "pack_size_ml": 9900,
+    "pack_size_desc": "9.9L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB1/EB6"
+  },
+  "083": {
+    "pack_size_litres": 19.800,
+    "pack_size_ml": 19800,
+    "pack_size_desc": "19.8L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB1/EB6"
+  },
+  "153": {
+    "pack_size_litres": 0.475,
+    "pack_size_ml": 475,
+    "pack_size_desc": "475ml (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB10/EB15"
+  },
+  "213": {
+    "pack_size_litres": 0.950,
+    "pack_size_ml": 950,
+    "pack_size_desc": "950ml (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB10/EB15"
+  },
+  "242": {
+    "pack_size_litres": 3.800,
+    "pack_size_ml": 3800,
+    "pack_size_desc": "3.8L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB10/EB15"
+  },
+  "312": {
+    "pack_size_litres": 9.500,
+    "pack_size_ml": 9500,
+    "pack_size_desc": "9.5L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB10/EB15"
+  },
+  "328": {
+    "pack_size_litres": 19.000,
+    "pack_size_ml": 19000,
+    "pack_size_desc": "19L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB10/EB15"
+  },
+  "043": {
+    "pack_size_litres": 0.483,
+    "pack_size_ml": 483,
+    "pack_size_desc": "483ml (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB9"
+  },
+  "044": {
+    "pack_size_litres": 0.965,
+    "pack_size_ml": 965,
+    "pack_size_desc": "965ml (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB9"
+  },
+  "045": {
+    "pack_size_litres": 3.860,
+    "pack_size_ml": 3860,
+    "pack_size_desc": "3.86L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB9"
+  },
+  "046": {
+    "pack_size_litres": 9.650,
+    "pack_size_ml": 9650,
+    "pack_size_desc": "9.65L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB9"
+  },
+  "047": {
+    "pack_size_litres": 19.300,
+    "pack_size_ml": 19300,
+    "pack_size_desc": "19.3L (Tinting Base)",
+    "category": "tinting_base",
+    "is_tinting_base": true,
+    "is_round_size": false,
+    "common": false,
+    "tinting_base_group": "EB9"
+  },
+  "000": {
+    "pack_size_litres": 0.008,
+    "pack_size_ml": 8,
+    "pack_size_desc": "8ml",
+    "category": "sample",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": false,
+    "typical_use": "Colour chip sample"
+  },
+  "003": {
+    "pack_size_litres": 0.010,
+    "pack_size_ml": 10,
+    "pack_size_desc": "10ml",
+    "category": "sample",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": false,
+    "typical_use": "Tiny sample"
+  },
+  "004": {
+    "pack_size_litres": 0.012,
+    "pack_size_ml": 12,
+    "pack_size_desc": "12ml",
+    "category": "sample",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": false,
+    "typical_use": "Sample"
+  },
+  "350": {
+    "pack_size_litres": 25.000,
+    "pack_size_ml": 25000,
+    "pack_size_desc": "25 Litres",
+    "category": "bulk",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": false,
+    "typical_use": "Large contractor"
+  },
+  "381": {
+    "pack_size_litres": 30.000,
+    "pack_size_ml": 30000,
+    "pack_size_desc": "30 Litres",
+    "category": "bulk",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": false,
+    "typical_use": "Industrial project"
+  },
+  "421": {
+    "pack_size_litres": 40.000,
+    "pack_size_ml": 40000,
+    "pack_size_desc": "40 Litres",
+    "category": "bulk",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": false,
+    "typical_use": "Project supply"
+  },
+  "450": {
+    "pack_size_litres": 50.000,
+    "pack_size_ml": 50000,
+    "pack_size_desc": "50 Litres",
+    "category": "bulk",
+    "is_tinting_base": false,
+    "is_round_size": true,
+    "common": false,
+    "typical_use": "Mega project"
+  }
+}

@@ -659,41 +659,37 @@
             rule: '1',
             label: 'Exact 3-Field Match',
             color: '#7c3aed',
-            status: 'matched',
             confidence: 'Highest',
-            fields: 'product_code + pack_code + shade_code',
-            detail: 'All three product columns match a price list row exactly. Case-insensitive fallback handles OCR/capitalisation differences. Most reliable path.',
-            updates: 'All metadata + dealer_price + dpl_group + shade_name + pack_size + is_tinting_base; codes written if blank'
+            fields: 'product_code + shade_code + pack_code',
+            detail: 'All three product columns (product_code, shade_code, pack_code) match a single price list row exactly. Case-insensitive fallback handles OCR and capitalisation differences. Most reliable path — used when products already have all three codes populated.',
+            updates: 'dealer_price, dpl_group, effective_date, product_line_desc, shade_name, pack_size_litres, pack_size_desc, is_tinting_base. Codes written to product if currently blank.'
           },
           {
             rule: '2A',
-            label: 'Decoded — Full Row Match',
+            label: 'Decoded Material Code — Full Row Match',
             color: 'var(--success)',
-            status: 'matched',
             confidence: 'High',
-            fields: 'material_code[0..3] + [4..7] + [8..10]',
-            detail: 'Decodes the 11-char material_code into prod_code(4) + shade_code(4) + pack_code(3) and finds a single price list row matching all three. Requires all three decoded fields to exist in one row.',
-            updates: 'All metadata + dealer_price + dpl_group + shade_name + pack_size + is_tinting_base; codes written if blank'
+            fields: 'material_code → prod_code[0..3] + shade_code[4..7] + pack_code[8..10]',
+            detail: 'Splits the 11-character material_code into three components — prod_code (chars 0–3), shade_code (chars 4–7), pack_code (chars 8–10) — and finds a single price list row where all three match simultaneously. Requires the product to have a valid 11-char alphanumeric material_code.',
+            updates: 'dealer_price, dpl_group, effective_date, product_line_desc, shade_name, pack_size_litres, pack_size_desc, is_tinting_base. Codes written to product if currently blank.'
           },
           {
             rule: '2B',
-            label: 'Decoded — Independent Sub-queries',
+            label: 'Decoded Material Code — Independent Step Matching',
             color: 'var(--warning)',
-            status: 'partial',
             confidence: 'Medium / Low-Medium',
-            fields: 'material_code decoded independently per field',
-            detail: 'Each decoded component (prod_code, shade_code, pack_code) is searched in separate queries. 2+ hits → medium confidence, 1 hit → low_medium. Useful when pack format differs between product and price list.',
-            updates: 'product_line_desc, shade_name, pack_size_litres, pack_size_desc, is_tinting_base; codes written if blank'
+            fields: 'material_code decoded; each component matched independently',
+            detail: 'Uses the same material_code decode as 2A but searches each component in a separate query. Step A: prod_code → product_line_desc. Step B: shade_code → shade_name with fuzzy disambiguation across comma-separated shade lists. Step C: pack_code → pack_size via Asian Paints pack code reference table (not price list DB). 2+ steps matched → medium; 1 step → low_medium.',
+            updates: 'product_line_desc (Step A), shade_name + shade_match_confidence + is_tinting_base (Step B), pack_size_litres + pack_size_desc + tinting_base_group (Step C). Codes written to product if currently blank.'
           },
           {
             rule: 'NMPL',
             label: 'No Match with Price List',
             color: 'var(--danger)',
-            status: 'nmpl',
             confidence: 'None',
             fields: '—',
-            detail: 'No rule produced a match. Log notes explain exactly why — missing codes, material_code not 11 alphanumeric chars, no matching rows in current effective-date scope, etc.',
-            updates: 'Nothing written to product. Review notes column for the reason.'
+            detail: 'No rule produced a match. Common reasons: material_code missing or not 11 alphanumeric characters, decoded codes not found in the current effective-date scope, or product_code + shade_code + pack_code combination absent from price list. Check the Notes column for the specific reason per product.',
+            updates: 'Nothing written to product metadata or columns.'
           }
         ].each do |r| %>
           <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
@@ -753,12 +749,11 @@
     </div>
 
     <%# Summary stat cards %>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
       <% [
         { label: 'Total',       value: @sync_total,        color: 'var(--text)',    status: nil },
         { label: 'Matched',     value: @sync_matched,      color: 'var(--success)', status: 'matched' },
         { label: 'Partial',     value: @sync_partial,      color: 'var(--accent)',  status: 'partial' },
-        { label: 'Ambiguous',   value: @sync_ambiguous,    color: 'var(--warning)', status: 'ambiguous' },
         { label: 'Unmatched',   value: @sync_unmatched,    color: 'var(--danger)',  status: 'unmatched' },
         { label: 'Save Failed', value: @sync_save_failed,  color: '#f97316',        status: 'save_failed' },
       ].each do |s| %>
