@@ -43,7 +43,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
         pending:           base.where(status: %w[pending processing retrying]).count,
         by_provider:       by_provider_raw.index_by(&:ai_provider),
         today_by_provider: today_by_provider_raw,
-        daily_limits:      { 'groq' => 14_400, 'openrouter' => 999, 'gemini' => 1_500 }
+        daily_limits:      { 'groq' => 14_400, 'openrouter' => 999, 'gemini' => 1_500, 'google_vision' => 10_000 }
       }
     end
   end

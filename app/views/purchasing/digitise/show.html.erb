@@ -916,6 +916,39 @@
     </div><%# end review-layout %>
 
     <%# ── LINE ITEMS CARD — full width, outside grid ── %>
+    <%
+      flagged_count = items.count do |it|
+        sr = (it['sr_no'] || '').to_s
+        iv_qty     = it['quantity'].to_f
+        iv_rate    = it['unit_rate'].to_f
+        iv_value   = it['value'].to_f
+        iv_disc    = it['discount_amount'].to_f
+        iv_taxable = it['taxable_amount'].to_f
+        iv_gst_amt = it['cgst_amount'].to_f + it['sgst_amount'].to_f + it['igst_amount'].to_f
+        iv_gst_pct = it['cgst_percent'].to_f + it['sgst_percent'].to_f + it['igst_percent'].to_f
+        iv_total   = it['total_amount'].to_f
+        has_math   = (iv_qty > 0 && iv_rate > 0 && iv_value > 0 && (iv_qty * iv_rate - iv_value).abs > 1.0) ||
+                     (iv_value > 0 && iv_taxable > 0 && ((iv_value - iv_disc) - iv_taxable).abs > 1.0) ||
+                     (iv_taxable > 0 && iv_gst_pct > 0 && iv_gst_amt > 0 && (iv_taxable * iv_gst_pct / 100.0 - iv_gst_amt).abs > 1.0) ||
+                     (iv_taxable > 0 && iv_total > 0 && (iv_taxable + iv_gst_amt - iv_total).abs > 1.0)
+        has_math
+      end
+    %>
+    <% if flagged_count > 0 %>
+      <div style="display:flex;align-items:center;gap:10px;
+                  background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);
+                  border-radius:8px;padding:10px 16px;margin-bottom:10px">
+        <svg width="16" height="16" fill="none" stroke="#ef4444" stroke-width="2.5" viewBox="0 0 24 24" style="flex-shrink:0">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span style="font-size:13px;font-weight:600;color:#ef4444">
+          <%= flagged_count %> line item<%= flagged_count == 1 ? '' : 's' %> with validation issues
+        </span>
+        <span style="font-size:12px;color:var(--text-dim)">— review highlighted rows before confirming</span>
+      </div>
+    <% end %>
+
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
                 margin-bottom:18px;overflow:hidden">
       <div style="padding:13px 18px;border-bottom:1px solid var(--border);
@@ -1133,10 +1166,16 @@
                       </td>
                     </tr>
                   <% end %>
-                  <tr class="<%= append_mode ? 'item-row-new' : '' %>"
+                  <tr id="item-row-<%= idx %>"
+                      class="<%= append_mode ? 'item-row-new' : '' %>"
+                      data-rate="<%= iv_rate %>"
+                      data-value="<%= iv_value %>"
+                      data-taxable="<%= iv_taxable %>"
+                      data-gst-rate="<%= iv_gst_rate %>"
+                      data-gst-amt="<%= iv_gst_amt %>"
                       style="border-bottom:1px solid var(--border);
                              <%= is_duplicate ? 'opacity:0.4;text-decoration:line-through;' : '' %>
-                             <%= item_has_issues ? 'background:rgba(247,195,79,0.07);border-left:3px solid var(--warning);' : '' %>">
+                             <%= item_has_issues ? 'background:rgba(239,68,68,0.08);border-left:4px solid #ef4444;' : '' %>">
 
                     <td style="padding:8px;text-align:center;font-family:var(--mono);
                                color:var(--text-dim);font-size:11px;white-space:nowrap">
@@ -1179,7 +1218,8 @@
                              name="parsed_data[items][<%= idx %>][quantity]"
                              value="<%= item['quantity'] %>"
                              class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
-                             step="0.001">
+                             step="0.001"
+                             oninput="revalidateRow(<%= idx %>)">
                     </td>
 
                     <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
@@ -1202,7 +1242,8 @@
                              class="form-control disc-amt-input"
                              style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
                              step="0.01" min="0" placeholder="0.00"
-                             data-idx="<%= idx %>" data-value="<%= item['value'].to_f %>">
+                             data-idx="<%= idx %>" data-value="<%= item['value'].to_f %>"
+                             oninput="revalidateRow(<%= idx %>)">
                     </td>
 
                     <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;
@@ -1223,23 +1264,36 @@
                              value="<%= item['total_amount'] %>"
                              class="form-control"
                              style="text-align:right;font-family:var(--mono);font-weight:600;width:100%;font-size:11px"
-                             step="0.01">
+                             step="0.01"
+                             oninput="revalidateRow(<%= idx %>)">
                     </td>
 
-                    <td style="padding:8px;text-align:center">
+                    <td id="item-badge-<%= idx %>" style="padding:8px;text-align:center">
                       <% if is_duplicate %>
                         <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
                       <% elsif item_has_issues %>
-                        <span title="<%= h(item_warnings.join(' | ')) %>"
-                              style="font-size:10px;color:var(--warning);font-family:var(--mono);
-                                     font-weight:700;cursor:help;display:block">
-                          ⚠ CHECK
+                        <span style="font-size:10px;font-weight:700;color:#fff;background:#ef4444;
+                                     border-radius:4px;padding:2px 7px;font-family:var(--mono);
+                                     white-space:nowrap">
+                          ⚠ <%= item_warnings.size %> issue<%= item_warnings.size == 1 ? '' : 's' %>
                         </span>
                       <% else %>
                         <span style="font-size:10px;color:var(--accent);font-family:var(--mono)">NEW</span>
                       <% end %>
                     </td>
                   </tr>
+                  <% if item_has_issues %>
+                    <tr id="item-warn-<%= idx %>" style="background:rgba(239,68,68,0.05);border-bottom:1px solid rgba(239,68,68,0.2)">
+                      <td colspan="12" style="padding:5px 12px 7px 18px">
+                        <% item_warnings.each do |msg| %>
+                          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;
+                                       color:#ef4444;font-family:var(--mono);margin-right:12px">
+                            ⚠ <%= msg %>
+                          </span>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
                 <% end %>
               </tbody>
             </table>
@@ -1376,6 +1430,86 @@
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') lbClose();
     });
+
+    function revalidateRow(idx) {
+      var row     = document.getElementById('item-row-' + idx);
+      var warnRow = document.getElementById('item-warn-' + idx);
+      var badge   = document.getElementById('item-badge-' + idx);
+      if (!row) return;
+
+      var rate    = parseFloat(row.dataset.rate)    || 0;
+      var value   = parseFloat(row.dataset.value)   || 0;
+      var taxable = parseFloat(row.dataset.taxable) || 0;
+      var gstRate = parseFloat(row.dataset.gstRate) || 0;
+      var gstAmt  = parseFloat(row.dataset.gstAmt)  || 0;
+
+      var qtyInput   = row.querySelector('input[name$="[quantity]"]');
+      var discInput  = row.querySelector('input[name$="[discount_amount]"]');
+      var totalInput = row.querySelector('input[name$="[total_amount]"]');
+
+      var qty   = parseFloat(qtyInput   ? qtyInput.value   : 0) || 0;
+      var disc  = parseFloat(discInput  ? discInput.value  : 0) || 0;
+      var total = parseFloat(totalInput ? totalInput.value : 0) || 0;
+
+      var warnings = [];
+
+      if (qty > 0 && rate > 0 && value > 0) {
+        var expValue = Math.round(qty * rate * 100) / 100;
+        if (Math.abs(expValue - value) > 1.0)
+          warnings.push('Value ₹' + value + ' ≠ Qty(' + qty + ') × Rate(' + rate + ') = ₹' + expValue);
+      }
+
+      if (value > 0 && taxable > 0) {
+        var expTaxable = Math.round((value - disc) * 100) / 100;
+        if (Math.abs(expTaxable - taxable) > 1.0)
+          warnings.push('Taxable ₹' + taxable + ' ≠ Value(' + value + ') − Disc(' + disc + ') = ₹' + expTaxable);
+      }
+
+      if (taxable > 0 && gstRate > 0 && gstAmt > 0) {
+        var expGst = Math.round(taxable * gstRate / 100 * 100) / 100;
+        if (Math.abs(expGst - gstAmt) > 1.0)
+          warnings.push('GST ₹' + gstAmt + ' ≠ ' + gstRate + '% × ₹' + taxable + ' = ₹' + expGst);
+      }
+
+      if (taxable > 0 && total > 0) {
+        var expTotal = Math.round((taxable + gstAmt) * 100) / 100;
+        if (Math.abs(expTotal - total) > 1.0)
+          warnings.push('Total ₹' + total + ' ≠ Taxable(₹' + taxable + ') + GST(₹' + gstAmt + ') = ₹' + expTotal);
+      }
+
+      var hasIssues = warnings.length > 0;
+
+      if (hasIssues) {
+        row.style.background = 'rgba(239,68,68,0.08)';
+        row.style.borderLeft = '4px solid #ef4444';
+      } else {
+        row.style.background = '';
+        row.style.borderLeft = '';
+      }
+
+      if (warnRow) {
+        if (hasIssues) {
+          var html = warnings.map(function(msg) {
+            return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;' +
+                   'color:#ef4444;font-family:var(--mono);margin-right:12px">⚠ ' + msg + '</span>';
+          }).join('');
+          warnRow.querySelector('td').innerHTML = html;
+          warnRow.style.display = '';
+        } else {
+          warnRow.style.display = 'none';
+        }
+      }
+
+      if (badge) {
+        if (hasIssues) {
+          badge.innerHTML = '<span style="font-size:10px;font-weight:700;color:#fff;background:#ef4444;' +
+            'border-radius:4px;padding:2px 7px;font-family:var(--mono);white-space:nowrap">' +
+            '⚠ ' + warnings.length + ' issue' + (warnings.length === 1 ? '' : 's') + '</span>';
+        } else {
+          badge.innerHTML = '<span style="font-size:10px;color:var(--accent);font-family:var(--mono)">NEW</span>';
+        }
+      }
+    }
   </script>
 
 <% end %>

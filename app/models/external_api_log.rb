@@ -5,8 +5,8 @@ class ExternalApiLog < ApplicationRecord
   belongs_to :user,         optional: true
 
   STATUSES   = %w[pending success error].freeze
-  SERVICES   = %w[groq openrouter mock].freeze
-  OPERATIONS = %w[invoice_parse product_enrichment].freeze
+  SERVICES   = %w[groq openrouter mock google_vision].freeze
+  OPERATIONS = %w[invoice_parse invoice_ocr product_enrichment].freeze
 
   scope :recent,    -> { order(created_at: :desc) }
   scope :succeeded, -> { where(status: 'success') }

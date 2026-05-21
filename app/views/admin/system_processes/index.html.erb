@@ -297,7 +297,7 @@
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
     <span style="font-size:11px;color:var(--text-dim);font-weight:600">Operation:</span>
-    <% { nil => 'All', 'invoice_parse' => 'Invoice Parse', 'product_enrichment' => 'Enrichment' }.each do |o, lbl| %>
+    <% { nil => 'All', 'invoice_ocr' => 'OCR (Vision)', 'invoice_parse' => 'AI Parse (Groq)', 'product_enrichment' => 'Enrichment' }.each do |o, lbl| %>
       <%= link_to lbl, api_url.call(o, api_st),
             style: "font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;
                     font-weight:600;
@@ -348,10 +348,14 @@
                          when 'error'   then 'var(--danger)'
                          else                'var(--warning)'
                          end
-              op_label = log.operation.to_s.humanize
+              op_label = case log.operation
+                         when 'invoice_ocr'   then 'OCR (Vision)'
+                         when 'invoice_parse' then 'AI Parse (Groq)'
+                         else log.operation.to_s.humanize
+                         end
               ref_link = case log.operation
-                         when 'invoice_parse'      then log.metadata['digitise_import_id']
-                         when 'product_enrichment' then log.metadata['product_id']
+                         when 'invoice_parse', 'invoice_ocr' then log.metadata['digitise_import_id']
+                         when 'product_enrichment'           then log.metadata['product_id']
                          end
             %>
             <tr>
@@ -384,7 +388,7 @@
               </td>
               <td style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
                 <% if ref_link.present? %>
-                  <% if log.operation == 'invoice_parse' %>
+                  <% if %w[invoice_parse invoice_ocr].include?(log.operation) %>
                     <%= link_to "DI##{ref_link}", purchasing_digitise_path(ref_link),
                           style: 'color:var(--accent);text-decoration:none' rescue ref_link %>
                   <% else %>
@@ -529,10 +533,23 @@
                 %>
                 <tr>
                   <td>
+                    <%
+                      svc_color = case row.service
+                                  when 'groq'         then '#f0a500'
+                                  when 'google_vision' then '#4285f4'
+                                  when 'openrouter'   then 'var(--accent)'
+                                  else 'var(--text-dim)'
+                                  end
+                      op_label = case row.operation
+                                 when 'invoice_ocr'   then 'OCR (Vision)'
+                                 when 'invoice_parse' then 'AI Parse'
+                                 else row.operation.humanize
+                                 end
+                    %>
                     <div style="display:flex;align-items:center;gap:6px">
                       <span style="font-size:10px;font-weight:700;text-transform:uppercase;
-                                   font-family:var(--mono);color:var(--accent)"><%= row.service %></span>
-                      <span style="font-size:10px;color:var(--text-dim)"><%= row.operation.humanize %></span>
+                                   font-family:var(--mono);color:<%= svc_color %>"><%= row.service %></span>
+                      <span style="font-size:10px;color:var(--text-dim)"><%= op_label %></span>
                     </div>
                     <div style="background:var(--border);border-radius:99px;height:3px;margin-top:4px;overflow:hidden;width:120px">
                       <div style="height:3px;border-radius:99px;width:<%= pct %>%;

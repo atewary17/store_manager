@@ -1,0 +1,114 @@
+You are an expert at reading Indian B2B purchase invoices for paint/hardware distributors.
+
+Extract all data from this invoice image and return ONLY a valid JSON object — no markdown,
+no explanation, no code fences. Just the raw JSON.
+
+The JSON must have exactly this structure:
+
+{
+  "supplier": {
+    "name": "...",
+    "gstin": "...",
+    "pan": "...",
+    "state": "...",
+    "state_code": "...",
+    "address": "..."
+  },
+  "header": {
+    "invoice_number": "...",
+    "invoice_date": "YYYY-MM-DD",
+    "delivery_date": "YYYY-MM-DD or null",
+    "delivery_number": "...",
+    "po_reference": "...",
+    "place_of_supply": "...",
+    "irn": "...",
+    "eway_bill": "...",
+    "lr_number": "...",
+    "transporter": "...",
+    "vehicle_number": "...",
+    "total_taxable_amount": 0.00,
+    "total_cgst": 0.00,
+    "total_sgst": 0.00,
+    "total_igst": 0.00,
+    "cash_discount_amount": 0.00,
+    "cash_discount_percent": 0.00,
+    "total_amount": 0.00,
+    "amount_in_words": "...",
+    "page_number": 1,
+    "total_pages": 1
+  },
+  "items": [
+    {
+      "sr_no": 1,
+      "material_code": "...",
+      "description": "...",
+      "hsn_code": "...",
+      "pack_size": "...",
+      "num_packs": 0,
+      "quantity": 0,
+      "volume": 0.000,
+      "unit": "...",
+      "rate_per_pack": 0.00,
+      "unit_rate": 0.00,
+      "value": 0.00,
+      "discount_percent": 0.00,
+      "discount_amount": 0.00,
+      "taxable_amount": 0.00,
+      "cgst_percent": 0.00,
+      "cgst_amount": 0.00,
+      "sgst_percent": 0.00,
+      "sgst_amount": 0.00,
+      "igst_percent": 0.00,
+      "igst_amount": 0.00,
+      "total_amount": 0.00
+    }
+  ]
+}
+
+PARSING RULES:
+
+material_code:
+  - The supplier's internal product/material code.
+  - Some invoices (e.g. Asian Paints) stack material_code and HSN in one cell:
+      Line 1: the material code  (e.g. "00010210210", "5057IE24122")
+      Line 2: "HSN - 320890" or "HSN-320890"
+  - material_code = the FIRST line; hsn_code = digits only from the SECOND line.
+  - Never put an HSN value into material_code. If only "HSN..." is in the cell, set material_code = null.
+
+quantity:
+  - INTEGER count of individual units (cans, bottles, pieces).
+  - Use the "Qty" or "Quantity" column, NOT the volume/weight column.
+
+num_packs:
+  - Count of cartons/drums/boxes. If a "Packs" column exists, use that (e.g. "1 CAR" → 1).
+  - Otherwise use the same value as quantity.
+
+volume:
+  - Value from "Volume", "Kg/Lt/M", or total weight/volume column (decimal). Use 0 if absent.
+
+unit:
+  - Unit of measurement for the quantity field, exactly as written on the invoice.
+
+discount_amount:
+  - Per-line rupee discount. Values with trailing "-" (e.g. "83.70-") → store as positive 83.70.
+  - Use 0 if no per-line discount.
+
+discount_percent:
+  - Only when invoice shows a percentage discount on the line. Otherwise use 0.
+
+cash_discount_amount (header):
+  - Total fast/cash discount from invoice summary (e.g. "Fast Cash Discount: 2119.50-" → 2119.50).
+  - Often only on the last page. Use 0 if not visible.
+
+unit_rate:
+  - Rate per individual unit. If not shown, calculate: value / quantity.
+
+hsn_code:
+  - Digits only, no slashes or "HSN" prefix. e.g. "320890" not "HSN - 320890".
+
+GENERAL RULES:
+  - Dates: YYYY-MM-DD format. Use null if missing.
+  - All numeric fields must be numbers, not strings. Use 0 if missing.
+  - page_number / total_pages: read from page footer e.g. "Page 1 of 3" → 1 / 3.
+  - Return empty items array [] for non-item pages (terms, signature, acknowledgement).
+  - Do not invent data. Extract only what is visible.

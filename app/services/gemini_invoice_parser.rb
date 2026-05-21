@@ -14,17 +14,15 @@ class GeminiInvoiceParser
 
   GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent".freeze
 
-  # Use the same prompt as the Groq parser for consistent field definitions and output shape.
-  PROMPT = GroqInvoiceParser::PROMPT
-
-  def self.call(base64_data:, mime_type:)
-    new(base64_data: base64_data, mime_type: mime_type).call
+  def self.call(base64_data:, mime_type:, supplier_hint: nil)
+    new(base64_data: base64_data, mime_type: mime_type, supplier_hint: supplier_hint).call
   end
 
-  def initialize(base64_data:, mime_type:)
-    @base64_data = base64_data
-    @mime_type   = mime_type
-    @api_key     = ENV['GEMINI_API_KEY']
+  def initialize(base64_data:, mime_type:, supplier_hint: nil)
+    @base64_data    = base64_data
+    @mime_type      = mime_type
+    @supplier_hint  = supplier_hint
+    @api_key        = ENV['GEMINI_API_KEY']
   end
 
   def call
@@ -90,12 +88,16 @@ class GeminiInvoiceParser
 
   private
 
+  def prompt
+    InvoiceScan::PromptLoader.for_supplier(@supplier_hint)
+  end
+
   def build_request_body
     {
       contents: [
         {
           parts: [
-            { text: PROMPT },
+            { text: prompt },
             {
               inline_data: {
                 mime_type: @mime_type,

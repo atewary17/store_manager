@@ -26,9 +26,14 @@ class OpenRouterInvoiceParser
   FREE_MODEL = 'meta-llama/llama-3.2-11b-vision-instruct:free'.freeze
   PAID_MODEL = 'meta-llama/llama-4-scout'.freeze
 
-  def initialize(base64_data:, mime_type:)
-    @base64_data = base64_data
-    @mime_type   = mime_type
+  def self.call(base64_data:, mime_type:, supplier_hint: nil)
+    new(base64_data: base64_data, mime_type: mime_type, supplier_hint: supplier_hint).call
+  end
+
+  def initialize(base64_data:, mime_type:, supplier_hint: nil)
+    @base64_data    = base64_data
+    @mime_type      = mime_type
+    @supplier_hint  = supplier_hint
   end
 
   def call
@@ -108,8 +113,7 @@ class OpenRouterInvoiceParser
   private
 
   def prompt
-    # Reuse exact same prompt as Groq parser for consistent output
-    GroqInvoiceParser::PROMPT
+    InvoiceScan::PromptLoader.for_supplier(@supplier_hint)
   end
 
   def error_result(msg)

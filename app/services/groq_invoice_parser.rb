@@ -14,125 +14,6 @@ class GroqInvoiceParser
   GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'.freeze
   GROQ_MODEL   = 'meta-llama/llama-4-scout-17b-16e-instruct'.freeze
 
-  # ── Prompt injected for every page ────────────────────────────────────────
-  PROMPT = <<~PROMPT.freeze
-    You are an expert at reading Indian B2B purchase invoices for paint/hardware distributors.
-
-    Extract all data from this invoice image and return ONLY a valid JSON object — no markdown,
-    no explanation, no code fences. Just the raw JSON.
-
-    The JSON must have exactly this structure:
-
-    {
-      "supplier": {
-        "name": "...",
-        "gstin": "...",
-        "pan": "...",
-        "state": "...",
-        "state_code": "...",
-        "address": "..."
-      },
-      "header": {
-        "invoice_number": "...",
-        "invoice_date": "YYYY-MM-DD",
-        "delivery_date": "YYYY-MM-DD or null",
-        "delivery_number": "...",
-        "po_reference": "...",
-        "place_of_supply": "...",
-        "irn": "...",
-        "eway_bill": "...",
-        "lr_number": "...",
-        "transporter": "...",
-        "vehicle_number": "...",
-        "total_taxable_amount": 0.00,
-        "total_cgst": 0.00,
-        "total_sgst": 0.00,
-        "total_igst": 0.00,
-        "cash_discount_amount": 0.00,
-        "cash_discount_percent": 0.00,
-        "total_amount": 0.00,
-        "amount_in_words": "...",
-        "page_number": 1,
-        "total_pages": 1
-      },
-      "items": [
-        {
-          "sr_no": 1,
-          "material_code": "...",
-          "description": "...",
-          "hsn_code": "...",
-          "pack_size": "...",
-          "num_packs": 0,
-          "quantity": 0,
-          "volume": 0.000,
-          "unit": "...",
-          "rate_per_pack": 0.00,
-          "unit_rate": 0.00,
-          "value": 0.00,
-          "discount_percent": 0.00,
-          "discount_amount": 0.00,
-          "taxable_amount": 0.00,
-          "cgst_percent": 0.00,
-          "cgst_amount": 0.00,
-          "sgst_percent": 0.00,
-          "sgst_amount": 0.00,
-          "igst_percent": 0.00,
-          "igst_amount": 0.00,
-          "total_amount": 0.00
-        }
-      ]
-    }
-
-    Rules:
-    - Dates must be YYYY-MM-DD. If a date is missing, use null.
-    - All numeric fields must be numbers (not strings). If missing, use 0.
-    - page_number: the current page number as printed on this page (e.g. "Page 1 of 3" → 1).
-    - total_pages: the total number of pages as printed (e.g. "Page 1 of 3" → 3). If not visible, use 1.
-    - material_code: the supplier's internal product/material code.
-      IMPORTANT: Many invoices (especially Asian Paints) have a combined "Material / HSN" column
-      where a single cell contains TWO values stacked vertically:
-        Line 1: the material code  (e.g. "00010210210", "5057IE24122", "67923558210")
-        Line 2: "HSN - 320890" or "HSN-320890" (the HSN code, prefixed with "HSN")
-      In this case: material_code = the FIRST line (numeric/alphanumeric code WITHOUT "HSN")
-                    hsn_code      = digits only from the SECOND line (e.g. "320890")
-      Never put an HSN value into material_code. If the only value in the cell starts with
-      "HSN", the material_code is missing — set it to null.
-      Examples of valid material codes: "12601744", "00010210210", "5057IE24122", "67923558210"
-      Examples of what is NOT a material code: "HSN - 320890", "32091090", "321390"
-    - description: the full product name exactly as written
-    - pack_size: the size of one individual unit, e.g. "1 LT", "10 LT", "900 ML"
-    - num_packs: the count of cartons/drums/boxes. For Asian Paints invoices this is the numeric
-      part of the "Packs" column (e.g. "1 CAR" → 1, "2 DRM" → 2). If no Packs column, use the
-      Qty column value.
-    - quantity: the INTEGER value from the "Qty" or "Quantity" column — the count of individual
-      units ordered (cans, litres, pieces).
-      CRITICAL — Asian Paints invoice column order: (1) Material/HSN, (2) Description,
-      (3) Qty ← USE THIS FOR quantity, (4) Packs → num_packs, (5) Volume/Kg/Lt/M → volume.
-      NEVER use the Volume column value as quantity. quantity must be an integer.
-    - volume: the value from the "Volume", "Kg/Lt/M", or total weight/volume column.
-      For Asian Paints invoices this is the 5th column (e.g. 6.000, 20.000, 40.000).
-      If no such column exists, use 0.
-    - unit: the unit of measurement for the quantity field.
-      For Asian Paints invoices: always use "UNT" (individual units/pieces — cans, drums, etc.).
-      Do NOT use "LT", "KG" or any volume unit here; those belong in the volume field.
-      For other suppliers: extract the unit exactly as written on the invoice.
-    - discount_amount: the per-line cash discount in rupees. Asian Paints invoices have a
-      "Cash Disc." column (column 9); values appear with a trailing "-" (e.g. "83.70-") —
-      store as a positive number (83.70). Do NOT confuse with "In-Bill Disc." columns which
-      are separate. If no cash discount on the line, use 0.
-    - discount_percent: use only when the invoice states a percentage discount on the line.
-      If only a rupee discount_amount is shown, set discount_percent to 0.
-    - cash_discount_amount (header): the total fast/cash discount shown in the invoice summary
-      section, e.g. "Fast Cash Discount: 2119.50-" → 2119.50. This often appears only on the
-      last page. If not visible on this page, use 0.
-    - unit_rate: rate per individual unit. If not shown, calculate it from value / quantity.
-    - hsn_code: digits only, no slashes or "HSN" prefix. e.g. "320890" not "HSN - 320890"
-    - If this page contains no line items (e.g. it is a terms/signature/acknowledgement page),
-      return an empty items array [].
-    - If a field is genuinely absent, use null for strings and 0 for numbers.
-    - Do not invent data. Extract only what is visible.
-  PROMPT
-
   # ── Public entry point ─────────────────────────────────────────────────────
   #
   # Returns:
@@ -145,14 +26,15 @@ class GroqInvoiceParser
   #     preview_image: "<base64 jpeg of page 1>"   # nil for plain images
   #   }
   #
-  def self.call(base64_data:, mime_type:)
-    new(base64_data: base64_data, mime_type: mime_type).call
+  def self.call(base64_data:, mime_type:, supplier_hint: nil)
+    new(base64_data: base64_data, mime_type: mime_type, supplier_hint: supplier_hint).call
   end
 
-  def initialize(base64_data:, mime_type:)
-    @base64_data = base64_data
-    @mime_type   = mime_type
-    @api_key     = ENV['GROQ_API_KEY']
+  def initialize(base64_data:, mime_type:, supplier_hint: nil)
+    @base64_data    = base64_data
+    @mime_type      = mime_type
+    @supplier_hint  = supplier_hint
+    @api_key        = ENV['GROQ_API_KEY']
   end
 
   def call
@@ -300,6 +182,10 @@ class GroqInvoiceParser
 
   # ── HTTP request ───────────────────────────────────────────────────────────
 
+  def prompt
+    InvoiceScan::PromptLoader.for_supplier(@supplier_hint)
+  end
+
   def build_request_body(image_base64, image_mime)
     {
       model:       GROQ_MODEL,
@@ -309,7 +195,7 @@ class GroqInvoiceParser
         {
           role: 'user',
           content: [
-            { type: 'text', text: PROMPT },
+            { type: 'text', text: prompt },
             {
               type: 'image_url',
               image_url: { url: "data:#{image_mime};base64,#{image_base64}" }
