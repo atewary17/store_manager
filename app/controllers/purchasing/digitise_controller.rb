@@ -92,11 +92,16 @@ class Purchasing::DigitiseController < Purchasing::BaseController
 
     # All files in this upload share a session_id so they can be linked
     # to the same invoice if the user uploads multiple pages separately.
-    session_id = SecureRandom.uuid
+    session_id    = SecureRandom.uuid
+    supplier_hint = params[:supplier_hint].presence
 
     imports = files.map do |file|
       raw_bytes   = file.read
       base64_data = Base64.strict_encode64(raw_bytes)
+
+      # Seed supplier name into parsed_data so the job can pick it up immediately
+      # without waiting for a prior successful scan.
+      initial_parsed = supplier_hint.present? ? { 'supplier' => { 'name' => supplier_hint } } : {}
 
       DigitiseImport.create!(
         organisation:      @organisation,
@@ -106,7 +111,8 @@ class Purchasing::DigitiseController < Purchasing::BaseController
         file_size:         file.size,
         file_content_type: file.content_type,
         file_data:         base64_data,
-        session_id:        session_id
+        session_id:        session_id,
+        parsed_data:       initial_parsed
       )
     end
 

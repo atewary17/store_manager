@@ -28,6 +28,7 @@ gem 'roo'
 gem 'wicked_pdf'
 gem 'wkhtmltopdf-binary'
 gem 'dotenv-rails'  # not grouped, so it loads in production too
+gem 'mini_magick'   # ImageMagick wrapper for invoice image preprocessing
 gem 'caxlsx', '~> 3.4'
 gem 'caxlsx_rails', '~> 0.6'
 
