@@ -1,5 +1,5 @@
 <%# app/views/purchasing/digitise/raw_response.html.erb — superadmin only %>
-<% content_for :title, "Raw JSON — #{@import.file_name}" %>
+<% content_for :title, "Scan Debug — #{@import.file_name}" %>
 <% content_for :breadcrumb do %>
   <span style="color:var(--text-dim)">Purchasing</span>
   <span class="breadcrumb-sep">/</span>
@@ -7,38 +7,66 @@
   <span class="breadcrumb-sep">/</span>
   <%= link_to @import.file_name, purchasing_digitise_path(@import), style: "color:var(--text-dim)" %>
   <span class="breadcrumb-sep">/</span>
-  <span class="breadcrumb-current">Raw JSON</span>
+  <span class="breadcrumb-current">Debug</span>
 <% end %>
 
-<div class="page-header" style="margin-bottom:20px">
+<%
+  meta          = @import.parsed_data&.dig('_meta') || {}
+  ocr_pages     = meta['ocr_pages'] || []
+  pipeline      = meta['pipeline'] || 'legacy'
+  val_flags     = meta['validation_flags'] || {}
+  supplier_hint = meta['supplier_hint']
+
+  active_tab = params[:tab].presence || (ocr_pages.any? ? 'ocr' : 'ai')
+
+  pretty_parsed = begin; JSON.pretty_generate(@import.parsed_data); rescue; @import.parsed_data.to_s; end
+  pretty_ai     = begin
+    JSON.pretty_generate(JSON.parse(@import.raw_response.to_s))
+  rescue
+    @import.raw_response.to_s
+  end
+%>
+
+<div class="page-header" style="margin-bottom:16px">
   <div>
-    <div class="page-title" style="font-size:18px">Raw AI Response</div>
-    <div class="page-subtitle" style="display:flex;align-items:center;gap:10px;margin-top:4px">
+    <div class="page-title" style="font-size:18px">Scan Debug</div>
+    <div class="page-subtitle" style="display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap">
       <span style="font-family:var(--mono);font-size:12px"><%= @import.file_name %></span>
-      <% if @import.ai_provider.present? %>
+
+      <%# Pipeline badge %>
+      <% if pipeline == 'vision_ocr' %>
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;
+                     color:#4285f4;border:1px solid rgba(66,133,244,0.4);
+                     border-radius:4px;padding:2px 7px">VISION OCR</span>
+        <span style="font-family:var(--mono);font-size:10px;font-weight:700;
+                     color:#f0a500;border:1px solid var(--border);
+                     border-radius:4px;padding:2px 7px">+ GROQ</span>
+      <% elsif @import.ai_provider.present? %>
         <% pc = @import.ai_provider == 'groq' ? '#f0a500' : 'var(--accent)' %>
         <span style="font-family:var(--mono);font-size:10px;font-weight:700;
                      color:<%= pc %>;border:1px solid var(--border);
                      border-radius:4px;padding:2px 7px;text-transform:uppercase">
-          <%= @import.ai_provider %>
+          <%= @import.ai_provider %> (legacy)
         </span>
       <% end %>
+
+      <% if supplier_hint.present? %>
+        <span style="font-size:11px;color:var(--text-dim)">
+          Supplier hint: <strong style="color:var(--text)"><%= supplier_hint %></strong>
+        </span>
+      <% end %>
+
       <span style="font-size:11px;color:var(--text-dim)">
         <%= @import.updated_at.strftime('%d %b %Y, %H:%M') %>
       </span>
     </div>
   </div>
-  <div style="display:flex;gap:8px">
-    <button onclick="copyJson()" class="btn btn-secondary" style="font-size:12px">
-      Copy JSON
-    </button>
-    <%= link_to '← Back', purchasing_digitise_path(@import), class: 'btn btn-secondary' %>
-  </div>
+  <%= link_to '← Back', purchasing_digitise_path(@import), class: 'btn btn-secondary' %>
 </div>
 
-<%# Attempt log %>
+<%# ── Attempt log ── %>
 <% if @import.attempt_log.any? %>
-  <div style="margin-bottom:20px">
+  <div style="margin-bottom:16px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
                 color:var(--text-dim);margin-bottom:8px">Attempt Log</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -61,78 +89,152 @@
   </div>
 <% end %>
 
-<%# Parsed data as pretty JSON %>
-<% pretty_parsed = begin; JSON.pretty_generate(@import.parsed_data); rescue; @import.parsed_data.to_s; end %>
-
-<%# Raw response from API %>
-<% pretty_raw = begin
-     parsed = JSON.parse(@import.raw_response.to_s)
-     JSON.pretty_generate(parsed)
-   rescue
-     @import.raw_response.to_s
-   end %>
-
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-
-  <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
-                  color:var(--text-dim)">
-        Parsed Data (what was saved)
-      </div>
-      <button onclick="copyBlock('parsed-json', this)" title="Copy to clipboard"
-              style="background:none;border:none;cursor:pointer;padding:3px 5px;
-                     color:var(--text-dim);border-radius:4px;line-height:1"
-              onmouseover="this.style.color='var(--text)';this.style.background='var(--surface)'"
-              onmouseout="this.style.color='var(--text-dim)';this.style.background='none'">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-      </button>
+<%# ── Validation flags ── %>
+<% if val_flags.any? %>
+  <div style="margin-bottom:16px;background:rgba(231,76,60,0.06);border:1px solid rgba(231,76,60,0.25);
+              border-radius:8px;padding:12px 16px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+                color:var(--danger);margin-bottom:8px">
+      Validation Flags (<%= val_flags.size %> line<%= val_flags.size == 1 ? '' : 's' %>)
     </div>
-    <pre id="parsed-json"
-         style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
-                padding:16px;font-size:11px;font-family:var(--mono);color:var(--text);
-                overflow:auto;max-height:70vh;white-space:pre;line-height:1.6;margin:0"><%= h pretty_parsed %></pre>
-  </div>
-
-  <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
-                  color:var(--text-dim)">
-        Raw API Response
+    <% val_flags.each do |sr, issues| %>
+      <div style="font-size:12px;font-family:var(--mono);margin-bottom:4px">
+        <span style="color:var(--text-dim)">Line <%= sr %>:</span>
+        <span style="color:var(--danger)"><%= issues.join(' · ') %></span>
       </div>
-      <button onclick="copyBlock('raw-json', this)" title="Copy to clipboard"
-              style="background:none;border:none;cursor:pointer;padding:3px 5px;
-                     color:var(--text-dim);border-radius:4px;line-height:1"
-              onmouseover="this.style.color='var(--text)';this.style.background='var(--surface)'"
-              onmouseout="this.style.color='var(--text-dim)';this.style.background='none'">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-      </button>
-    </div>
-    <pre id="raw-json"
-         style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
-                padding:16px;font-size:11px;font-family:var(--mono);color:var(--text-dim);
-                overflow:auto;max-height:70vh;white-space:pre;line-height:1.6;margin:0"><%= h pretty_raw %></pre>
+    <% end %>
   </div>
+<% end %>
 
+<%# ── Tabs ── %>
+<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px">
+  <% tabs = [] %>
+  <% tabs << ['ocr',    'OCR Text',     ocr_pages.any?,                     '#4285f4'] if ocr_pages.any? %>
+  <% tabs << ['ai',     'Groq AI JSON', @import.raw_response.present?,      '#f0a500'] %>
+  <% tabs << ['parsed', 'Parsed Data',  @import.parsed_data.present?,       'var(--accent)'] %>
+
+  <% tabs.each do |key, label, _avail, color| %>
+    <% is_active = active_tab == key %>
+    <button onclick="switchTab('<%= key %>')"
+            id="tab-btn-<%= key %>"
+            style="padding:10px 18px;font-size:12px;font-weight:<%= is_active ? '600' : '400' %>;
+                   background:none;border:none;cursor:pointer;
+                   border-bottom:2px solid <%= is_active ? color : 'transparent' %>;
+                   color:<%= is_active ? color : 'var(--text-dim)' %>;
+                   margin-bottom:-1px;transition:all 0.15s">
+      <%= label %>
+    </button>
+  <% end %>
+</div>
+
+<%# ── OCR Tab ── %>
+<% if ocr_pages.any? %>
+  <div id="tab-ocr" style="display:<%= active_tab == 'ocr' ? 'block' : 'none' %>">
+    <% ocr_pages.each do |pg| %>
+      <div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                         color:var(--text-dim)">Page <%= pg['page'] %></span>
+            <% if pg['ocr_success'] == false %>
+              <span style="font-size:10px;color:var(--danger)">OCR failed: <%= pg['ocr_error'] %></span>
+            <% else %>
+              <span style="font-size:10px;color:var(--text-dim)"><%= pg['char_count'] %> chars</span>
+            <% end %>
+          </div>
+          <button onclick="copyBlock('ocr-page-<%= pg['page'] %>', this)" title="Copy"
+                  style="background:none;border:none;cursor:pointer;padding:3px 6px;
+                         color:var(--text-dim);border-radius:4px;font-size:11px"
+                  onmouseover="this.style.background='var(--surface)'"
+                  onmouseout="this.style.background='none'">
+            Copy
+          </button>
+        </div>
+        <pre id="ocr-page-<%= pg['page'] %>"
+             style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                    padding:16px;font-size:11px;font-family:var(--mono);color:var(--text);
+                    overflow:auto;max-height:60vh;white-space:pre-wrap;line-height:1.7;
+                    word-break:break-word;margin:0"><%= h pg['text'].to_s %></pre>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<%# ── AI JSON Tab ── %>
+<div id="tab-ai" style="display:<%= active_tab == 'ai' ? 'block' : 'none' %>">
+  <% ai_pages = @import.raw_response.to_s.split('---page---') %>
+  <% ai_pages.each_with_index do |page_raw, idx| %>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                     color:var(--text-dim)">
+          <%= ai_pages.size > 1 ? "Page #{idx + 1}" : 'AI Response (Groq)' %>
+        </span>
+        <button onclick="copyBlock('ai-page-<%= idx %>', this)" title="Copy"
+                style="background:none;border:none;cursor:pointer;padding:3px 6px;
+                       color:var(--text-dim);border-radius:4px;font-size:11px"
+                onmouseover="this.style.background='var(--surface)'"
+                onmouseout="this.style.background='none'">Copy</button>
+      </div>
+      <%
+        pretty_page = begin
+          JSON.pretty_generate(JSON.parse(page_raw.strip))
+        rescue
+          page_raw.strip
+        end
+      %>
+      <pre id="ai-page-<%= idx %>"
+           style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                  padding:16px;font-size:11px;font-family:var(--mono);color:var(--text-dim);
+                  overflow:auto;max-height:60vh;white-space:pre;line-height:1.6;margin:0"><%= h pretty_page %></pre>
+    </div>
+  <% end %>
+  <% if @import.raw_response.blank? %>
+    <div style="color:var(--text-dim);font-size:13px;padding:24px 0">No AI response recorded.</div>
+  <% end %>
+</div>
+
+<%# ── Parsed Data Tab ── %>
+<div id="tab-parsed" style="display:<%= active_tab == 'parsed' ? 'block' : 'none' %>">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+                 color:var(--text-dim)">Parsed Data (saved to DB)</span>
+    <button onclick="copyBlock('parsed-json', this)" title="Copy"
+            style="background:none;border:none;cursor:pointer;padding:3px 6px;
+                   color:var(--text-dim);border-radius:4px;font-size:11px"
+            onmouseover="this.style.background='var(--surface)'"
+            onmouseout="this.style.background='none'">Copy</button>
+  </div>
+  <pre id="parsed-json"
+       style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+              padding:16px;font-size:11px;font-family:var(--mono);color:var(--text);
+              overflow:auto;max-height:70vh;white-space:pre;line-height:1.6;margin:0"><%= h pretty_parsed %></pre>
 </div>
 
 <script>
+  var TAB_COLORS = { ocr: '#4285f4', ai: '#f0a500', parsed: 'var(--accent)' };
+
+  function switchTab(key) {
+    ['ocr','ai','parsed'].forEach(function(t) {
+      var panel = document.getElementById('tab-' + t);
+      var btn   = document.getElementById('tab-btn-' + t);
+      if (!panel || !btn) return;
+      var active = (t === key);
+      panel.style.display = active ? 'block' : 'none';
+      btn.style.borderBottomColor = active ? TAB_COLORS[t] : 'transparent';
+      btn.style.color             = active ? TAB_COLORS[t] : 'var(--text-dim)';
+      btn.style.fontWeight        = active ? '600' : '400';
+    });
+  }
+
   function copyBlock(id, btn) {
-    var text = document.getElementById(id).innerText;
-    navigator.clipboard.writeText(text).then(function() {
+    var el = document.getElementById(id);
+    if (!el) return;
+    navigator.clipboard.writeText(el.innerText).then(function() {
       var orig = btn.innerHTML;
-      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      btn.innerHTML = '✓ Copied';
       btn.style.color = 'var(--success)';
       setTimeout(function() { btn.innerHTML = orig; btn.style.color = 'var(--text-dim)'; }, 2000);
     });
   }
-  function copyJson() { copyBlock('parsed-json', document.querySelector('.btn-secondary')); }
 </script>

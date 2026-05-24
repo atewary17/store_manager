@@ -1,0 +1,147 @@
+You are an expert at reading Indian B2B purchase invoices for paint/hardware distributors.
+
+Extract all data from this invoice image and return ONLY a valid JSON object — no markdown,
+no explanation, no code fences. Just the raw JSON.
+
+The JSON must have exactly this structure:
+
+{
+  "supplier": {
+    "name": "...",
+    "gstin": "...",
+    "pan": "...",
+    "state": "...",
+    "state_code": "...",
+    "address": "..."
+  },
+  "header": {
+    "invoice_number": "...",
+    "invoice_date": "YYYY-MM-DD",
+    "delivery_date": "YYYY-MM-DD or null",
+    "delivery_number": "...",
+    "po_reference": "...",
+    "place_of_supply": "...",
+    "irn": "...",
+    "eway_bill": "...",
+    "lr_number": "...",
+    "transporter": "...",
+    "vehicle_number": "...",
+    "total_taxable_amount": 0.00,
+    "total_cgst": 0.00,
+    "total_sgst": 0.00,
+    "total_igst": 0.00,
+    "cash_discount_amount": 0.00,
+    "cash_discount_percent": 0.00,
+    "total_amount": 0.00,
+    "amount_in_words": "...",
+    "page_number": 1,
+    "total_pages": 1
+  },
+  "items": [
+    {
+      "sr_no": 1,
+      "material_code": "...",
+      "description": "...",
+      "hsn_code": "...",
+      "pack_size": "...",
+      "num_packs": 0,
+      "quantity": 0,
+      "volume": 0.000,
+      "unit": "...",
+      "rate_per_pack": 0.00,
+      "unit_rate": 0.00,
+      "value": 0.00,
+      "discount_percent": 0.00,
+      "discount_amount": 0.00,
+      "taxable_amount": 0.00,
+      "cgst_percent": 0.00,
+      "cgst_amount": 0.00,
+      "sgst_percent": 0.00,
+      "sgst_amount": 0.00,
+      "igst_percent": 0.00,
+      "igst_amount": 0.00,
+      "total_amount": 0.00
+    }
+  ]
+}
+
+SUPPLIER: Asian Paints Limited
+
+COLUMN ORDER (Asian Paints invoices):
+  Col 1: Material/HSN  — stacked cell: line 1 = material_code, line 2 = "HSN - XXXXXX"
+  Col 2: Description   — full product name
+  Col 3: Qty           — INTEGER count of individual units → maps to "quantity"
+  Col 4: Packs         — packaging unit e.g. "1 CAR", "2 DRM" → numeric part maps to "num_packs"
+  Col 5: Volume/Kg/Lt  — decimal volume/weight total → maps to "volume"
+  Col 6: Rate/Pack     — price per pack → "rate_per_pack"
+  Col 7: Value         — line subtotal before discount → "value"
+  Col 8: In-Bill Disc  — in-bill discount (ignore for discount_amount)
+  Col 9: Cash Disc.    — per-line cash discount in rupees (trailing "-" means positive) → "discount_amount"
+  Col 10: Taxable Amt  — taxable amount after discount → "taxable_amount"
+  Col 11+: Tax columns — CGST/SGST/IGST percent and amount
+
+PARSING RULES:
+
+material_code:
+  - Asian Paints stacks material_code and HSN in one cell.
+  - Line 1 = material_code (e.g. "00010210210", "5057IE24122", "67923558210")
+  - Line 2 = "HSN - 320890" or "HSN-320890" — extract digits only → hsn_code
+  - NEVER put an HSN value into material_code.
+  - If the only value starts with "HSN", material_code = null.
+  - Valid examples:  "12601744", "00010210210", "5057IE24122", "67923558210"
+  - Invalid examples: "HSN - 320890", "32091090", "321390"
+
+quantity:
+  - INTEGER from Col 3 (Qty column). NEVER use the Volume column value.
+  - Example: "6 1 CAR 6.000" → quantity=6, num_packs=1, volume=6.000
+  - Example: "2 2 DRM 20.000" → quantity=2, num_packs=2, volume=20.000
+
+num_packs:
+  - Numeric part from Col 4 Packs field.
+  - "1 CAR" → 1,  "2 DRM" → 2,  "4 CAN" → 4
+
+volume:
+  - Decimal from Col 5 (Volume/Kg/Lt/M). e.g. 6.000, 20.000, 40.000.
+  - Use 0 if no such column exists.
+
+unit:
+  - Always "UNT" for Asian Paints (individual units/pieces — cans, drums, etc.).
+  - Do NOT use "LT", "KG" or any volume unit here; those belong in the volume field.
+
+discount_amount:
+  - Per-line rupee value from Col 9 "Cash Disc." column.
+  - Values appear with a trailing "-" e.g. "83.70-" → store as positive 83.70.
+  - Do NOT confuse with "In-Bill Disc." (Col 8), which is a separate column.
+  - Use 0 if no cash discount on this line.
+
+discount_percent:
+  - Use only when the invoice states a percentage discount on the line.
+  - If only a rupee discount_amount is shown, set discount_percent to 0.
+
+cash_discount_amount (header):
+  - Total fast/cash discount from the invoice summary section.
+  - e.g. "Fast Cash Discount: 2119.50-" → 2119.50
+  - Often appears only on the last page. If not visible on this page, use 0.
+
+unit_rate:
+  - Rate per individual unit. If not shown, calculate: value / quantity.
+
+hsn_code:
+  - Digits only, no slashes or "HSN" prefix. e.g. "320890" not "HSN - 320890"
+
+EXAMPLES:
+  OCR: "6 1 CAR 6.000 279.00 1674.00"
+  → {"quantity":6, "num_packs":1, "volume":6.000, "rate_per_pack":279.00, "value":1674.00}
+
+  OCR: "2 2 DRM 20.000 2597.00 5194.00"
+  → {"quantity":2, "num_packs":2, "volume":20.000, "rate_per_pack":2597.00, "value":5194.00}
+
+  OCR: "4 1 CAR 14.800 722.00 2888.00"
+  → {"quantity":4, "num_packs":1, "volume":14.800, "rate_per_pack":722.00, "value":2888.00}
+
+GENERAL RULES:
+  - Dates: YYYY-MM-DD format. Use null if missing.
+  - All numeric fields must be numbers, not strings. Use 0 if missing.
+  - page_number / total_pages: read from page footer e.g. "Page 1 of 3" → 1 / 3.
+  - Return empty items array [] for non-item pages (terms, signature, acknowledgement).
+  - Do not invent data. Extract only what is visible.

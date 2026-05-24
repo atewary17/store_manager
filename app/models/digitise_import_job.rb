@@ -15,22 +15,36 @@ class DigitiseImportJob < ApplicationJob
 
     base64_data = import.file_data.to_s.gsub(/\s+/, '')
 
-    user_pref = import.user&.preferences&.dig('ai_provider').presence
+    user_pref     = import.user&.preferences&.dig('ai_provider').presence
+    supplier_hint = import.parsed_data&.dig('supplier', 'name').presence
 
-    provider = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase
-    result = ExternalApiLog.record(
-      service:         provider,
-      operation:       'invoice_parse',
-      organisation_id: import.organisation_id,
-      user_id:         import.user_id,
-      metadata:        { digitise_import_id: import.id, file_name: import.file_name,
-                         attempt: attempt_num }
-    ) do
-      InvoiceAiService.call(
-        base64_data: base64_data,
-        mime_type:   import.file_content_type,
-        user_pref:   user_pref
+    # Use Vision-OCR pipeline when Google Vision key is present (default).
+    # Falls back to direct-vision path (InvoiceAiService) when key is absent.
+    result = if ENV['GOOGLE_VISION_API_KEY'].present?
+      InvoiceScan::Pipeline.call(
+        base64_data:     base64_data,
+        mime_type:       import.file_content_type,
+        supplier_hint:   supplier_hint,
+        organisation_id: import.organisation_id,
+        user_id:         import.user_id
       )
+    else
+      provider = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase
+      ExternalApiLog.record(
+        service:         provider,
+        operation:       'invoice_parse',
+        organisation_id: import.organisation_id,
+        user_id:         import.user_id,
+        metadata:        { digitise_import_id: import.id, file_name: import.file_name,
+                           attempt: attempt_num, supplier_hint: supplier_hint }
+      ) do
+        InvoiceAiService.call(
+          base64_data:   base64_data,
+          mime_type:     import.file_content_type,
+          user_pref:     user_pref,
+          supplier_hint: supplier_hint
+        )
+      end
     end
 
     log_entry = {

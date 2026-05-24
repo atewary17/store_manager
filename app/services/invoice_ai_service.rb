@@ -32,9 +32,9 @@ class InvoiceAiService
 
   # ── Provider registry — add new parsers here ──────────────────────────────
   PROVIDERS = {
-    'groq'       => -> (b64, mime) { GroqInvoiceParser.call(base64_data: b64, mime_type: mime) },
-    'openrouter' => -> (b64, mime) { OpenRouterInvoiceParser.call(base64_data: b64, mime_type: mime) },
-    'mock'       => -> (_b64, _mime) { mock_response }
+    'groq'       => -> (b64, mime, hint) { GroqInvoiceParser.call(base64_data: b64, mime_type: mime, supplier_hint: hint) },
+    'openrouter' => -> (b64, mime, hint) { OpenRouterInvoiceParser.call(base64_data: b64, mime_type: mime, supplier_hint: hint) },
+    'mock'       => -> (_b64, _mime, _hint) { mock_response }
   }.freeze
 
   # ── Primary call ───────────────────────────────────────────────────────────
@@ -47,11 +47,11 @@ class InvoiceAiService
   #   :provider       String
   #   :preview_image  String|nil  (base64 JPEG, set by parsers that generate it)
   #
-  def self.call(base64_data:, mime_type:, user_pref: nil)
+  def self.call(base64_data:, mime_type:, user_pref: nil, supplier_hint: nil)
     provider_key = resolve_provider(user_pref)
     handler      = PROVIDERS[provider_key] || PROVIDERS['groq']
 
-    result = handler.call(base64_data, mime_type)
+    result = handler.call(base64_data, mime_type, supplier_hint)
     result.merge(provider: provider_key)
   end
 
@@ -60,11 +60,11 @@ class InvoiceAiService
   # Future providers that want per-page control can override this.
   # Currently Groq handles multi-page internally in GroqInvoiceParser.
   #
-  def self.parse_page(base64_image:, mime_type:, page_num: 1, provider: nil)
+  def self.parse_page(base64_image:, mime_type:, page_num: 1, provider: nil, supplier_hint: nil)
     provider_key = resolve_provider(provider)
     handler      = PROVIDERS[provider_key] || PROVIDERS['groq']
 
-    result = handler.call(base64_image, mime_type)
+    result = handler.call(base64_image, mime_type, supplier_hint)
     result.merge(provider: provider_key, page_num: page_num)
   end
 
