@@ -1,0 +1,120 @@
+<%# Locals: item, idx, sr_label, clean_code, matched, display_uom, disc_amt,
+#           iv_rate, iv_gst_rate, is_duplicate, item_warnings, item_has_issues,
+#           append_mode, pack_based %>
+<tr class="<%= append_mode ? 'item-row-new' : '' %>"
+    id="item-row-<%= idx %>"
+    data-rate="<%= iv_rate %>"
+    data-gst-rate="<%= iv_gst_rate %>"
+    data-has-issues="<%= item_has_issues ? '1' : '0' %>"
+    <%= is_duplicate ? 'data-duplicate="1"' : '' %>
+    style="border-bottom:1px solid var(--border);
+           <%= is_duplicate ? 'opacity:0.4;text-decoration:line-through;' : '' %>
+           <%= item_has_issues ? 'background:rgba(239,68,68,0.14);border-left:4px solid #ef4444;' : '' %>">
+
+  <td style="padding:8px;text-align:center;font-family:var(--mono);
+             color:var(--text-dim);font-size:11px;white-space:nowrap">
+    <%= sr_label %>
+    <% if is_duplicate %>
+      <div style="font-size:9px;color:var(--danger);font-weight:700">DUP</div>
+    <% end %>
+  </td>
+
+  <td style="padding:6px">
+    <input type="text"
+           name="parsed_data[items][<%= idx %>][material_code]"
+           value="<%= clean_code %>"
+           class="form-control" style="font-family:var(--mono);font-size:11px;width:100%">
+    <div style="font-size:9px;margin-top:2px;font-family:var(--mono);font-weight:700;
+                color:<%= matched ? 'var(--success)' : 'var(--warning)' %>">
+      <%= matched ? '✓ matched' : 'UNMATCHED' %>
+    </div>
+  </td>
+
+  <td style="padding:6px">
+    <input type="text"
+           name="parsed_data[items][<%= idx %>][description]"
+           value="<%= item['description'] %>"
+           class="form-control" style="font-size:12px;width:100%">
+    <% if item['pack_size'].present? %>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--mono)">
+        <%= item['pack_size'] %> × <%= item['num_packs'] %>
+      </div>
+    <% end %>
+  </td>
+
+  <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;
+             color:var(--text-dim);white-space:nowrap">
+    <%= item['hsn_code'].presence || '—' %>
+  </td>
+
+  <td style="padding:6px;text-align:right">
+    <input type="number"
+           id="item-qty-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][quantity]"
+           value="<%= item['quantity'] %>"
+           class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
+           step="0.001"
+           oninput="revalidateRow(<%= idx %>)">
+  </td>
+
+  <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
+    <span style="color:<%= display_uom && display_uom != '—' ? 'var(--success)' : 'var(--text-dim)' %>"
+          title="<%= display_uom && display_uom != '—' ? 'From product table' : 'From invoice' %>">
+      <%= display_uom %>
+    </span>
+    <input type="hidden" name="parsed_data[items][<%= idx %>][unit]" value="<%= display_uom %>">
+  </td>
+
+  <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;
+             color:var(--text-dim);white-space:nowrap">
+    <%= item['unit_rate'].to_f > 0 ? number_with_precision(item['unit_rate'], precision: 2, delimiter: ',') : '—' %>
+  </td>
+
+  <td style="padding:6px;text-align:right">
+    <input type="number"
+           id="item-disc-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][discount_amount]"
+           value="<%= disc_amt > 0 ? disc_amt : '' %>"
+           class="form-control disc-amt-input"
+           style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
+           step="0.01" min="0" placeholder="0.00"
+           data-idx="<%= idx %>" data-value="<%= item['value'].to_f %>"
+           oninput="revalidateRow(<%= idx %>)">
+  </td>
+
+  <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;white-space:nowrap">
+    <%= item['taxable_amount'].to_f > 0 ? number_with_precision(item['taxable_amount'], precision: 2, delimiter: ',') : '—' %>
+  </td>
+
+  <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
+    <% gst = item['cgst_percent'].to_f + item['sgst_percent'].to_f + item['igst_percent'].to_f %>
+    <span style="color:<%= gst > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
+      <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
+    </span>
+  </td>
+
+  <td style="padding:6px;text-align:right">
+    <input type="number"
+           id="item-total-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][total_amount]"
+           value="<%= item['total_amount'] %>"
+           class="form-control"
+           style="text-align:right;font-family:var(--mono);font-weight:600;width:100%;font-size:11px"
+           step="0.01"
+           oninput="revalidateRow(<%= idx %>)">
+  </td>
+
+  <td id="item-badge-<%= idx %>" style="padding:8px;text-align:center">
+    <% if is_duplicate %>
+      <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
+    <% elsif item_has_issues %>
+      <span title="<%= h(item_warnings.join(' | ')) %>"
+            style="font-size:10px;color:#ef4444;font-family:var(--mono);
+                   font-weight:700;cursor:help;display:block">
+        ⚠ ERR
+      </span>
+    <% else %>
+      <span style="font-size:10px;color:var(--success);font-family:var(--mono);font-weight:600">✓</span>
+    <% end %>
+  </td>
+</tr>

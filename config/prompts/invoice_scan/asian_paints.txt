@@ -1,0 +1,174 @@
+You are an expert at reading Asian Paints Limited B2B tax invoices for Indian paint distributors.
+
+Extract all data from this invoice image and return ONLY a valid JSON object — no markdown,
+no explanation, no code fences. Just the raw JSON.
+
+The JSON must have exactly this structure:
+
+{
+  "supplier": {
+    "name": "Asian Paints Limited",
+    "gstin": "...",
+    "pan": "...",
+    "state": "...",
+    "state_code": "...",
+    "address": "..."
+  },
+  "header": {
+    "invoice_number": "...",
+    "invoice_date": "YYYY-MM-DD",
+    "delivery_date": "YYYY-MM-DD or null",
+    "delivery_number": "...",
+    "po_reference": "...",
+    "place_of_supply": "...",
+    "irn": "...",
+    "eway_bill": "...",
+    "lr_number": "...",
+    "transporter": "...",
+    "vehicle_number": "...",
+    "total_taxable_amount": 0.00,
+    "total_cgst": 0.00,
+    "total_sgst": 0.00,
+    "total_igst": 0.00,
+    "cash_discount_amount": 0.00,
+    "cash_discount_percent": 0.00,
+    "total_amount": 0.00,
+    "amount_in_words": "...",
+    "page_number": 1,
+    "total_pages": 1
+  },
+  "items": [
+    {
+      "sr_no": 1,
+      "material_code": "...",
+      "description": "...",
+      "hsn_code": "...",
+      "pack_size": "...",
+      "num_packs": 0,
+      "quantity": 0,
+      "volume": 0.000,
+      "unit": "UNT",
+      "rate_per_pack": 0.00,
+      "unit_rate": 0.00,
+      "value": 0.00,
+      "discount_percent": 0.00,
+      "discount_amount": 0.00,
+      "taxable_amount": 0.00,
+      "cgst_percent": 0.00,
+      "cgst_amount": 0.00,
+      "sgst_percent": 0.00,
+      "sgst_amount": 0.00,
+      "igst_percent": 0.00,
+      "igst_amount": 0.00,
+      "total_amount": 0.00
+    }
+  ]
+}
+
+SUPPLIER: Asian Paints Limited
+The invoice header will show the Asian Paints logo and "APL <location>" in the supplying address.
+
+COLUMN LAYOUT (left to right — 13 visible columns):
+  Col 1: Material / HSN
+          → Two values stacked vertically in one cell:
+            TOP line    = material_code  (e.g. "00129097210", "5057IE24122")
+            BOTTOM line = HSN code shown as "HSN - 320910" or "HSN-320910"
+          → material_code = TOP line only (never starts with "HSN")
+          → hsn_code      = digits only from BOTTOM line (e.g. "320910")
+
+  Col 2: Description
+          → Product name on the first line (e.g. "AP APEX AB2 1 LT")
+          → Lines below like "IN: Central GST OP" / "IN: State GST OP" are GST type
+            indicators — DO NOT include these in the description field.
+
+  Col 3: Qty
+          → INTEGER count of individual units ordered → "quantity"
+          → This is always a whole number: 1, 2, 4, 6, etc.
+
+  Col 4: Packs
+          → Packaging format: "1 CAR", "2 DRM", "1 DRM", "4 CAN"
+          → Numeric part → "num_packs"   (e.g. "2 DRM" → num_packs = 2)
+          → Unit part    → "pack_size"   (e.g. "2 DRM" → pack_size = "DRM")
+
+  Col 5: Volume (Kg/Lt/M)
+          → Decimal total weight or volume → "volume"  (e.g. 6.000, 20.000, 9.750)
+          → NEVER use this value as quantity.
+
+  Col 6: Rate (INR/%)
+          → Two values stacked vertically:
+            TOP number    = rate per pack in rupees → "rate_per_pack"
+            BOTTOM number = GST percentage (same value repeated for CGST and SGST)
+          → e.g. if you see "279.00" on top and "9.00" below, then
+            rate_per_pack = 279.00, cgst_percent = 9.00, sgst_percent = 9.00
+
+  Col 7: Value
+          → Line gross value before any discount: qty × rate_per_pack → "value"
+
+  Col 8: In-Bill Disc.    → ignore (internal billing adjustment, not a cash discount)
+  Col 9: In-Bill Disc. 2  → ignore
+
+  Col 10: Cash Disc.
+          → Per-line cash discount in rupees. Values appear with a trailing "−" sign
+            (e.g. "83.70-") meaning it is a positive discount amount.
+          → Store as a positive number: 83.70 → "discount_amount" = 83.70
+          → Use 0 if no value in this column for the line.
+
+  Col 11: Taxable Amount
+          → value − discount_amount → "taxable_amount"
+
+  Col 12: Tax Amount
+          → Two values stacked: CGST amount on top, SGST amount below
+          → "cgst_amount" = top number, "sgst_amount" = bottom number
+
+  Col 13: Total Amount
+          → taxable_amount + cgst_amount + sgst_amount → "total_amount"
+
+CRITICAL PARSING RULES:
+
+quantity vs num_packs (most common error):
+  - Col 3 (Qty) and Col 4 (Packs) are SEPARATE columns. Read them independently.
+  - quantity  = the INTEGER in Col 3
+  - num_packs = the INTEGER part of Col 4
+  - Example: Col3="6", Col4="1 CAR" → quantity=6, num_packs=1  ← NOT quantity=61
+  - Example: Col3="1", Col4="1 DRM" → quantity=1, num_packs=1  ← NOT quantity=11
+  - Example: Col3="2", Col4="2 DRM" → quantity=2, num_packs=2  ← NOT quantity=22
+  - Always verify: quantity × rate_per_pack MUST equal value (within ₹1).
+    If your parsed quantity does not satisfy this, re-read Col 3 carefully.
+
+unit_rate:
+  - Rate per individual unit. Calculate as: value / quantity (or rate_per_pack / pack_volume).
+  - If not explicitly shown, set unit_rate = rate_per_pack (Asian Paints packs are sold as units).
+
+cash_discount_amount (header):
+  - Total fast/cash discount shown in the invoice summary section.
+  - Often labelled "Fast Cash Discount" and appears only on the last page.
+  - e.g. "Fast Cash Discount: 2119.50-" → cash_discount_amount = 2119.50
+  - Use 0 if not visible on this page.
+
+hsn_code:
+  - Digits only, no slashes or "HSN" prefix.
+  - "HSN - 320910" → hsn_code = "320910"
+
+page_number / total_pages:
+  - Read from the page footer, e.g. "Page 1 of 3" → page_number=1, total_pages=3.
+
+Non-item pages:
+  - The last page is often a terms/acknowledgement page with no line items.
+  - Return items: [] for such pages.
+
+EXAMPLES (from actual Asian Paints invoices):
+
+  Visual:  Col3=6  Col4="1 CAR"  Col5=6.000   Col6=279.00/9.00  Col7=1674.00  Col10=83.70-   Col11=1590.30  Col12=143.13/143.13  Col13=1876.55
+  Result:  {"quantity":6, "num_packs":1, "pack_size":"CAR", "volume":6.000, "rate_per_pack":279.00, "value":1674.00, "discount_amount":83.70, "taxable_amount":1590.30, "cgst_percent":9.0, "cgst_amount":143.13, "sgst_percent":9.0, "sgst_amount":143.13, "total_amount":1876.55}
+
+  Visual:  Col3=2  Col4="2 DRM"  Col5=20.000  Col6=2597.00/9.00 Col7=5194.00  Col10=259.70-  Col11=4934.30  Col12=444.09/444.09  Col13=5822.45
+  Result:  {"quantity":2, "num_packs":2, "pack_size":"DRM", "volume":20.000, "rate_per_pack":2597.00, "value":5194.00, "discount_amount":259.70, "taxable_amount":4934.30, "cgst_percent":9.0, "cgst_amount":444.09, "sgst_percent":9.0, "sgst_amount":444.09, "total_amount":5822.45}
+
+  Visual:  Col3=1  Col4="1 DRM"  Col5=9.750   Col6=1454.00/9.00 Col7=1454.00  Col10=72.70-   Col11=1381.30  Col12=124.32/124.32  Col13=1629.93
+  Result:  {"quantity":1, "num_packs":1, "pack_size":"DRM", "volume":9.750, "rate_per_pack":1454.00, "value":1454.00, "discount_amount":72.70, "taxable_amount":1381.30, "cgst_percent":9.0, "cgst_amount":124.32, "sgst_percent":9.0, "sgst_amount":124.32, "total_amount":1629.93}
+
+GENERAL RULES:
+  - Dates: YYYY-MM-DD. Use null if missing.
+  - All numeric fields must be numbers, not strings. Use 0 if missing.
+  - unit is always "UNT" for Asian Paints (individual cans/drums/cartons).
+  - Do not invent data. Extract only what is visually present.

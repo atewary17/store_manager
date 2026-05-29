@@ -60,25 +60,27 @@ class PurchaseInvoiceItem < ApplicationRecord
 
   private
 
-  # Try to auto-match product by material_code stored in metadata
+  # Try to auto-match product using supplier-aware registry strategy
   def resolve_product
     if product_id.present?
       self.unmatched = false
       return
     end
 
-    # Manual entry: user typed a name but didn't select from catalogue
-    if metadata['raw_description'].present? && metadata['material_code'].blank?
+    # Manual entry: user typed a name but didn't select from catalogue.
+    # Digitised items always carry supplier_hint — skip this guard so find_product runs.
+    if metadata['raw_description'].present? && metadata['material_code'].blank? &&
+       metadata['supplier_hint'].blank?
       self.unmatched = true
       return
     end
 
-    raw_code = metadata['material_code'].to_s.strip
-    return if raw_code.blank?
+    org     = purchase_invoice&.organisation
+    matched = Suppliers::Registry
+                .for(metadata['supplier_hint'])
+                .matcher
+                .find_product(metadata, org)
 
-    matched = Product.find_by(
-      'LOWER(TRIM(material_code)) = LOWER(TRIM(?))', raw_code
-    )
     if matched
       self.product_id = matched.id
       self.unmatched  = false

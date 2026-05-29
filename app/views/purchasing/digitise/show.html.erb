@@ -246,17 +246,32 @@
     rec_color = ->(s) { { ok: 'var(--success)', warn: 'var(--warning)',
                           error: 'var(--danger)', na: 'var(--text-dim)' }[s] || 'var(--text-dim)' }
 
+    # Auto-detect GST mode from per-line data:
+    #   :per_line — items carry non-zero GST %; each line total already includes GST
+    #   :summary  — all per-line GST is 0; GST is charged once on the invoice subtotal
+    gst_mode = items.any? { |i|
+      i['cgst_percent'].to_f + i['sgst_percent'].to_f + i['igst_percent'].to_f > 0
+    } ? :per_line : :summary
+
+    # Summary-mode: derive the GST rate from the invoice header and apply it to rc_total
+    # before comparing with ex_total so the reconciliation check is meaningful.
+    summary_gst_rate  = (ex_taxable > 0 && ex_gst > 0) ? (ex_gst / ex_taxable * 100).round(2) : 0
+    rc_total_with_gst = (gst_mode == :summary && summary_gst_rate > 0) ?
+                          (rc_total * (1 + summary_gst_rate / 100.0)).round(2) :
+                          rc_total
+
     rec_cash_disc_st = (rc_cash_disc > 0 || ex_cash_disc > 0) ? rec_st.(rc_cash_disc, ex_cash_disc) : :na
     rec_taxable_st   = rec_st.(rc_taxable, ex_taxable)
     rec_gst_st       = rec_st.(rc_gst, ex_gst)
-    rec_total_st     = rec_st.(rc_total, ex_total)
+    rec_total_st     = rec_st.(rc_total_with_gst, ex_total)
 
     active_sts   = [rec_cash_disc_st, rec_taxable_st, rec_gst_st, rec_total_st].reject { |s| s == :na }
     rec_all_ok   = active_sts.all? { |s| s == :ok }
     rec_has_err  = active_sts.any? { |s| s == :error }
-    rec_rounding = ex_total > 0 && rc_total > 0 && (rc_total - ex_total).abs.between?(0.01, 2.0)
+    rec_rounding = ex_total > 0 && rc_total_with_gst > 0 &&
+                   (rc_total_with_gst - ex_total).abs.between?(0.01, 2.0)
 
-    computed_grand_total  = rc_total
+    computed_grand_total  = rc_total_with_gst
     extracted_grand_total = ex_total
     total_mismatch        = rec_total_st == :error
 
@@ -720,8 +735,8 @@
             </div>
           <% end %>
 
-          <%# Invoice reconciliation — superadmin only %>
-          <% if current_user.super_admin? && (rc_total > 0 || ex_total > 0) %>
+          <%# Invoice reconciliation %>
+          <% if rc_total > 0 || ex_total > 0 %>
             <div style="background:rgba(0,0,0,0.15);border-radius:6px;padding:10px 12px;margin-bottom:10px">
 
               <%# Header row with overall status %>
@@ -870,15 +885,37 @@
               <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
                           gap:0;font-size:12px;padding:5px 0;font-weight:700;color:var(--accent);
                           border-top:2px solid rgba(255,255,255,0.1);margin-top:2px">
-                <span style="color:var(--text)">= Grand Total</span>
-                <span style="text-align:right;font-family:var(--mono)">
-                  <%= number_with_precision(rc_total, precision: 2, delimiter: ',') %>
+                <span style="color:var(--text)">= Grand Total
+                  <% if gst_mode == :summary && summary_gst_rate > 0 %>
+                    <span style="font-size:9px;font-weight:400;color:var(--text-dim);
+                                 background:rgba(255,255,255,0.06);border-radius:4px;
+                                 padding:1px 5px;margin-left:4px;vertical-align:middle">
+                      GST: Summary (<%= summary_gst_rate.to_i %>%)
+                    </span>
+                  <% elsif gst_mode == :per_line %>
+                    <span style="font-size:9px;font-weight:400;color:var(--text-dim);
+                                 background:rgba(255,255,255,0.06);border-radius:4px;
+                                 padding:1px 5px;margin-left:4px;vertical-align:middle">
+                      GST: Per line
+                    </span>
+                  <% end %>
                 </span>
-                <span style="text-align:right;font-family:var(--mono);font-weight:400;
-                             color:<%= ex_total > 0 ? 'var(--text-dim)' : 'var(--text-dim)' %>">
+                <span id="rec-computed-total"
+                      data-gst-mode="<%= gst_mode %>"
+                      data-summary-gst-rate="<%= summary_gst_rate %>"
+                      style="text-align:right;font-family:var(--mono)">
+                  <%= number_with_precision(rc_total_with_gst, precision: 2, delimiter: ',') %>
+                  <% if gst_mode == :summary && summary_gst_rate > 0 %>
+                    <div style="font-size:9px;font-weight:400;color:var(--text-dim)">
+                      (+ <%= summary_gst_rate.to_i %>% GST)
+                    </div>
+                  <% end %>
+                </span>
+                <span id="rec-ai-total" data-value="<%= ex_total %>"
+                      style="text-align:right;font-family:var(--mono);font-weight:400;color:var(--text-dim)">
                   <%= ex_total > 0 ? number_with_precision(ex_total, precision: 2, delimiter: ',') : '—' %>
                 </span>
-                <span style="text-align:center;font-size:13px;color:<%= rec_color.(rec_total_st) %>">
+                <span id="rec-total-status" style="text-align:center;font-size:13px;color:<%= rec_color.(rec_total_st) %>">
                   <%= rec_icon.(rec_total_st) %>
                 </span>
               </div>
@@ -886,11 +923,11 @@
               <%# Footnote: commercial rounding or error explanation %>
               <% if rec_rounding && rec_total_st != :error %>
                 <div style="font-size:10px;color:var(--text-dim);margin-top:4px;font-style:italic">
-                  Difference Rs. <%= number_with_precision((rc_total - ex_total).abs, precision: 2) %> — commercial rounding applied by supplier
+                  Difference Rs. <%= number_with_precision((rc_total_with_gst - ex_total).abs, precision: 2) %> — commercial rounding applied by supplier
                 </div>
               <% elsif total_mismatch %>
                 <div style="font-size:10px;color:var(--danger);margin-top:4px">
-                  Diff Rs. <%= number_with_precision((rc_total - ex_total).abs, precision: 2, delimiter: ',') %> —
+                  Diff Rs. <%= number_with_precision((rc_total_with_gst - ex_total).abs, precision: 2, delimiter: ',') %> —
                   pages may be missing or AI misread a column. Check quantities carefully.
                 </div>
               <% end %>
@@ -941,20 +978,23 @@
         <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto">
           <thead>
             <tr style="background:var(--bg)">
+              <% pack_based = @supplier_profile&.column_set == :pack_based %>
+              <% generic    = @supplier_profile&.column_set == :generic %>
+              <% col_count  = generic ? 11 : 12 %>
               <% [
-                ['#',           '28px',  'center'],
-                ['Material Code','90px', 'left'],
-                ['Description', 'auto',  'left'],
-                ['HSN',         '58px',  'center'],
-                ['Qty',         '62px',  'right'],
-                ['UOM',         '46px',  'center'],
-                ['Rate/Unit',   '72px',  'right'],
-                ['Disc Rs.',    '62px',  'right'],
-                ['Taxable',     '72px',  'right'],
-                ['GST%',        '46px',  'center'],
-                ['Total (Rs.)', '82px',  'right'],
-                ['Status',      '56px',  'center'],
-              ].each do |lbl, w, align| %>
+                ['#',                                              '28px',  'center'],
+                (generic ? nil : ['Material Code',                 '90px',  'left']),
+                ['Description',                                    'auto',  'left'],
+                ['HSN',                                            '58px',  'center'],
+                [pack_based ? 'Packs'     : 'Qty',                 '62px',  'right'],
+                ['UOM',                                            '46px',  'center'],
+                [pack_based ? 'Rate/Pack' : 'Rate/Unit',           '72px',  'right'],
+                [generic ? 'Disc %' : 'Disc Rs.',                  '62px',  'right'],
+                ['Taxable',                                        '72px',  'right'],
+                ['GST%',                                           '46px',  'center'],
+                ['Total (Rs.)',                                    '82px',  'right'],
+                ['Status',                                         '56px',  'center'],
+              ].compact.each do |lbl, w, align| %>
                 <th style="min-width:<%= w %>;padding:7px 6px;text-align:<%= align %>;
                            font-family:var(--mono);font-size:10px;letter-spacing:.07em;
                            text-transform:uppercase;color:var(--text-dim);
@@ -967,7 +1007,7 @@
                 <%# ── CONFIRMED (LOCKED) ROWS — append mode only ── %>
                 <% if append_mode && @confirmed_items.any? %>
                   <tr>
-                    <td colspan="12"
+                    <td colspan="<%= col_count %>"
                         style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--text-dim);
                                text-transform:uppercase;letter-spacing:.07em;
                                background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border)">
@@ -977,9 +1017,11 @@
                   <% @confirmed_items.each_with_index do |item, idx| %>
                     <tr class="item-row-locked">
                       <td style="padding:8px;text-align:center;font-family:var(--mono);color:var(--text-dim);font-size:11px"><%= idx + 1 %></td>
-                      <td style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-                        <%= item.metadata['material_code'].presence || '—' %>
-                      </td>
+                      <% unless generic %>
+                        <td style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+                          <%= item.metadata['material_code'].presence || '—' %>
+                        </td>
+                      <% end %>
                       <td style="padding:8px;font-size:12px;color:var(--text-dim)">
                         <%= item.metadata['description'].presence || item.product&.name || '—' %>
                         <% if item.metadata['pack_size'].present? %>
@@ -1021,7 +1063,7 @@
 
                   <% if items.any? %>
                     <tr>
-                      <td colspan="12"
+                      <td colspan="<%= col_count %>"
                           style="padding:6px 12px;font-size:10px;font-weight:700;color:var(--accent);
                                  text-transform:uppercase;letter-spacing:.07em;
                                  background:rgba(79,142,247,0.05);border-bottom:1px solid var(--border)">
@@ -1055,72 +1097,78 @@
                     page_item_counters[current_page] += 1
                   %>
                   <%
-                    clean_code   = sanitise_material_code(item['material_code'].to_s)
-                    matched_prod = clean_code.present? ? @product_by_code&.[](clean_code) : nil
+                    clean_code   = @supplier_profile.matcher.display_code(item)
+                    match_key    = @match_key_fn&.call(item)
+                    matched_prod = match_key.present? ? @product_map[match_key] : nil
                     matched      = matched_prod.present?
                     prod_uom     = matched_prod&.base_uom&.name.presence
                     display_uom  = prod_uom || item['unit'].presence || '—'
                     disc_amt     = item['discount_amount'].to_f
-                    is_duplicate = @duplicates&.any? { |d|
-                      d['material_code'].to_s == item['material_code'].to_s &&
-                      (d['quantity'].to_f - item['quantity'].to_f).abs < 0.001
-                    }
+                    disc_pct     = item['discount_percent'].to_f
 
-                    # ── Per-item validation (calculated vs parsed) ────────────
-                    iv_qty      = item['quantity'].to_f
-                    iv_rate     = item['unit_rate'].to_f
-                    iv_value    = item['value'].to_f
-                    iv_disc     = item['discount_amount'].to_f
-                    iv_taxable  = item['taxable_amount'].to_f
-                    iv_cgst_pct = item['cgst_percent'].to_f
-                    iv_sgst_pct = item['sgst_percent'].to_f
-                    iv_igst_pct = item['igst_percent'].to_f
-                    iv_gst_rate = iv_cgst_pct + iv_sgst_pct + iv_igst_pct
-                    iv_cgst_amt = item['cgst_amount'].to_f
-                    iv_sgst_amt = item['sgst_amount'].to_f
-                    iv_igst_amt = item['igst_amount'].to_f
-                    iv_gst_amt  = iv_cgst_amt + iv_sgst_amt + iv_igst_amt
-                    iv_total    = item['total_amount'].to_f
+                    is_duplicate = if generic
+                      @duplicates&.any? { |d|
+                        d['description'].to_s.downcase == item['description'].to_s.downcase &&
+                        (d['quantity'].to_f - item['quantity'].to_f).abs < 0.001
+                      }
+                    else
+                      @duplicates&.any? { |d|
+                        d['material_code'].to_s == item['material_code'].to_s &&
+                        (d['quantity'].to_f - item['quantity'].to_f).abs < 0.001
+                      }
+                    end
+
+                    iv_qty   = item['quantity'].to_f
+                    iv_rate  = item['unit_rate'].to_f
+                    iv_total = item['total_amount'].to_f
 
                     item_warnings = []
 
-                    # 1. Qty × Rate = Value
-                    if iv_qty > 0 && iv_rate > 0 && iv_value > 0
-                      exp_value = (iv_qty * iv_rate).round(2)
-                      if (exp_value - iv_value).abs > 1.0
-                        item_warnings << "Value ₹#{iv_value} ≠ Qty(#{iv_qty.to_i}) × Rate(#{iv_rate}) = ₹#{exp_value}"
+                    if generic
+                      # Others: qty × rate × (1 − disc%) ≈ amount
+                      if iv_qty > 0 && iv_rate > 0 && iv_total > 0
+                        exp = disc_pct > 0 ? (iv_qty * iv_rate * (1 - disc_pct / 100.0)).round(2) : (iv_qty * iv_rate).round(2)
+                        item_warnings << "Amount ₹#{iv_total} ≠ Qty(#{iv_qty.to_i})×Rate(#{iv_rate})×(1−#{disc_pct}%)=₹#{exp}" if (exp - iv_total).abs > 1.0
                       end
-                    end
+                      iv_gst_rate = 0
+                    else
+                      # Standard/pack-based: four-step validation
+                      iv_value    = item['value'].to_f
+                      iv_disc     = disc_amt
+                      iv_taxable  = item['taxable_amount'].to_f
+                      iv_cgst_pct = item['cgst_percent'].to_f
+                      iv_sgst_pct = item['sgst_percent'].to_f
+                      iv_igst_pct = item['igst_percent'].to_f
+                      iv_gst_rate = iv_cgst_pct + iv_sgst_pct + iv_igst_pct
+                      iv_cgst_amt = item['cgst_amount'].to_f
+                      iv_sgst_amt = item['sgst_amount'].to_f
+                      iv_igst_amt = item['igst_amount'].to_f
+                      iv_gst_amt  = iv_cgst_amt + iv_sgst_amt + iv_igst_amt
 
-                    # 2. Value − Discount = Taxable
-                    if iv_value > 0 && iv_taxable > 0
-                      exp_taxable = (iv_value - iv_disc).round(2)
-                      if (exp_taxable - iv_taxable).abs > 1.0
-                        item_warnings << "Taxable ₹#{iv_taxable} ≠ Value(#{iv_value}) − Disc(#{iv_disc}) = ₹#{exp_taxable}"
+                      if iv_qty > 0 && iv_rate > 0 && iv_value > 0
+                        exp_value = (iv_qty * iv_rate).round(2)
+                        item_warnings << "Value ₹#{iv_value} ≠ Qty(#{iv_qty.to_i}) × Rate(#{iv_rate}) = ₹#{exp_value}" if (exp_value - iv_value).abs > 1.0
                       end
-                    end
-
-                    # 3. Taxable × GST% = GST amount
-                    if iv_taxable > 0 && iv_gst_rate > 0 && iv_gst_amt > 0
-                      exp_gst = (iv_taxable * iv_gst_rate / 100.0).round(2)
-                      if (exp_gst - iv_gst_amt).abs > 1.0
-                        item_warnings << "GST ₹#{iv_gst_amt} ≠ #{iv_gst_rate.to_i}% × ₹#{iv_taxable} = ₹#{exp_gst}"
+                      if iv_value > 0 && iv_taxable > 0
+                        exp_taxable = (iv_value - iv_disc).round(2)
+                        item_warnings << "Taxable ₹#{iv_taxable} ≠ Value(#{iv_value}) − Disc(#{iv_disc}) = ₹#{exp_taxable}" if (exp_taxable - iv_taxable).abs > 1.0
                       end
-                    end
-
-                    # 4. Taxable + GST = Total
-                    if iv_taxable > 0 && iv_total > 0
-                      exp_total = (iv_taxable + iv_gst_amt).round(2)
-                      if (exp_total - iv_total).abs > 1.0
-                        item_warnings << "Total ₹#{iv_total} ≠ Taxable(₹#{iv_taxable}) + GST(₹#{iv_gst_amt}) = ₹#{exp_total}"
+                      if iv_taxable > 0 && iv_gst_rate > 0 && iv_gst_amt > 0
+                        exp_gst = (iv_taxable * iv_gst_rate / 100.0).round(2)
+                        item_warnings << "GST ₹#{iv_gst_amt} ≠ #{iv_gst_rate.to_i}% × ₹#{iv_taxable} = ₹#{exp_gst}" if (exp_gst - iv_gst_amt).abs > 1.0
+                      end
+                      if iv_taxable > 0 && iv_total > 0
+                        exp_total = (iv_taxable + iv_gst_amt).round(2)
+                        item_warnings << "Total ₹#{iv_total} ≠ Taxable(₹#{iv_taxable}) + GST(₹#{iv_gst_amt}) = ₹#{exp_total}" if (exp_total - iv_total).abs > 1.0
                       end
                     end
 
                     item_has_issues = item_warnings.any? && !is_duplicate
+                    sr_label        = item['sr_no'] || page_item_counters[current_page]
                   %>
                   <% if page_boundaries.key?(idx) %>
                     <tr>
-                      <td colspan="12"
+                      <td colspan="<%= col_count %>"
                           style="padding:5px 12px;font-size:10px;font-weight:700;
                                  color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;
                                  background:var(--bg);border-bottom:1px solid var(--border);
@@ -1133,113 +1181,23 @@
                       </td>
                     </tr>
                   <% end %>
-                  <tr class="<%= append_mode ? 'item-row-new' : '' %>"
-                      style="border-bottom:1px solid var(--border);
-                             <%= is_duplicate ? 'opacity:0.4;text-decoration:line-through;' : '' %>
-                             <%= item_has_issues ? 'background:rgba(247,195,79,0.07);border-left:3px solid var(--warning);' : '' %>">
-
-                    <td style="padding:8px;text-align:center;font-family:var(--mono);
-                               color:var(--text-dim);font-size:11px;white-space:nowrap">
-                      <%= item['sr_no'] || page_item_counters[current_page] %>
-                      <% if is_duplicate %>
-                        <div style="font-size:9px;color:var(--danger);font-weight:700">DUP</div>
-                      <% end %>
-                    </td>
-
-                    <td style="padding:6px">
-                      <input type="text"
-                             name="parsed_data[items][<%= idx %>][material_code]"
-                             value="<%= clean_code %>"
-                             class="form-control" style="font-family:var(--mono);font-size:11px;width:100%">
-                      <div style="font-size:9px;margin-top:2px;font-family:var(--mono);font-weight:700;
-                                  color:<%= matched ? 'var(--success)' : 'var(--warning)' %>">
-                        <%= matched ? '✓ matched' : 'UNMATCHED' %>
-                      </div>
-                    </td>
-
-                    <td style="padding:6px">
-                      <input type="text"
-                             name="parsed_data[items][<%= idx %>][description]"
-                             value="<%= item['description'] %>"
-                             class="form-control" style="font-size:12px;width:100%">
-                      <% if item['pack_size'].present? %>
-                        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--mono)">
-                          <%= item['pack_size'] %> × <%= item['num_packs'] %>
-                        </div>
-                      <% end %>
-                    </td>
-
-                    <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;
-                               color:var(--text-dim);white-space:nowrap">
-                      <%= item['hsn_code'].presence || '—' %>
-                    </td>
-
-                    <td style="padding:6px;text-align:right">
-                      <input type="number"
-                             name="parsed_data[items][<%= idx %>][quantity]"
-                             value="<%= item['quantity'] %>"
-                             class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
-                             step="0.001">
-                    </td>
-
-                    <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
-                      <span style="color:<%= prod_uom ? 'var(--success)' : 'var(--text-dim)' %>"
-                            title="<%= prod_uom ? 'From product table' : 'From invoice' %>">
-                        <%= display_uom %>
-                      </span>
-                      <input type="hidden" name="parsed_data[items][<%= idx %>][unit]" value="<%= display_uom %>">
-                    </td>
-
-                    <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;
-                               color:var(--text-dim);white-space:nowrap">
-                      <%= item['unit_rate'].to_f > 0 ? number_with_precision(item['unit_rate'], precision: 2, delimiter: ',') : '—' %>
-                    </td>
-
-                    <td style="padding:6px;text-align:right">
-                      <input type="number"
-                             name="parsed_data[items][<%= idx %>][discount_amount]"
-                             value="<%= disc_amt > 0 ? disc_amt : '' %>"
-                             class="form-control disc-amt-input"
-                             style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
-                             step="0.01" min="0" placeholder="0.00"
-                             data-idx="<%= idx %>" data-value="<%= item['value'].to_f %>">
-                    </td>
-
-                    <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;
-                               white-space:nowrap">
-                      <%= item['taxable_amount'].to_f > 0 ? number_with_precision(item['taxable_amount'], precision: 2, delimiter: ',') : '—' %>
-                    </td>
-
-                    <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
-                      <% gst = item['cgst_percent'].to_f + item['sgst_percent'].to_f + item['igst_percent'].to_f %>
-                      <span style="color:<%= gst > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
-                        <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
-                      </span>
-                    </td>
-
-                    <td style="padding:6px;text-align:right">
-                      <input type="number"
-                             name="parsed_data[items][<%= idx %>][total_amount]"
-                             value="<%= item['total_amount'] %>"
-                             class="form-control"
-                             style="text-align:right;font-family:var(--mono);font-weight:600;width:100%;font-size:11px"
-                             step="0.01">
-                    </td>
-
-                    <td style="padding:8px;text-align:center">
-                      <% if is_duplicate %>
-                        <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
-                      <% elsif item_has_issues %>
-                        <span title="<%= h(item_warnings.join(' | ')) %>"
-                              style="font-size:10px;color:var(--warning);font-family:var(--mono);
-                                     font-weight:700;cursor:help;display:block">
-                          ⚠ CHECK
-                        </span>
-                      <% else %>
-                        <span style="font-size:10px;color:var(--accent);font-family:var(--mono)">NEW</span>
-                      <% end %>
-                    </td>
-                  </tr>
+                  <% if generic %>
+                    <%= render 'item_row_others',
+                          item: item, idx: idx, sr_label: sr_label,
+                          matched: matched, display_uom: display_uom, disc_pct: disc_pct,
+                          iv_rate: iv_rate,
+                          is_duplicate: is_duplicate, item_warnings: item_warnings,
+                          item_has_issues: item_has_issues, append_mode: append_mode %>
+                  <% else %>
+                    <%= render 'item_row_standard',
+                          item: item, idx: idx, sr_label: sr_label,
+                          clean_code: clean_code, matched: matched,
+                          display_uom: display_uom, disc_amt: disc_amt,
+                          iv_rate: iv_rate, iv_gst_rate: iv_gst_rate,
+                          is_duplicate: is_duplicate, item_warnings: item_warnings,
+                          item_has_issues: item_has_issues, append_mode: append_mode,
+                          pack_based: pack_based %>
+                  <% end %>
                 <% end %>
               </tbody>
             </table>
@@ -1311,6 +1269,17 @@
           </div>
         <% end %>
 
+        <%# Validation error banner — shown by JS when submit is blocked %>
+        <div id="validation-error-banner"
+             style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.4);
+                    border-radius:8px;padding:12px 16px;margin-bottom:12px;
+                    align-items:center;gap:10px">
+          <span style="font-size:16px;flex-shrink:0">✗</span>
+          <span id="validation-error-msg" style="font-size:13px;font-weight:600;color:#ef4444">
+            Some items have calculation errors. Fix them before saving.
+          </span>
+        </div>
+
         <%# Submit bar %>
         <div style="display:flex;gap:12px;align-items:center;padding:20px 0">
           <button type="submit" class="btn btn-primary" id="save-btn-bottom">
@@ -1376,6 +1345,149 @@
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') lbClose();
     });
+
+    // ── Others: auto-compute total from qty × rate × (1 − disc%) ────────────
+    function autoComputeOthers(idx) {
+      var rateEl  = document.getElementById('item-rate-'  + idx);
+      var qtyEl   = document.getElementById('item-qty-'   + idx);
+      var discEl  = document.getElementById('item-disc-'  + idx);
+      var totalEl = document.getElementById('item-total-' + idx);
+      if (!rateEl || !qtyEl || !totalEl) return;
+
+      var rate = parseFloat(rateEl.value) || 0;
+      var qty  = parseFloat(qtyEl.value)  || 0;
+      var disc = parseFloat(discEl ? discEl.value : '0') || 0;
+
+      if (rate > 0 && qty > 0) {
+        var newTotal = Math.round(qty * rate * (1 - disc / 100) * 100) / 100;
+        totalEl.value = newTotal.toFixed(2);
+      }
+      revalidateRow(idx);
+    }
+
+    // ── Per-row client-side validation ───────────────────────────────────────
+    // Formula: qty * rate − disc = taxable; taxable * (1 + gst%/100) = total
+    function revalidateRow(idx) {
+      var tr    = document.getElementById('item-row-'  + idx);
+      var badge = document.getElementById('item-badge-' + idx);
+      if (!tr || tr.dataset.duplicate === '1') return;
+
+      var rate    = parseFloat(tr.dataset.rate)    || 0;
+      var gstRate = parseFloat(tr.dataset.gstRate) || 0;
+
+      var qtyEl   = document.getElementById('item-qty-'   + idx);
+      var discEl  = document.getElementById('item-disc-'  + idx);
+      var totalEl = document.getElementById('item-total-' + idx);
+
+      var qty   = parseFloat(qtyEl   ? qtyEl.value   : '0') || 0;
+      var disc  = parseFloat(discEl  ? discEl.value  : '0') || 0;
+      var total = parseFloat(totalEl ? totalEl.value : '0') || 0;
+
+      var isPctDisc = discEl && discEl.classList.contains('disc-pct-input');
+
+      var warnings = [];
+
+      if (isPctDisc) {
+        // Others: rate lives in its own editable input (item-rate-idx)
+        var rateEl = document.getElementById('item-rate-' + idx);
+        var effectiveRate = rateEl ? (parseFloat(rateEl.value) || 0) : 0;
+        if (effectiveRate > 0 && qty > 0 && total > 0) {
+          var expectedTotal = Math.round(qty * effectiveRate * (1 - disc / 100) * 100) / 100;
+          if (Math.abs(expectedTotal - total) > 1.0) {
+            warnings.push(
+              'Expected ₹' + expectedTotal.toFixed(2) +
+              ' (qty ' + qty + ' × rate ' + effectiveRate.toFixed(2) +
+              (disc > 0 ? ' × (1−' + disc + '%)' : '') + ')'
+            );
+          }
+        }
+      } else if (rate > 0 && qty > 0 && total > 0) {
+        // Standard (AP / Shalimar): (qty × rate − disc_rs) × (1 + gst%) = total
+        var taxable = Math.round((qty * rate - disc) * 100) / 100;
+        var expectedTotal = Math.round(taxable * (1 + gstRate / 100) * 100) / 100;
+        if (Math.abs(expectedTotal - total) > 1.0) {
+          warnings.push(
+            'Expected ₹' + expectedTotal.toFixed(2) +
+            ' (taxable ₹' + taxable.toFixed(2) +
+            (gstRate > 0 ? ' + ' + gstRate + '% GST' : '') + ')'
+          );
+        }
+      }
+
+      var hasIssues = warnings.length > 0;
+      tr.dataset.hasIssues = hasIssues ? '1' : '0';
+
+      if (hasIssues) {
+        tr.style.background = 'rgba(239,68,68,0.14)';
+        tr.style.borderLeft = '4px solid #ef4444';
+        if (badge) badge.innerHTML =
+          '<span title="' + escHtml(warnings.join(' | ')) + '" ' +
+          'style="font-size:10px;color:#ef4444;font-family:var(--mono);' +
+          'font-weight:700;cursor:help">⚠ ERR</span>';
+      } else {
+        tr.style.background = '';
+        tr.style.borderLeft = '';
+        if (badge) badge.innerHTML =
+          '<span style="font-size:10px;color:var(--success);' +
+          'font-family:var(--mono);font-weight:600">✓</span>';
+      }
+
+      updateReconciliation();
+    }
+
+    // ── Live reconciliation total update ─────────────────────────────────────
+    function updateReconciliation() {
+      var inputs = document.querySelectorAll('[id^="item-total-"]');
+      var computed = 0;
+      inputs.forEach(function(inp) { computed += parseFloat(inp.value) || 0; });
+      computed = Math.round(computed * 100) / 100;
+
+      var rcComp = document.getElementById('rec-computed-total');
+      var gstMode = rcComp ? (rcComp.dataset.gstMode || 'per_line') : 'per_line';
+      var summaryGstRate = rcComp ? (parseFloat(rcComp.dataset.summaryGstRate) || 0) : 0;
+      var effective = (gstMode === 'summary' && summaryGstRate > 0)
+        ? Math.round(computed * (1 + summaryGstRate / 100) * 100) / 100
+        : computed;
+
+      if (rcComp) rcComp.textContent = effective.toLocaleString('en-IN', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      });
+
+      var rcAi   = document.getElementById('rec-ai-total');
+      var aiTotal = rcAi ? (parseFloat(rcAi.dataset.value) || 0) : 0;
+      var statusEl = document.getElementById('rec-total-status');
+      if (statusEl && aiTotal > 0) {
+        var diff = Math.abs(effective - aiTotal);
+        if (diff <= 1.5)       { statusEl.textContent = '✓'; statusEl.style.color = 'var(--success)'; }
+        else if (diff <= 10.0) { statusEl.textContent = '⚠'; statusEl.style.color = 'var(--warning)'; }
+        else                   { statusEl.textContent = '✗'; statusEl.style.color = 'var(--danger)';  }
+      }
+    }
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ── Form submit guard ─────────────────────────────────────────────────────
+    (function() {
+      var form = document.getElementById('confirm-form');
+      if (!form) return;
+      form.addEventListener('submit', function(e) {
+        var badRows = document.querySelectorAll('[data-has-issues="1"]:not([data-duplicate="1"])');
+        if (badRows.length === 0) return;
+        e.preventDefault();
+        var label = badRows.length + ' line item' + (badRows.length > 1 ? 's' : '') +
+          ' mismatched. Are you sure you want to proceed?';
+        if (confirm(label)) {
+          form.removeEventListener('submit', arguments.callee);
+          form.submit();
+        } else {
+          badRows[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    })();
   </script>
 
 <% end %>
