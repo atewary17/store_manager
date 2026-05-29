@@ -4,16 +4,23 @@
     Must stay in sync with the templates: same classes, same taxable-cell structure.
 %>
 <%
-  idx      = f.index
-  paint    = item.paint?
-  cgst_pct = item.cgst_percent.to_f
-  sgst_pct = item.sgst_percent.to_f
-  gst_pct  = cgst_pct + sgst_pct
-  taxable_after = item.taxable_amount.to_f
+  idx       = f.index
+  paint     = item.paint?
+  cgst_pct  = item.cgst_percent.to_f
+  sgst_pct  = item.sgst_percent.to_f
+  gst_pct   = cgst_pct + sgst_pct
+  disc_amt  = item.metadata['discount_amount'].to_f
+  disc_pct  = item.discount_percent.to_f
+  disc_mode = disc_pct > 0 ? 'pct' : 'flat'
+  disc_val  = disc_mode == 'pct' ? disc_pct : disc_amt
+  # Reconstruct gross rate: qty * rate = taxable + discount
+  gross_rate = item.quantity.to_f > 0 ? ((item.taxable_amount.to_f + disc_amt) / item.quantity.to_f).round(4) : 0
 %>
 
 <tr data-row="<%= idx %>"
     data-type="<%= paint ? 'paint' : (item.adhoc? ? 'adhoc' : 'product') %>"
+    data-disc-mode="<%= disc_mode %>"
+    data-calc-dir="forward"
     class="row-<%= paint ? 'paint' : (item.adhoc? ? 'adhoc' : 'product') %>"
     style="border-bottom:1px solid var(--border)">
 
@@ -85,6 +92,63 @@
           class: 'qty-input tc-input w-70 text-right' %>
   </td>
 
+  <%# ── Rate ── %>
+  <td style="padding:9px 6px;vertical-align:top;text-align:right">
+    <input type="number" class="rate-input tc-input text-right"
+           name="<%= f.field_name :unit_rate %>"
+           value="<%= gross_rate > 0 ? number_with_precision(gross_rate, precision: 4, strip_insignificant_zeros: true) : '' %>"
+           placeholder="0.00" min="0" step="0.01" style="width:95px">
+  </td>
+
+  <%# ── Discount cell: input LEFT, vertical toggle RIGHT ── %>
+  <%# Hidden GST + discount inputs live here (inside <td>) to avoid browser foster-parenting %>
+  <td style="padding:9px 6px;vertical-align:top;text-align:center">
+    <input type="hidden" class="cgst-input"
+           name="<%= f.field_name 'metadata', 'cgst_percent' %>" value="<%= cgst_pct %>">
+    <input type="hidden" class="sgst-input"
+           name="<%= f.field_name 'metadata', 'sgst_percent' %>" value="<%= sgst_pct %>">
+    <%= f.hidden_field :discount_percent, value: disc_pct, class: 'disc-pct-hidden' %>
+    <input type="hidden" class="disc-amt-hidden"
+           name="<%= f.field_name 'metadata', 'discount_amount' %>"
+           value="<%= disc_amt > 0 ? disc_amt : '' %>">
+    <div style="display:inline-flex;align-items:center;gap:2px">
+      <input type="number" class="disc-input tc-input text-right"
+             value="<%= disc_val > 0 ? disc_val : '' %>"
+             placeholder="0" min="0" step="0.01" style="width:60px">
+      <div style="display:flex;flex-direction:column;gap:0;flex-shrink:0">
+        <button type="button" class="disc-mode-btn<%= disc_mode == 'pct' ? ' active-disc' : '' %>"
+                data-mode="pct" onclick="setRowDiscMode(this,'pct')"
+                style="padding:1px 5px;border:1px solid var(--border);border-radius:3px 3px 0 0;
+                       font-size:9px;font-family:var(--mono);cursor:pointer;line-height:1.4;
+                       background:<%= disc_mode == 'pct' ? 'var(--accent)' : 'var(--bg)' %>;
+                       color:<%= disc_mode == 'pct' ? '#fff' : 'var(--text-dim)' %>;
+                       font-weight:<%= disc_mode == 'pct' ? '600' : '400' %>">%</button>
+        <button type="button" class="disc-mode-btn<%= disc_mode == 'flat' ? ' active-disc' : '' %>"
+                data-mode="flat" onclick="setRowDiscMode(this,'flat')"
+                style="padding:1px 5px;border:1px solid var(--border);border-radius:0 0 3px 3px;border-top:none;
+                       font-size:9px;font-family:var(--mono);cursor:pointer;line-height:1.4;
+                       background:<%= disc_mode == 'flat' ? 'var(--accent)' : 'var(--bg)' %>;
+                       color:<%= disc_mode == 'flat' ? '#fff' : 'var(--text-dim)' %>;
+                       font-weight:<%= disc_mode == 'flat' ? '600' : '400' %>">&#8377;</button>
+      </div>
+    </div>
+    <div class="disc-hint"
+         style="font-family:var(--mono);font-size:10px;color:var(--warning);margin-top:2px;min-height:12px;text-align:center">
+      <% if disc_amt > 0 %>
+        <%= disc_mode == 'pct' ? "− Rs.#{number_with_precision(disc_amt, precision: 2)}" : "− #{disc_pct.round(1)}%" %>
+      <% end %>
+    </div>
+  </td>
+
+  <%# ── Taxable ── %>
+  <td style="padding:9px 10px;vertical-align:top;text-align:right">
+    <%= f.hidden_field :taxable_amount, class: 'taxable-hidden' %>
+    <span class="taxable-base"
+          style="font-family:var(--mono);font-size:13px;color:<%= item.taxable_amount.to_f > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
+      <%= item.taxable_amount.to_f > 0 ? number_with_precision(item.taxable_amount, precision: 2, delimiter: ',') : '--' %>
+    </span>
+  </td>
+
   <%# ── GST ── %>
   <% if item.adhoc? %>
     <td style="padding:9px 6px;vertical-align:top;text-align:center">
@@ -104,35 +168,14 @@
     </td>
   <% end %>
 
-  <%# ── Hidden GST inputs ── %>
-  <input type="hidden" class="cgst-input"
-         name="<%= f.field_name 'metadata', 'cgst_percent' %>" value="<%= cgst_pct %>">
-  <input type="hidden" class="sgst-input"
-         name="<%= f.field_name 'metadata', 'sgst_percent' %>" value="<%= sgst_pct %>">
-
-  <%# ── Taxable (plain, no per-row discount) ── %>
-  <td style="padding:9px 10px;vertical-align:top;text-align:right">
-    <%= f.hidden_field :taxable_amount, class: 'taxable-hidden' %>
-    <span class="taxable-base"
-          style="font-family:var(--mono);font-size:13px;color:<%= item.taxable_amount.to_f > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
-      <%= item.taxable_amount.to_f > 0 ? number_with_precision(item.taxable_amount, precision: 2, delimiter: ',') : '--' %>
-    </span>
-  </td>
-
-  <%# ── Amount (editable total) ── %>
+  <%# ── Amount (net: post-discount, GST-inclusive; stored in total-hidden) ── %>
   <td style="padding:9px 6px;vertical-align:top">
-    <%= f.hidden_field :tax_amount, class: 'tax-hidden' %>
+    <%= f.hidden_field :tax_amount,   class: 'tax-hidden' %>
     <%= f.hidden_field :total_amount, class: 'total-hidden' %>
-    <%= f.number_field :total_amount,
-          value: item.total_amount,
-          min: 0, step: 0.01, placeholder: '0.00',
-          class: "amount-input tc-input w-110 text-right bold#{paint ? ' paint' : (item.adhoc? ? ' adhoc' : '')}" %>
-    <div class="rate-hint"
-         style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:3px;min-height:12px;text-align:right">
-      <% if item.unit_rate.to_f > 0 && item.quantity.to_f > 0 %>
-        Rate Rs.<%= number_with_precision(item.unit_rate, precision: 2) %><%= gst_pct > 0 ? " +#{gst_pct.to_i}% GST" : '' %>
-      <% end %>
-    </div>
+    <input type="number"
+           value="<%= item.total_amount.to_f > 0 ? number_with_precision(item.total_amount, precision: 2) : '' %>"
+           min="0" step="0.01" placeholder="0.00"
+           class="amount-input tc-input w-110 text-right bold<%= paint ? ' paint' : (item.adhoc? ? ' adhoc' : '') %>">
   </td>
 
   <%# ── Delete ── %>

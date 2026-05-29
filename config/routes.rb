@@ -1,18 +1,25 @@
 # config/routes.rb
 Rails.application.routes.draw do
+  # Public status page — PIN protected, no Devise auth
+  get  '/status',              to: 'status#index',        as: :status
+  post '/status/authenticate', to: 'status#authenticate', as: :status_authenticate
+
   devise_for :users
 
   # User profile — any logged-in user
   get   '/profile',           to: 'users#profile',           as: :profile
   patch '/profile',           to: 'users#update_profile',    as: :update_profile
   put   '/profile',           to: 'users#update_profile'
-  patch '/profile/shortcuts', to: 'users#update_shortcuts',  as: :update_shortcuts
+  patch '/profile/shortcuts',    to: 'users#update_shortcuts',    as: :update_shortcuts
+  patch '/profile/sidebar_pins', to: 'users#update_sidebar_pins', as: :update_sidebar_pins
+  patch '/profile/org_settings', to: 'users#update_org_settings', as: :update_org_settings
 
   # Organisations & Users
   resources :organisations, only: [:index, :show, :new, :create, :edit, :update] do
     resources :users, only: [:index, :show, :new, :create, :edit, :update]
     resources :product_categories, only: [:index, :create, :destroy],
       module: :organisations
+    patch :settings, on: :member
   end
 
   # SuperAdmin — Admin namespace
@@ -25,7 +32,8 @@ Rails.application.routes.draw do
       end
     end
     get  'system_processes',                to: 'system_processes#index',           as: :system_processes
-    post 'system_processes/send_test_email', to: 'system_processes#send_test_email', as: :system_processes_send_test_email
+    post 'system_processes/send_test_email',        to: 'system_processes#send_test_email',        as: :system_processes_send_test_email
+    post 'system_processes/trigger_price_list_sync', to: 'system_processes#trigger_price_list_sync', as: :system_processes_trigger_price_list_sync
   end
 
   authenticate :user, ->(u) { u.super_admin? } do
@@ -53,6 +61,17 @@ Rails.application.routes.draw do
         get  'import',     action: :import_index, as: :import
         get  'import/new', action: :import_new,   as: :import_new
         post 'import',     action: :import_create
+      end
+    end
+
+    resources :price_list_rows, only: [:index, :show, :edit, :update] do
+      collection do
+        get  :import
+        post :import, action: :import_create
+        get  :export
+        get  :template
+        get  'imports/:id',                action: :import_show,           as: :import_show
+        get  'imports/:id/download_errors', action: :download_errors,       as: :import_download_errors
       end
     end
 
@@ -132,7 +151,7 @@ Rails.application.routes.draw do
 
     resources :sales_invoices do
       member     { post :confirm; get :preview; post :void; post :mark_as_paid; patch :update_due_date }
-      collection { get :product_search; get :shade_search; get :base_search }
+      collection { get :product_search; get :shade_search; get :base_search; post :tinting_snooze }
       resources :sale_payments, only: [:create, :show, :destroy]
     end
     # Accounting — Sales side

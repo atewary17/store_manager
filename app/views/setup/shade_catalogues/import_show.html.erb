@@ -82,7 +82,8 @@
           <th>Error</th>
           <th>shade_code</th>
           <th>shade_name</th>
-          <th>manufacturer</th>
+          <th>brand</th>
+          <th>product_family</th>
           <th>colour_family</th>
         </tr>
       </thead>
@@ -95,7 +96,8 @@
             <td style="color:var(--danger);font-size:12px"><%= row['error'] %></td>
             <td style="font-family:var(--mono);font-size:12px"><%= row['shade_code'] %></td>
             <td style="font-size:12px"><%= row['shade_name'] %></td>
-            <td style="font-size:12px;color:var(--text-dim)"><%= row['manufacturer'] %></td>
+            <td style="font-size:12px;color:var(--text-dim)"><%= row['brand'] %></td>
+            <td style="font-size:12px;color:var(--text-dim)"><%= row['product_family'] %></td>
             <td style="font-size:12px;color:var(--text-dim)"><%= row['colour_family'] %></td>
           </tr>
         <% end %>

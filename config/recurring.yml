@@ -1,0 +1,8 @@
+# config/recurring.yml
+# GoodJob recurring job schedule.
+# Loaded automatically when config.good_job.enable_cron = true (set in good_job.rb).
+
+price_list_sync:
+  class: "ApPriceListSyncJob"
+  cron: "0 3 * * 0"          # Every Sunday at 03:00 server time
+  description: "Enrich Asian Paints products from the latest staged price list"

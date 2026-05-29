@@ -32,10 +32,9 @@
     <%= link_to export_setup_products_path(format: :xlsx), class: 'btn btn-secondary' do %>
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      Export Excel
+      Export
     <% end %>
     <%= link_to new_setup_product_path, class: 'btn btn-primary' do %>
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -48,9 +47,10 @@
 
 <%= render 'setup/shared/nav_tabs' %>
 
-<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+<%# Stats %>
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
   <div class="stat-card">
-    <div class="stat-label">Total in Catalogue</div>
+    <div class="stat-label">Total</div>
     <div class="stat-value accent"><%= @active_count + @inactive_count %></div>
   </div>
   <div class="stat-card">
@@ -63,146 +63,394 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">Showing</div>
-    <div class="stat-value" style="color:var(--text-dim)"><%= @products.size %> of <%= @total_count %></div>
+    <div class="stat-value" style="color:var(--text-dim)"><%= @total_count %></div>
   </div>
 </div>
 
-<!-- Filters -->
-<div class="filter-bar" style="flex-wrap:wrap">
-  <div class="search-input-wrap">
-    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-    <input type="text" class="search-input"
-           placeholder="Search brand, description, code..." id="productSearch">
-  </div>
+<%
+  active_filters = [params[:category_id], params[:brand_id], params[:status]].count(&:present?)
+  filters_open   = active_filters > 0
+%>
 
-  <%= form_with url: setup_products_path, method: :get, local: true,
-        style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' do |f| %>
-    <%= f.select :category_id,
-          options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
-          { include_blank: 'All Categories' },
-          style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
-                  padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
-    <%= f.select :brand_id,
-          options_from_collection_for_select(@brands, :id, :name, params[:brand_id]),
-          { include_blank: 'All Brands' },
-          style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
-                  padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
-    <%= f.select :status,
-          [['All Statuses', ''], ['Active', 'active'], ['Inactive', 'inactive']],
-          { selected: params[:status] },
-          style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
-                  padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
-    <%= f.select :per_page,
-          [['50 / page', 50], ['100 / page', 100], ['200 / page', 200]],
-          { selected: @per_page },
-          style: "background:var(--surface);border:1px solid var(--border);border-radius:6px;
-                  padding:8px 12px;color:var(--text);font-size:13px;outline:none" %>
-    <%= f.submit 'Filter', class: 'btn btn-secondary btn-sm' %>
-    <% if params[:category_id].present? || params[:brand_id].present? || params[:status].present? %>
-      <%= link_to 'Clear', setup_products_path, class: 'btn btn-secondary btn-sm' %>
+<style>
+  .prod-search-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .prod-search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 600px;
+  }
+  .prod-search-wrap .search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    pointer-events: none;
+    transition: color 0.2s;
+  }
+  .prod-search-input {
+    width: 100%;
+    padding: 11px 44px 11px 46px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    box-sizing: border-box;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .prod-search-input::placeholder { color: var(--text-dim); opacity: 0.7; }
+  .prod-search-input:hover {
+    border-color: var(--muted);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+  }
+  .prod-search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 2px 12px rgba(79,142,247,0.18);
+  }
+  .prod-search-input:focus ~ .search-icon,
+  .prod-search-wrap:focus-within .search-icon { color: var(--accent); }
+  .prod-search-clear {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--border);
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+  }
+  .prod-search-clear:hover { background: var(--muted); color: var(--text); }
+
+  .filter-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+    user-select: none;
+  }
+  .filter-toggle-btn:hover, .filter-toggle-btn.open {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .filter-toggle-btn .filter-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 99px;
+    padding: 0 4px;
+  }
+  .filter-toggle-btn .chevron {
+    transition: transform 0.2s;
+    opacity: 0.5;
+  }
+  .filter-toggle-btn.open .chevron { transform: rotate(180deg); }
+
+  .prod-filter-panel {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.25s ease, opacity 0.2s ease, margin-bottom 0.2s;
+    opacity: 0;
+    margin-bottom: 0;
+  }
+  .prod-filter-panel.open {
+    max-height: 120px;
+    opacity: 1;
+    margin-bottom: 12px;
+  }
+  .prod-filter-inner {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .prod-filter-inner select {
+    height: 34px;
+    padding: 0 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+  }
+  .prod-filter-inner select:focus { border-color: var(--accent); }
+</style>
+
+<%= form_with url: setup_products_path, method: :get, local: true, id: 'product-filter-form' do |f| %>
+
+  <%# Top bar: search + filter toggle %>
+  <div class="prod-search-bar">
+    <div class="prod-search-wrap">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <%= f.text_field :q, value: params[:q],
+            id: 'productSearch',
+            placeholder: 'Search product name, code, shade, brand…',
+            autocomplete: 'off',
+            class: 'prod-search-input' %>
+      <% if params[:q].present? %>
+        <%= link_to setup_products_path(category_id: params[:category_id], brand_id: params[:brand_id],
+                      status: params[:status], per_page: @per_page),
+              class: 'prod-search-clear', title: 'Clear search' do %>&#x2715;<% end %>
+      <% end %>
+    </div>
+
+    <button type="button" id="filter-toggle"
+            class="filter-toggle-btn <%= 'open' if filters_open %>">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/>
+        <line x1="11" y1="18" x2="13" y2="18"/>
+      </svg>
+      Filters
+      <% if active_filters > 0 %>
+        <span class="filter-count"><%= active_filters %></span>
+      <% end %>
+      <svg class="chevron" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
+
+    <% if active_filters > 0 %>
+      <%= link_to 'Clear filters', setup_products_path(q: params[:q], per_page: @per_page),
+            style: "font-size:12px;color:var(--danger);text-decoration:none;white-space:nowrap;
+                    padding:7px 12px;border:1px solid rgba(247,97,79,0.3);border-radius:8px" %>
     <% end %>
-  <% end %>
-</div>
+  </div>
 
-<% if @selected_category %>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;
-              font-size:13px;color:var(--text-dim)">
-    Filtering by category:
-    <span class="badge badge-plan"><%= @selected_category.name %></span>
+  <%# Collapsible filter panel %>
+  <div class="prod-filter-panel <%= 'open' if filters_open %>" id="filter-panel">
+    <div class="prod-filter-inner">
+      <label style="font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap">
+        Category
+        <%= f.select :category_id,
+              options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
+              { include_blank: 'All' } %>
+      </label>
+      <label style="font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap">
+        Brand
+        <%= f.select :brand_id,
+              options_from_collection_for_select(@brands, :id, :name, params[:brand_id]),
+              { include_blank: 'All' } %>
+      </label>
+      <label style="font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap">
+        Status
+        <%= f.select :status,
+              [['All', ''], ['Active', 'active'], ['Inactive', 'inactive']],
+              { selected: params[:status] } %>
+      </label>
+      <label style="font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap">
+        Per page
+        <%= f.select :per_page,
+              [['25', 25], ['50', 50], ['75', 75]],
+              { selected: @per_page } %>
+      </label>
+      <%= f.submit 'Apply', class: 'btn btn-primary btn-sm', style: 'margin-left:4px' %>
+    </div>
+  </div>
+
+<% end %>
+
+<%# Active filter chips %>
+<% if params[:q].present? || @selected_category %>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <% if params[:q].present? %>
+      <span style="font-size:11px;background:var(--accent)1a;color:var(--accent);
+                   border:1px solid var(--accent)33;border-radius:20px;padding:2px 10px;font-weight:600">
+        "<%= h(params[:q]) %>"
+      </span>
+    <% end %>
+    <% if @selected_category %>
+      <span style="font-size:11px;background:var(--surface);color:var(--text-dim);
+                   border:1px solid var(--border);border-radius:20px;padding:2px 10px">
+        <%= @selected_category.name %>
+      </span>
+    <% end %>
+    <span style="font-size:11px;color:var(--text-dim)">
+      &nbsp;<%= @total_count %> result<%= @total_count == 1 ? '' : 's' %>
+    </span>
   </div>
 <% end %>
 
+<%# Table %>
 <div class="table-wrap">
   <% if @products.any? %>
-    <table id="productTable">
+    <table>
       <thead>
         <tr>
-          <th>#</th><th>Brand & Description</th><th>Category</th>
-          <th>Codes</th><th>Pack</th><th>HSN</th>
-          <th>GST</th><th>UOM</th><th>Status</th><th>Actions</th>
+          <th style="width:44px;font-size:11px">#</th>
+          <th>Description</th>
+          <th style="width:160px;font-size:11px">Codes</th>
+          <th style="width:90px;font-size:11px">Shade</th>
+          <th style="width:90px;font-size:11px">Size</th>
+          <th style="width:90px;font-size:11px">HSN / GST</th>
+          <th style="width:56px;font-size:11px">UOM</th>
+          <th style="width:72px;font-size:11px">Status</th>
         </tr>
       </thead>
       <tbody>
         <% @products.each do |product| %>
-        <tr>
-          <td style="font-family:var(--mono);color:var(--text-dim);font-size:12px">
-            <%= product.id %>
-          </td>
-          <td style="max-width:220px">
-            <div style="font-weight:500"><%= product.brand&.name %></div>
-            <div style="font-size:12px;color:var(--text-dim);margin-top:2px;line-height:1.4">
-              <%= link_to product.description.truncate(60), setup_product_path(product),
-                    style: 'color:inherit;text-decoration:none' %>
-            </div>
-          </td>
-          <td>
-            <span class="badge badge-plan" style="font-size:10px">
-              <%= product.product_category.name %>
-            </span>
-          </td>
-          <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
-            <% if product.material_code.present? %>
-              <div>M: <%= product.material_code %></div>
-            <% end %>
-            <% if product.product_code.present? %>
-              <div>P: <%= product.product_code %></div>
-            <% end %>
-            <% if product.material_code.blank? && product.product_code.blank? %>
-              —
-            <% end %>
-          </td>
-          <td style="font-family:var(--mono);font-size:12px">
-            <%= product.pack_code.presence || '—' %>
-          </td>
-          <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
-            <%= product.hsn_code.presence || '—' %>
-          </td>
-          <td>
-            <span style="font-family:var(--mono);font-size:12px;
-                         background:<%= product.gst_rate == 0 ? 'rgba(52,217,139,0.1)' : 'rgba(247,195,79,0.1)' %>;
-                         color:<%= product.gst_rate == 0 ? 'var(--success)' : 'var(--warning)' %>;
-                         padding:2px 6px;border-radius:4px">
-              <%= product.gst_rate %>%
-            </span>
-          </td>
-          <td>
-            <span style="font-family:var(--mono);font-size:11px;background:var(--bg);
-                         border:1px solid var(--border);padding:2px 6px;border-radius:4px">
-              <%= product.base_uom.short_name %>
-            </span>
-          </td>
-          <td>
-            <span class="badge <%= product.active? ? 'badge-active' : 'badge-inactive' %>">
-              <%= product.active? ? 'active' : 'inactive' %>
-            </span>
-          </td>
-          <td>
-            <div class="actions">
-              <%= link_to 'View', setup_product_path(product), class: 'btn btn-secondary btn-sm' %>
-              <% if current_user.super_admin? %>
-                <%= link_to 'Edit', edit_setup_product_path(product), class: 'btn btn-secondary btn-sm' %> 
-                <%= button_to 'Delete', setup_product_path(product), method: :delete,
-                      class: 'btn btn-danger btn-sm',
-                      form: { style: 'margin:0;display:inline' },
-                      data: { turbo_confirm: 'Delete this product? This cannot be undone.' } %>
+          <%
+            meta        = product.metadata || {}
+            pack_desc   = meta['pack_size_desc'].presence
+            pack_litres = meta['pack_size_litres']
+            size_label  = if pack_desc
+                             pack_desc
+                           elsif pack_litres
+                             l = pack_litres.to_f
+                             l >= 1 ? "#{l == l.to_i ? l.to_i : l}L" : "#{(l * 1000).round}ml"
+                           end
+            is_tinting  = meta['is_tinting_base']
+            shade_name  = meta['shade_name'].presence
+          %>
+          <tr style="cursor:pointer" onclick="window.location='<%= setup_product_path(product) %>'">
+            <td style="font-family:var(--mono);color:var(--text-dim);font-size:11px">
+              <%= product.id %>
+            </td>
+
+            <td>
+              <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;flex-wrap:wrap">
+                <% if product.brand %>
+                  <span style="font-size:10px;font-weight:700;color:var(--text-dim);
+                               text-transform:uppercase;letter-spacing:.04em">
+                    <%= product.brand.name %>
+                  </span>
+                <% end %>
+                <% if is_tinting %>
+                  <span style="font-size:9px;font-weight:700;color:#7c3aed;
+                               background:#7c3aed18;border-radius:4px;padding:1px 5px">
+                    Tint Base
+                  </span>
+                <% end %>
+              </div>
+              <div style="font-size:13px;font-weight:500;color:var(--text);
+                          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px"
+                   title="<%= product.description %>">
+                <%= product.description %>
+              </div>
+              <% enriched_desc = meta['enriched_description'].presence %>
+              <% if enriched_desc %>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:1px;
+                            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px"
+                     title="<%= enriched_desc %>">
+                  <%= enriched_desc %>
+                </div>
               <% end %>
-            </div>
-          </td>
-        </tr>
+            </td>
+
+            <td style="font-family:var(--mono);font-size:11px;line-height:1.7">
+              <% if product.material_code.present? %>
+                <div><span style="color:var(--border)">M</span> <span style="color:var(--text-dim)"><%= product.material_code %></span></div>
+              <% end %>
+              <% if product.product_code.present? %>
+                <div><span style="color:var(--border)">P</span> <span style="color:var(--accent)"><%= product.product_code %></span></div>
+              <% end %>
+              <% if product.pack_code.present? %>
+                <div><span style="color:var(--border)">K</span> <span style="color:var(--text-dim)"><%= product.pack_code %></span></div>
+              <% end %>
+              <% if product.material_code.blank? && product.product_code.blank? && product.pack_code.blank? %>
+                <span style="color:var(--border)">—</span>
+              <% end %>
+            </td>
+
+            <td style="font-family:var(--mono);font-size:11px;line-height:1.7">
+              <% if product.shade_code.present? %>
+                <div style="color:var(--accent)"><%= product.shade_code %></div>
+              <% end %>
+              <% if shade_name %>
+                <div style="color:var(--text-dim);font-size:10px;
+                            overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                     title="<%= shade_name %>">
+                  <%= shade_name %>
+                </div>
+              <% end %>
+              <% if product.shade_code.blank? && shade_name.nil? %>
+                <span style="color:var(--border)">—</span>
+              <% end %>
+            </td>
+
+            <td style="font-family:var(--mono);font-size:12px">
+              <%= size_label || '<span style="color:var(--border)">—</span>'.html_safe %>
+            </td>
+
+            <td style="font-size:11px;line-height:1.7">
+              <div style="font-family:var(--mono);color:var(--text-dim)">
+                <%= product.hsn_code.presence || '—' %>
+              </div>
+              <span style="font-family:var(--mono);font-size:10px;
+                           background:<%= product.gst_rate == 0 ? 'rgba(52,217,139,0.1)' : 'rgba(247,195,79,0.1)' %>;
+                           color:<%= product.gst_rate == 0 ? 'var(--success)' : 'var(--warning)' %>;
+                           padding:1px 5px;border-radius:4px">
+                <%= product.gst_rate %>%
+              </span>
+            </td>
+
+            <td>
+              <span style="font-family:var(--mono);font-size:11px;background:var(--bg);
+                           border:1px solid var(--border);padding:2px 6px;border-radius:4px">
+                <%= product.base_uom.short_name %>
+              </span>
+            </td>
+
+            <td>
+              <span class="badge <%= product.active? ? 'badge-active' : 'badge-inactive' %>">
+                <%= product.active? ? 'Active' : 'Inactive' %>
+              </span>
+            </td>
+          </tr>
         <% end %>
       </tbody>
     </table>
+
   <% else %>
     <div class="empty-state">
       <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1"
            viewBox="0 0 24 24" style="color:var(--muted);margin:0 auto 12px;display:block">
         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
       </svg>
-      <p>No products found<%= @selected_category ? " in #{@selected_category.name}" : '' %>.</p>
-      <div style="margin-top:16px">
-        <%= link_to 'Add first product', new_setup_product_path, class: 'btn btn-primary' %>
+      <p>No products found<% if params[:q].present? %> matching "<strong><%= h(params[:q]) %></strong>"<% end %>.</p>
+      <div style="margin-top:12px">
+        <% if params[:q].present? || params[:category_id].present? || params[:brand_id].present? %>
+          <%= link_to 'Clear filters', setup_products_path, class: 'btn btn-secondary btn-sm' %>
+        <% else %>
+          <%= link_to 'Add first product', new_setup_product_path, class: 'btn btn-primary' %>
+        <% end %>
       </div>
     </div>
   <% end %>
@@ -210,46 +458,102 @@
 
 <%# Pagination %>
 <% if @total_pages > 1 %>
+  <%
+    pg_params = { q: params[:q], category_id: params[:category_id],
+                  brand_id: params[:brand_id], status: params[:status], per_page: @per_page }
+    range_lo  = [@page - 2, 1].max
+    range_hi  = [@page + 2, @total_pages].min
+  %>
   <div style="display:flex;align-items:center;justify-content:space-between;
-              margin-top:16px;font-size:13px;color:var(--text-dim)">
-    <span>
-      Showing <%= ((@page - 1) * @per_page) + 1 %>–<%= [(@page * @per_page), @total_count].min %>
-      of <%= @total_count %> products
+              margin-top:16px;flex-wrap:wrap;gap:10px">
+    <span style="font-size:12px;color:var(--text-dim)">
+      Showing
+      <strong style="color:var(--text)"><%= ((@page - 1) * @per_page) + 1 %>–<%= [@page * @per_page, @total_count].min %></strong>
+      of <strong style="color:var(--text)"><%= @total_count %></strong>
     </span>
-    <div style="display:flex;gap:6px;align-items:center">
+
+    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
       <% if @page > 1 %>
-        <%= link_to '← Prev',
-              setup_products_path(page: @page - 1, per_page: @per_page,
-                category_id: params[:category_id], brand_id: params[:brand_id], status: params[:status]),
-              class: 'btn btn-secondary btn-sm' %>
+        <%= link_to '←', setup_products_path(pg_params.merge(page: @page - 1)),
+              style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                      border:1px solid var(--border);border-radius:6px;color:var(--text);text-decoration:none" %>
       <% end %>
-      <% ([[@page - 2, 1].max, 1].max..[[@page + 2, @total_pages].min, @total_pages].min).each do |p| %>
-        <% if p == @page %>
-          <span style="padding:5px 10px;background:var(--accent);color:#fff;
-                       border-radius:6px;font-size:12px;font-weight:600"><%= p %></span>
-        <% else %>
-          <%= link_to p,
-                setup_products_path(page: p, per_page: @per_page,
-                  category_id: params[:category_id], brand_id: params[:brand_id], status: params[:status]),
-                style: "padding:5px 10px;background:var(--surface);border:1px solid var(--border);
-                        color:var(--text);border-radius:6px;font-size:12px;text-decoration:none" %>
+
+      <% if range_lo > 1 %>
+        <%= link_to '1', setup_products_path(pg_params.merge(page: 1)),
+              style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                      border:1px solid var(--border);border-radius:6px;color:var(--text);text-decoration:none" %>
+        <% if range_lo > 2 %>
+          <span style="padding:5px 4px;font-size:12px;color:var(--text-dim)">…</span>
         <% end %>
       <% end %>
+
+      <% (range_lo..range_hi).each do |p| %>
+        <% if p == @page %>
+          <span style="padding:5px 10px;font-size:12px;font-weight:600;background:var(--accent);
+                       color:#fff;border-radius:6px;border:1px solid var(--accent)"><%= p %></span>
+        <% else %>
+          <%= link_to p, setup_products_path(pg_params.merge(page: p)),
+                style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                        border:1px solid var(--border);border-radius:6px;color:var(--text);text-decoration:none" %>
+        <% end %>
+      <% end %>
+
+      <% if range_hi < @total_pages %>
+        <% if range_hi < @total_pages - 1 %>
+          <span style="padding:5px 4px;font-size:12px;color:var(--text-dim)">…</span>
+        <% end %>
+        <%= link_to @total_pages, setup_products_path(pg_params.merge(page: @total_pages)),
+              style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                      border:1px solid var(--border);border-radius:6px;color:var(--text);text-decoration:none" %>
+      <% end %>
+
       <% if @page < @total_pages %>
-        <%= link_to 'Next →',
-              setup_products_path(page: @page + 1, per_page: @per_page,
-                category_id: params[:category_id], brand_id: params[:brand_id], status: params[:status]),
-              class: 'btn btn-secondary btn-sm' %>
+        <%= link_to '→', setup_products_path(pg_params.merge(page: @page + 1)),
+              style: "padding:5px 10px;font-size:12px;background:var(--surface);
+                      border:1px solid var(--border);border-radius:6px;color:var(--text);text-decoration:none" %>
       <% end %>
     </div>
+
+    <span style="font-size:12px;color:var(--text-dim)">
+      Page <strong style="color:var(--text)"><%= @page %></strong> of <%= @total_pages %>
+    </span>
   </div>
 <% end %>
 
 <script>
-  document.getElementById('productSearch').addEventListener('input', function() {
-    const q = this.value.toLowerCase();
-    document.querySelectorAll('#productTable tbody tr').forEach(row => {
-      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  });
+  (function() {
+    var input   = document.getElementById('productSearch');
+    var form    = document.getElementById('product-filter-form');
+    var toggle  = document.getElementById('filter-toggle');
+    var panel   = document.getElementById('filter-panel');
+    var timer;
+
+    // Search: submit on Enter immediately; auto-submit only after pause + min chars
+    if (input && form) {
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          clearTimeout(timer);
+          form.submit();
+        }
+      });
+      input.addEventListener('input', function() {
+        clearTimeout(timer);
+        var val = input.value.trim();
+        // Auto-fire only when user has typed ≥3 chars or cleared the field
+        if (val.length === 0 || val.length >= 3) {
+          timer = setTimeout(function() { form.submit(); }, 750);
+        }
+      });
+    }
+
+    // Filter panel toggle
+    if (toggle && panel) {
+      toggle.addEventListener('click', function() {
+        var open = panel.classList.toggle('open');
+        toggle.classList.toggle('open', open);
+      });
+    }
+  })();
 </script>

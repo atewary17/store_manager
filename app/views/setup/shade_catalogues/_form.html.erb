@@ -42,7 +42,7 @@
         </div>
 
         <div class="form-group">
-          <%= f.label :brand_id, "Brand / Manufacturer" %>
+          <%= f.label :brand_id, "Brand" %>
           <%= f.select :brand_id,
                 options_from_collection_for_select(brands, :id, :name, shade.brand_id),
                 { include_blank: '— Select brand —' },
@@ -86,12 +86,23 @@
 
       <div class="form-row">
         <div class="form-group">
+          <%= f.label :product_family, "Product Family" %>
+          <%= f.text_field :product_family,
+                placeholder: 'e.g. Apcolite Premium Gloss, Royale, Impressions',
+                class: 'form-control' %>
+          <div class="form-hint">Product line or family name</div>
+        </div>
+
+        <div class="form-group">
           <%= f.label :colour_family, "Colour Family" %>
           <%= f.text_field :colour_family,
                 placeholder: 'e.g. Blues, Whites, Pastels, Neutrals',
                 class: 'form-control' %>
           <div class="form-hint">Used for grouping and filtering</div>
         </div>
+      </div>
+
+      <div class="form-row">
 
         <div class="form-group" style="flex:0.5">
           <%= f.label :active, "Status" %>

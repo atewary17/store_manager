@@ -3,11 +3,16 @@ class Inventory::TintingMachineController < Inventory::BaseController
 
   DISPENSE_STEP_PCT = 25  # each ± tap moves 25% of initial volume
 
+  SUPPORTED_TINTING_BRANDS = [
+    'Asian Paints', 'Salimar Paints', 'Berger Paints', 'Nerolac Paints', 'Birla Opus'
+  ].freeze
+
   before_action :set_brand,    only: [:show, :load_canister, :adjust, :reload_last]
   before_action :set_canister, only: [:adjust]
 
   def index
     @brands          = Brand.active.ordered
+                            .where(name: SUPPORTED_TINTING_BRANDS)
     @brand_summaries = @brands.index_with { |b| canisters_for(b.id) }
   end
 
@@ -22,7 +27,7 @@ class Inventory::TintingMachineController < Inventory::BaseController
   def load_canister
     product = Product.find_by(id: params[:product_id])
     return render json: { success: false, error: 'Product not found' } unless product
-    return render json: { success: false, error: 'Not a tintable product' } unless tintable?(product)
+    return render json: { success: false, error: 'Not a tintable colourant — only pigment/colorant products can be loaded into the tinting machine' } unless tintable?(product)
 
     stock = StockLevel.for_org(@organisation.id).find_by(product_id: product.id)
     if stock.nil? || stock.quantity < 1
@@ -66,6 +71,18 @@ class Inventory::TintingMachineController < Inventory::BaseController
       )
     end
 
+    ActivityLogger.log(
+      organisation:     @organisation,
+      user:             current_user,
+      activity_type:    'tinting_update',
+      activity_subtype: 'updated',
+      description:      "Tinting machine loaded — #{@brand.name} Slot #{slot_num}: #{product.description}",
+      quantity_litres:  0,
+      reference:        TintingMachineCanister.find_by(organisation_id: @organisation.id,
+                                                       brand_id: @brand.id, slot_number: slot_num),
+      metadata:         { brand: @brand.name, slot: slot_num, product: product.description }
+    )
+
     render json: { success: true, message: "#{product.description} loaded into Slot #{slot_num}" }
   rescue => e
     render json: { success: false, error: e.message }
@@ -108,6 +125,26 @@ class Inventory::TintingMachineController < Inventory::BaseController
     else
       @canister.refresh_status!
     end
+
+    ActivityLogger.log(
+      organisation:     @organisation,
+      user:             current_user,
+      activity_type:    'tinting_update',
+      activity_subtype: will_be_empty ? 'updated' : 'updated',
+      description:      "Canister #{params[:direction] == 'subtract' ? 'dispensed' : 'restored'} — " \
+                        "#{@brand.name} Slot #{@canister.slot_number}" \
+                        "#{will_be_empty ? ' (now empty)' : ''}",
+      quantity_litres:  0,
+      reference:        @canister,
+      metadata: {
+        brand:        @brand.name,
+        slot:         @canister.slot_number,
+        direction:    params[:direction],
+        remaining_ml: @canister.remaining_ml,
+        now_empty:    will_be_empty,
+        product:      meta_update['last_product_name']
+      }.compact
+    ) rescue nil
 
     render json: {
       success:        true,
@@ -190,6 +227,17 @@ class Inventory::TintingMachineController < Inventory::BaseController
       )
     end
 
+    ActivityLogger.log(
+      organisation:     @organisation,
+      user:             current_user,
+      activity_type:    'tinting_update',
+      activity_subtype: 'updated',
+      description:      "Tinting machine reloaded — #{@brand.name} Slot #{slot_num}: #{product.description}",
+      quantity_litres:  0,
+      reference:        canister,
+      metadata:         { brand: @brand.name, slot: slot_num, product: product.description }
+    )
+
     render json: {
       success: true,
       message: "#{product.description} reloaded into Slot #{slot_num}"
@@ -236,6 +284,7 @@ class Inventory::TintingMachineController < Inventory::BaseController
       .where("products.metadata->>'tint' = 'true'")
       .where("products.metadata->>'family_colour' IS NOT NULL
               AND products.metadata->>'family_colour' != ''")
+      .where("products.metadata->>'is_tinting_base' IS DISTINCT FROM 'true'")
       .where('stock_levels.quantity >= 1')
       .where(brand_id: brand.id)
       .includes(:brand, :product_category)
@@ -244,6 +293,7 @@ class Inventory::TintingMachineController < Inventory::BaseController
 
   def tintable?(product)
     product.metadata&.dig('tint').to_s == 'true' &&
-      product.metadata&.dig('family_colour').present?
+      product.metadata&.dig('family_colour').present? &&
+      product.metadata&.dig('is_tinting_base') != true
   end
 end

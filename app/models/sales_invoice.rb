@@ -32,7 +32,6 @@ class SalesInvoice < ApplicationRecord
   validate  :cannot_edit_if_confirmed
 
   # ── Callbacks ─────────────────────────────────────────────────
-  before_validation :coerce_discount
 
   # ── State helpers ─────────────────────────────────────────────
   def draft?     = status == 'draft'
@@ -54,7 +53,11 @@ class SalesInvoice < ApplicationRecord
   end
 
   def computed_grand_total
-    (computed_subtotal - overall_discount_amount.to_f).round(2)
+    computed_subtotal.round(2)
+  end
+
+  def computed_discount_total
+    sales_invoice_items.sum { |i| i.metadata['discount_amount'].to_f }.round(2)
   end
 
   def computed_taxable_total
@@ -109,6 +112,7 @@ class SalesInvoice < ApplicationRecord
   # ── Void ─────────────────────────────────────────────────────
   def void!(current_user)
     return { success: false, errors: ['Only confirmed invoices can be voided'] } unless confirmed?
+    return { success: false, errors: ['Paid invoices cannot be voided'] } if fully_paid?
 
     reversed_lines = []
 
@@ -171,9 +175,14 @@ class SalesInvoice < ApplicationRecord
 
     stock_lines = []
     ActiveRecord::Base.transaction do
+      # Auto-assign invoice number from org sequence if not manually set.
+      # next_invoice_number! locks the org row, so parallel confirms on the
+      # same org are serialised — different orgs never share the same counter.
+      self.invoice_number = organisation.next_invoice_number! if invoice_number.blank?
+
       self.total_taxable_amount  = computed_taxable_total
       self.total_tax_amount      = computed_tax_total
-      self.total_discount_amount = overall_discount_amount.to_f
+      self.total_discount_amount = computed_discount_total
       self.total_amount          = computed_grand_total
       self.status                = 'confirmed'
       self.confirmed_at          = Time.current
@@ -198,10 +207,6 @@ class SalesInvoice < ApplicationRecord
 
   private
 
-  def coerce_discount
-    self.overall_discount_amount = overall_discount_amount.presence || 0
-  end
-
   # Fields that post-confirmation writes are allowed to touch
   CONFIRM_FIELDS = %w[status confirmed_at voided_at voided_by_id
                       payment_due_date
@@ -209,7 +214,9 @@ class SalesInvoice < ApplicationRecord
                       total_discount_amount total_amount].freeze
 
   def cannot_edit_if_confirmed
-    return unless confirmed? || voided?
+    # Use status_was (persisted value) so the draft→confirmed transition in
+    # confirm! doesn't trigger this guard against its own save.
+    return unless status_was == 'confirmed' || status_was == 'voided'
     return unless changed?
     illegal = changes.keys - CONFIRM_FIELDS
     errors.add(:base, 'Confirmed invoices cannot be edited') if illegal.any?

@@ -8,48 +8,78 @@
   cust  = inv.customer
   items = inv.sales_invoice_items.order(:id)
 
-  subtotal  = inv.computed_taxable_total.to_f + inv.computed_tax_total.to_f
   taxable   = inv.computed_taxable_total.to_f
   tax_total = inv.computed_tax_total.to_f
-  discount  = inv.overall_discount_amount.to_f
   grand     = inv.computed_grand_total.to_f
+  discount  = inv.overall_discount_amount.to_f
+
+  cgst_total = items.sum { |i| i.cgst_amount.to_f }
+  sgst_total = items.sum { |i| i.sgst_amount.to_f }
+  igst_total = items.sum { |i| i.igst_amount.to_f }
+  is_igst    = igst_total > 0 && cgst_total.zero?
+
+  gross_rate_for = ->(item) {
+    disc_amt = item.metadata['discount_amount'].to_f
+    qty      = item.quantity.to_f
+    qty > 0 ? ((item.taxable_amount.to_f + disc_amt) / qty).round(2) : item.unit_rate.to_f
+  }
+
+  hsn_for = ->(item) {
+    item.product&.hsn_code.presence || item.base_product&.hsn_code.presence || ''
+  }
+
+  gst_rate_for = ->(item) {
+    r = item.metadata['igst_percent'].to_f
+    r > 0 ? r : (item.cgst_percent.to_f + item.sgst_percent.to_f)
+  }
+
+  uom_for = ->(item) {
+    if item.product?  then item.product&.base_uom&.short_name.presence || 'Nos'
+    elsif item.paint? then item.base_product&.base_uom&.short_name.presence || 'Ltr'
+    else 'Nos'
+    end
+  }
 %>
 
 <%# ── Invoice header: org left, INVOICE title right ── %>
-<table style="width:100%;border-collapse:collapse;margin-bottom:18px">
+<table style="width:100%;border-collapse:collapse;margin-bottom:20px">
   <tr>
     <td style="vertical-align:top;padding:0">
-      <div style="font-size:19px;font-weight:700;color:#1a1f2e;letter-spacing:-0.3px">
+      <div style="font-size:22px;font-weight:700;color:#1a1f2e;letter-spacing:-0.3px">
         <%= org.name %>
       </div>
-      <% if org.respond_to?(:gstin) && org.gstin.present? %>
-        <div style="font-size:10px;color:#6b7280;margin-top:3px;font-family:'Courier New',monospace">
+      <% if org.gstin.present? %>
+        <div style="font-size:11px;color:#6b7280;margin-top:4px;font-family:'Courier New',monospace">
           GSTIN: <%= org.gstin %>
         </div>
       <% end %>
-      <% addr = org.try(:address).presence || org.try(:metadata)&.dig('address') %>
-      <% if addr.present? %>
-        <div style="font-size:10px;color:#6b7280;margin-top:2px;line-height:1.5"><%= addr %></div>
+      <% if org.state.present? %>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">
+          State: <%= org.state %><%= org.state_code.present? ? " (#{org.state_code})" : '' %>
+        </div>
+      <% end %>
+      <% if org.address.present? %>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;line-height:1.5"><%= org.address %></div>
       <% end %>
     </td>
     <td style="vertical-align:top;text-align:right;padding:0">
-      <div style="font-size:24px;font-weight:700;color:#1a1f2e;letter-spacing:3px;text-transform:uppercase">
+      <div style="font-size:28px;font-weight:700;color:#1a1f2e;letter-spacing:3px;text-transform:uppercase">
         Invoice
       </div>
-      <div style="font-family:'Courier New',monospace;font-size:13px;color:#374151;margin-top:4px;font-weight:600">
-        <%= inv.display_number %>
+      <div style="font-family:'Courier New',monospace;font-size:15px;color:#374151;margin-top:4px;font-weight:600">
+        <%= inv.invoice_number.presence || '—' %>
       </div>
-      <div style="font-size:11px;color:#6b7280;margin-top:3px">
+      <div style="font-size:12px;color:#6b7280;margin-top:4px">
         <%= inv.invoice_date&.strftime('%d %b %Y') %>
       </div>
       <% if inv.confirmed? %>
-        <div style="display:inline-block;margin-top:6px;padding:2px 10px;background:#dcfce7;
-                    color:#15803d;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:0.06em">
+        <div style="display:inline-block;margin-top:8px;padding:3px 12px;background:#dcfce7;
+                    color:#15803d;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:0.06em">
           CONFIRMED
         </div>
       <% else %>
-        <div style="display:inline-block;margin-top:6px;padding:2px 10px;background:#fef9c3;
-                    color:#a16207;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:0.06em">
+        <div style="display:inline-block;margin-top:8px;padding:3px 12px;background:#fef9c3;
+                    color:#a16207;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:0.06em">
           DRAFT
         </div>
       <% end %>
@@ -57,45 +87,50 @@
   </tr>
 </table>
 
-<div style="border-top:2px solid #1a1f2e;margin-bottom:16px"></div>
+<div style="border-top:2px solid #1a1f2e;margin-bottom:18px"></div>
 
 <%# ── Bill-to / invoice-meta strip ── %>
-<table style="width:100%;border-collapse:collapse;margin-bottom:18px;
+<table style="width:100%;border-collapse:collapse;margin-bottom:20px;
               background:#f8f9fd;border:1px solid #e5e7eb;border-radius:5px">
   <tr>
-    <td style="padding:10px 14px;vertical-align:top;width:55%">
-      <div style="font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
-                  color:#9ca3af;margin-bottom:4px">Bill To</div>
-      <div style="font-size:13px;font-weight:600;color:#1a1f2e">
+    <td style="padding:12px 16px;vertical-align:top;width:55%">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+                  color:#9ca3af;margin-bottom:5px">Bill To</div>
+      <div style="font-size:15px;font-weight:600;color:#1a1f2e">
         <%= cust&.name || 'Walk-in Customer' %>
       </div>
       <% if cust&.phone.present? %>
-        <div style="font-size:10px;color:#6b7280;font-family:'Courier New',monospace;margin-top:2px">
+        <div style="font-size:11px;color:#6b7280;font-family:'Courier New',monospace;margin-top:3px">
           <%= cust.phone %>
         </div>
       <% end %>
       <% if cust&.gstin.present? %>
-        <div style="font-size:10px;color:#6b7280;font-family:'Courier New',monospace;margin-top:1px">
+        <div style="font-size:11px;color:#6b7280;font-family:'Courier New',monospace;margin-top:2px">
           GSTIN: <%= cust.gstin %>
+        </div>
+      <% end %>
+      <% if cust&.state.present? %>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">
+          State: <%= cust.state %>
         </div>
       <% end %>
       <% cust_addr = cust&.try(:address).presence || cust&.try(:metadata)&.dig('address') %>
       <% if cust_addr.present? %>
-        <div style="font-size:10px;color:#6b7280;margin-top:2px;line-height:1.5"><%= cust_addr %></div>
+        <div style="font-size:11px;color:#6b7280;margin-top:3px;line-height:1.5"><%= cust_addr %></div>
       <% end %>
     </td>
-    <td style="padding:10px 14px;vertical-align:top;border-left:1px solid #e5e7eb">
+    <td style="padding:12px 16px;vertical-align:top;border-left:1px solid #e5e7eb">
       <table style="width:100%;border-collapse:collapse">
         <% [
-          ['Invoice No.',   inv.invoice_number.presence  || '—'],
+          ['Invoice No.',   inv.invoice_number.presence || '—'],
           ['Date',          inv.invoice_date&.strftime('%d %b %Y') || '—'],
-          ['Payment',       inv.payment_mode&.titleize   || '—'],
+          ['Payment',       inv.payment_mode&.titleize || '—'],
         ].each do |lbl, val| %>
           <tr>
-            <td style="font-size:10px;color:#9ca3af;padding:2px 0;font-weight:600;
+            <td style="font-size:11px;color:#9ca3af;padding:3px 0;font-weight:600;
                        letter-spacing:0.04em;text-transform:uppercase"><%= lbl %></td>
-            <td style="font-size:11px;color:#1a1f2e;font-family:'Courier New',monospace;
-                       text-align:right;padding:2px 0;font-weight:600"><%= val %></td>
+            <td style="font-size:12px;color:#1a1f2e;font-family:'Courier New',monospace;
+                       text-align:right;padding:3px 0;font-weight:600"><%= val %></td>
           </tr>
         <% end %>
       </table>
@@ -107,78 +142,91 @@
 <table style="width:100%;border-collapse:collapse;margin-bottom:0">
   <thead>
     <tr style="background:#1a1f2e">
-      <th style="padding:7px 10px;text-align:left;font-size:9px;font-weight:600;
-                 color:#fff;letter-spacing:0.07em;text-transform:uppercase">#</th>
-      <th style="padding:7px 10px;text-align:left;font-size:9px;font-weight:600;
+      <th style="padding:9px 10px;text-align:center;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:3%">#</th>
+      <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:600;
                  color:#fff;letter-spacing:0.07em;text-transform:uppercase">Item / Shade</th>
-      <th style="padding:7px 10px;text-align:center;font-size:9px;font-weight:600;
-                 color:#fff;letter-spacing:0.07em;text-transform:uppercase">Type</th>
-      <th style="padding:7px 8px;text-align:right;font-size:9px;font-weight:600;
-                 color:#fff;letter-spacing:0.07em;text-transform:uppercase">Qty</th>
-      <th style="padding:7px 8px;text-align:right;font-size:9px;font-weight:600;
-                 color:#fff;letter-spacing:0.07em;text-transform:uppercase">Rate</th>
-      <th style="padding:7px 8px;text-align:right;font-size:9px;font-weight:600;
-                 color:#fff;letter-spacing:0.07em;text-transform:uppercase">Taxable</th>
-      <th style="padding:7px 8px;text-align:center;font-size:9px;font-weight:600;
-                 color:#fff;letter-spacing:0.07em;text-transform:uppercase">GST</th>
-      <th style="padding:7px 10px;text-align:right;font-size:9px;font-weight:600;
-                 color:#fff;letter-spacing:0.07em;text-transform:uppercase">Amount</th>
+      <th style="padding:9px 8px;text-align:center;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:8%">HSN/SAC</th>
+      <th style="padding:9px 8px;text-align:center;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:6%">GST<br>Rate</th>
+      <th style="padding:9px 8px;text-align:right;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:9%">Qty</th>
+      <th style="padding:9px 8px;text-align:right;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:9%">Rate</th>
+      <th style="padding:9px 8px;text-align:right;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:7%">Disc.%</th>
+      <th style="padding:9px 8px;text-align:right;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:10%">Taxable</th>
+      <th style="padding:9px 10px;text-align:right;font-size:10px;font-weight:600;
+                 color:#fff;letter-spacing:0.07em;text-transform:uppercase;width:11%">Amount</th>
     </tr>
   </thead>
   <tbody>
     <% items.each_with_index do |item, i| %>
+      <% gr       = gross_rate_for.(item) %>
+      <% disc_pct = item.discount_percent.to_f %>
+      <% disc_amt = item.metadata['discount_amount'].to_f %>
+      <% gst_r    = gst_rate_for.(item) %>
       <tr style="border-bottom:1px solid #e5e7eb;<%= item.paint? ? 'background:#fffbeb' : (i.even? ? '' : 'background:#fafafa') %>">
-        <td style="padding:7px 10px;font-size:10px;color:#9ca3af;font-family:'Courier New',monospace">
+        <td style="padding:8px 10px;font-size:11px;color:#9ca3af;font-family:'Courier New',monospace;text-align:center">
           <%= i + 1 %>
         </td>
-        <td style="padding:7px 10px;vertical-align:top">
+        <td style="padding:8px 10px;vertical-align:top">
           <% if item.paint? %>
-            <div style="font-size:11px;font-weight:600;color:#1a1f2e"><%= item.shade_display %></div>
-            <% shade_meta = [item.metadata['colour_family'], item.base_product&.pack_code&.prepend('Base: ')].compact_blank.join(' · ') %>
+            <div style="font-size:12px;font-weight:600;color:#1a1f2e"><%= item.shade_display %></div>
+            <% shade_meta = [item.metadata['colour_family'].presence,
+                             item.base_product.present? ? "Base: #{item.base_product.display_name}" : nil
+                            ].compact.join(' · ') %>
             <% if shade_meta.present? %>
-              <div style="font-size:9px;color:#9ca3af;font-family:'Courier New',monospace;margin-top:1px"><%= shade_meta %></div>
+              <div style="font-size:10px;color:#9ca3af;font-family:'Courier New',monospace;margin-top:2px"><%= shade_meta %></div>
             <% end %>
           <% elsif item.adhoc? %>
-            <div style="font-size:11px;font-weight:600;color:#1a1f2e"><%= item.description.presence || 'Ad-hoc charge' %></div>
+            <div style="font-size:12px;font-weight:600;color:#1a1f2e"><%= item.description.presence || 'Ad-hoc charge' %></div>
           <% else %>
-            <div style="font-size:11px;font-weight:600;color:#1a1f2e"><%= item.product&.display_name || '—' %></div>
+            <div style="font-size:12px;font-weight:600;color:#1a1f2e"><%= item.product&.display_name || '—' %></div>
             <% if item.product&.material_code.present? %>
-              <div style="font-size:9px;color:#9ca3af;font-family:'Courier New',monospace;margin-top:1px">
+              <div style="font-size:10px;color:#9ca3af;font-family:'Courier New',monospace;margin-top:2px">
                 <%= item.product.material_code %>
               </div>
             <% end %>
           <% end %>
         </td>
-        <td style="padding:7px 8px;text-align:center;vertical-align:top">
-          <span style="font-size:8px;font-family:'Courier New',monospace;font-weight:700;
-                       padding:2px 5px;border-radius:3px;letter-spacing:0.05em;
-                       background:<%= item.paint? ? '#fef3c7' : (item.adhoc? ? '#d1fae5' : '#dbeafe') %>;
-                       color:<%= item.paint? ? '#92400e' : (item.adhoc? ? '#065f46' : '#1e40af') %>">
-            <%= item.line_type.upcase %>
-          </span>
+        <td style="padding:8px 8px;text-align:center;font-size:11px;
+                   font-family:'Courier New',monospace;color:#374151;vertical-align:top">
+          <%= hsn_for.(item).presence || '—' %>
         </td>
-        <td style="padding:7px 8px;text-align:right;font-size:11px;
+        <td style="padding:8px 8px;text-align:center;font-size:11px;
+                   font-family:'Courier New',monospace;color:#6b7280;vertical-align:top">
+          <%= gst_r > 0 ? "#{gst_r.to_i}%" : '—' %>
+        </td>
+        <td style="padding:8px 8px;text-align:right;font-size:12px;
                    font-family:'Courier New',monospace;vertical-align:top">
           <%= number_with_precision(item.quantity, precision: 3, strip_insignificant_zeros: true) %>
-          <% uom = item.product&.base_uom&.short_name || (item.paint? ? 'Ltr' : '') %>
-          <% if uom.present? %><div style="font-size:9px;color:#9ca3af"><%= uom %></div><% end %>
+          <div style="font-size:10px;color:#9ca3af"><%= uom_for.(item) %></div>
         </td>
-        <td style="padding:7px 8px;text-align:right;font-size:11px;
+        <td style="padding:8px 8px;text-align:right;font-size:12px;
                    font-family:'Courier New',monospace;vertical-align:top">
-          <%= number_with_precision(item.unit_rate, precision: 2) %>
+          <%= gr > 0 ? number_with_precision(gr, precision: 2) : '—' %>
         </td>
-        <td style="padding:7px 8px;text-align:right;font-size:11px;
+        <td style="padding:8px 8px;text-align:right;font-size:12px;
+                   font-family:'Courier New',monospace;vertical-align:top;color:#d97706">
+          <% if disc_pct > 0 %>
+            <%= number_with_precision(disc_pct, precision: 2, strip_insignificant_zeros: true) %>%
+            <div style="font-size:10px;color:#9ca3af">
+              &minus;<%= number_with_precision(disc_amt, precision: 2) %>
+            </div>
+          <% else %>
+            <span style="color:#9ca3af">—</span>
+          <% end %>
+        </td>
+        <td style="padding:8px 8px;text-align:right;font-size:12px;
                    font-family:'Courier New',monospace;vertical-align:top">
-          <%= number_with_precision(item.taxable_amount, precision: 2) %>
+          <%= number_with_precision(item.taxable_amount, precision: 2, delimiter: ',') %>
         </td>
-        <td style="padding:7px 8px;text-align:center;font-size:10px;
-                   font-family:'Courier New',monospace;color:#6b7280;vertical-align:top">
-          <% gst = item.cgst_percent.to_f + item.sgst_percent.to_f %>
-          <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
-        </td>
-        <td style="padding:7px 10px;text-align:right;font-size:12px;font-weight:700;
+        <td style="padding:8px 10px;text-align:right;font-size:13px;font-weight:700;
                    font-family:'Courier New',monospace;vertical-align:top;color:#1a1f2e">
-          <%= number_with_precision(item.total_amount, precision: 2) %>
+          <%= number_with_precision(item.total_amount, precision: 2, delimiter: ',') %>
         </td>
       </tr>
     <% end %>
@@ -188,46 +236,69 @@
 <%# ── Totals ── %>
 <table style="width:100%;border-collapse:collapse;border-top:2px solid #1a1f2e">
   <tr>
-    <td style="padding:0;vertical-align:top;width:55%">
-      <%# Left: notes / blank for signature later %>
+    <td style="padding:0;vertical-align:top;width:52%">
+      <%# Amount in words %>
+      <div style="padding:12px 0 0 0">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+                    color:#9ca3af;margin-bottom:4px">Amount Chargeable (in words)</div>
+        <div style="font-size:12px;font-weight:600;color:#1a1f2e;line-height:1.5">
+          <%= amount_in_words(grand.round(0)) %>
+        </div>
+      </div>
     </td>
     <td style="padding:0;vertical-align:top">
       <table style="width:100%;border-collapse:collapse">
         <tr>
-          <td style="padding:6px 10px;font-size:11px;color:#6b7280">Subtotal</td>
-          <td style="padding:6px 10px;text-align:right;font-size:11px;
-                     font-family:'Courier New',monospace;color:#1a1f2e">
-            Rs. <%= number_with_precision(subtotal, precision: 2, delimiter: ',') %>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:6px 10px;font-size:11px;color:#6b7280">Taxable</td>
-          <td style="padding:6px 10px;text-align:right;font-size:11px;
-                     font-family:'Courier New',monospace;color:#1a1f2e">
+          <td style="padding:7px 10px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb">Taxable Amount</td>
+          <td style="padding:7px 10px;text-align:right;font-size:12px;
+                     font-family:'Courier New',monospace;color:#1a1f2e;border-top:1px solid #e5e7eb">
             Rs. <%= number_with_precision(taxable, precision: 2, delimiter: ',') %>
           </td>
         </tr>
-        <tr>
-          <td style="padding:6px 10px;font-size:11px;color:#6b7280">GST</td>
-          <td style="padding:6px 10px;text-align:right;font-size:11px;
-                     font-family:'Courier New',monospace;color:#1a1f2e">
-            Rs. <%= number_with_precision(tax_total, precision: 2, delimiter: ',') %>
-          </td>
-        </tr>
+        <% if is_igst %>
+          <tr>
+            <td style="padding:7px 10px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb">
+              IGST (<%= items.map { |i| i.metadata['igst_percent'].to_f }.max.to_i %>%)
+            </td>
+            <td style="padding:7px 10px;text-align:right;font-size:12px;
+                       font-family:'Courier New',monospace;color:#1a1f2e;border-top:1px solid #e5e7eb">
+              Rs. <%= number_with_precision(igst_total, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+        <% else %>
+          <tr>
+            <td style="padding:7px 10px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb">
+              CGST (<%= items.map { |i| i.cgst_percent.to_f }.max.to_i %>%)
+            </td>
+            <td style="padding:7px 10px;text-align:right;font-size:12px;
+                       font-family:'Courier New',monospace;color:#1a1f2e;border-top:1px solid #e5e7eb">
+              Rs. <%= number_with_precision(cgst_total, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:7px 10px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb">
+              SGST (<%= items.map { |i| i.sgst_percent.to_f }.max.to_i %>%)
+            </td>
+            <td style="padding:7px 10px;text-align:right;font-size:12px;
+                       font-family:'Courier New',monospace;color:#1a1f2e;border-top:1px solid #e5e7eb">
+              Rs. <%= number_with_precision(sgst_total, precision: 2, delimiter: ',') %>
+            </td>
+          </tr>
+        <% end %>
         <% if discount > 0 %>
           <tr style="border-top:1px solid #e5e7eb">
-            <td style="padding:6px 10px;font-size:11px;color:#d97706">Discount</td>
-            <td style="padding:6px 10px;text-align:right;font-size:11px;
-                       font-family:'Courier New',monospace;color:#d97706">
+            <td style="padding:7px 10px;font-size:12px;color:#d97706">Discount</td>
+            <td style="padding:7px 10px;text-align:right;font-size:12px;
+                       font-family:'Courier New',monospace;color:#d97706;border-top:1px solid #e5e7eb">
               &minus; Rs. <%= number_with_precision(discount, precision: 2, delimiter: ',') %>
             </td>
           </tr>
         <% end %>
         <tr style="background:#1a1f2e">
-          <td style="padding:9px 10px;font-size:13px;font-weight:700;color:#fff">
+          <td style="padding:10px 10px;font-size:14px;font-weight:700;color:#fff">
             Grand Total
           </td>
-          <td style="padding:9px 10px;text-align:right;font-size:13px;font-weight:700;
+          <td style="padding:10px 10px;text-align:right;font-size:14px;font-weight:700;
                      font-family:'Courier New',monospace;color:#fff">
             Rs. <%= number_with_precision(grand, precision: 2, delimiter: ',') %>
           </td>
@@ -237,18 +308,168 @@
   </tr>
 </table>
 
-<%# ── Footer ── %>
-<div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;
-            display:flex;justify-content:space-between;align-items:flex-end">
-  <div style="font-size:9px;color:#9ca3af;line-height:1.6">
-    Generated on <%= Date.today.strftime('%d %b %Y') %><br>
-    <%= org.name %>
-  </div>
-  <div style="text-align:right">
-    <div style="margin-bottom:30px;font-size:9px;color:#9ca3af">Authorised Signatory</div>
-    <div style="border-top:1px solid #9ca3af;padding-top:4px;width:160px;
-                font-size:9px;color:#9ca3af;text-align:center">
-      <%= org.name %>
-    </div>
-  </div>
+<%# ── HSN / SAC Tax Summary ── %>
+<% hsn_groups = {}
+   items.each do |item|
+     hsn = hsn_for.(item).presence || '—'
+     hsn_groups[hsn] ||= { taxable: 0.0, cgst: 0.0, sgst: 0.0, igst: 0.0,
+                           cgst_rate: item.cgst_percent.to_f,
+                           sgst_rate: item.sgst_percent.to_f,
+                           igst_rate: item.metadata['igst_percent'].to_f }
+     hsn_groups[hsn][:taxable] += item.taxable_amount.to_f
+     hsn_groups[hsn][:cgst]    += item.cgst_amount.to_f
+     hsn_groups[hsn][:sgst]    += item.sgst_amount.to_f
+     hsn_groups[hsn][:igst]    += item.igst_amount.to_f
+   end
+%>
+<div style="margin-top:18px;border-top:1px solid #e5e7eb;padding-top:12px">
+  <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+              color:#9ca3af;margin-bottom:8px">HSN/SAC Tax Summary</div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead>
+      <tr style="background:#f3f4f6">
+        <th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;color:#374151;
+                   border:1px solid #e5e7eb">HSN/SAC</th>
+        <th style="padding:7px 10px;text-align:right;font-size:10px;font-weight:700;color:#374151;
+                   border:1px solid #e5e7eb">Taxable Value</th>
+        <% if is_igst %>
+          <th style="padding:7px 10px;text-align:center;font-size:10px;font-weight:700;color:#374151;
+                     border:1px solid #e5e7eb" colspan="2">Integrated Tax</th>
+        <% else %>
+          <th style="padding:7px 10px;text-align:center;font-size:10px;font-weight:700;color:#374151;
+                     border:1px solid #e5e7eb" colspan="2">Central Tax</th>
+          <th style="padding:7px 10px;text-align:center;font-size:10px;font-weight:700;color:#374151;
+                     border:1px solid #e5e7eb" colspan="2">State Tax</th>
+        <% end %>
+        <th style="padding:7px 10px;text-align:right;font-size:10px;font-weight:700;color:#374151;
+                   border:1px solid #e5e7eb">Total Tax</th>
+      </tr>
+      <tr style="background:#f9fafb">
+        <th style="padding:5px 10px;border:1px solid #e5e7eb"></th>
+        <th style="padding:5px 10px;border:1px solid #e5e7eb"></th>
+        <% if is_igst %>
+          <th style="padding:5px 10px;text-align:center;font-size:10px;color:#6b7280;border:1px solid #e5e7eb">Rate</th>
+          <th style="padding:5px 10px;text-align:right;font-size:10px;color:#6b7280;border:1px solid #e5e7eb">Amount</th>
+        <% else %>
+          <th style="padding:5px 10px;text-align:center;font-size:10px;color:#6b7280;border:1px solid #e5e7eb">Rate</th>
+          <th style="padding:5px 10px;text-align:right;font-size:10px;color:#6b7280;border:1px solid #e5e7eb">Amount</th>
+          <th style="padding:5px 10px;text-align:center;font-size:10px;color:#6b7280;border:1px solid #e5e7eb">Rate</th>
+          <th style="padding:5px 10px;text-align:right;font-size:10px;color:#6b7280;border:1px solid #e5e7eb">Amount</th>
+        <% end %>
+        <th style="padding:5px 10px;border:1px solid #e5e7eb"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% hsn_groups.each do |hsn, g| %>
+        <% row_tax = g[:igst] + g[:cgst] + g[:sgst] %>
+        <tr>
+          <td style="padding:7px 10px;font-family:'Courier New',monospace;border:1px solid #e5e7eb"><%= hsn %></td>
+          <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+            <%= number_with_precision(g[:taxable], precision: 2, delimiter: ',') %>
+          </td>
+          <% if is_igst %>
+            <td style="padding:7px 10px;text-align:center;border:1px solid #e5e7eb"><%= g[:igst_rate].to_i %>%</td>
+            <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+              <%= number_with_precision(g[:igst], precision: 2, delimiter: ',') %>
+            </td>
+          <% else %>
+            <td style="padding:7px 10px;text-align:center;border:1px solid #e5e7eb"><%= g[:cgst_rate].to_i %>%</td>
+            <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+              <%= number_with_precision(g[:cgst], precision: 2, delimiter: ',') %>
+            </td>
+            <td style="padding:7px 10px;text-align:center;border:1px solid #e5e7eb"><%= g[:sgst_rate].to_i %>%</td>
+            <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+              <%= number_with_precision(g[:sgst], precision: 2, delimiter: ',') %>
+            </td>
+          <% end %>
+          <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+            <%= number_with_precision(row_tax, precision: 2, delimiter: ',') %>
+          </td>
+        </tr>
+      <% end %>
+      <% tax_grand = cgst_total + sgst_total + igst_total %>
+      <tr style="font-weight:700;background:#f3f4f6">
+        <td style="padding:7px 10px;border:1px solid #e5e7eb">Total</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+          <%= number_with_precision(taxable, precision: 2, delimiter: ',') %>
+        </td>
+        <% if is_igst %>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb"></td>
+          <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+            <%= number_with_precision(igst_total, precision: 2, delimiter: ',') %>
+          </td>
+        <% else %>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb"></td>
+          <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+            <%= number_with_precision(cgst_total, precision: 2, delimiter: ',') %>
+          </td>
+          <td style="padding:7px 10px;border:1px solid #e5e7eb"></td>
+          <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+            <%= number_with_precision(sgst_total, precision: 2, delimiter: ',') %>
+          </td>
+        <% end %>
+        <td style="padding:7px 10px;text-align:right;font-family:'Courier New',monospace;border:1px solid #e5e7eb">
+          <%= number_with_precision(tax_grand, precision: 2, delimiter: ',') %>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </div>
+
+<%# ── Footer: bank details left, signatory right ── %>
+<table style="width:100%;border-collapse:collapse;margin-top:20px;border-top:1px solid #e5e7eb">
+  <tr>
+    <td style="padding:12px 0;vertical-align:top;width:55%">
+      <% bank_name   = org.settings.dig('bank_name').presence
+         bank_acno   = org.settings.dig('bank_account_number').presence
+         bank_ifsc   = org.settings.dig('bank_ifsc').presence
+         bank_branch = org.settings.dig('bank_branch').presence
+         declaration = org.settings.dig('declaration').presence %>
+      <% if bank_name || bank_acno || bank_ifsc %>
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+                    color:#9ca3af;margin-bottom:6px">Company's Bank Details</div>
+        <table style="font-size:11px;border-collapse:collapse">
+          <% if bank_name %>
+            <tr>
+              <td style="padding:2px 10px 2px 0;color:#6b7280;white-space:nowrap">Bank Name</td>
+              <td style="padding:2px 0;color:#1a1f2e;font-weight:600">: <%= bank_name %></td>
+            </tr>
+          <% end %>
+          <% if bank_acno %>
+            <tr>
+              <td style="padding:2px 10px 2px 0;color:#6b7280;white-space:nowrap">A/c No.</td>
+              <td style="padding:2px 0;font-family:'Courier New',monospace;color:#1a1f2e">: <%= bank_acno %></td>
+            </tr>
+          <% end %>
+          <% if bank_ifsc || bank_branch %>
+            <tr>
+              <td style="padding:2px 10px 2px 0;color:#6b7280;white-space:nowrap">Branch &amp; IFS Code</td>
+              <td style="padding:2px 0;font-family:'Courier New',monospace;color:#1a1f2e">
+                : <%= [bank_branch, bank_ifsc].compact.join(' / ') %>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      <% end %>
+      <% if declaration.present? %>
+        <div style="margin-top:12px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+                      color:#9ca3af;margin-bottom:4px">Declaration</div>
+          <div style="font-size:11px;color:#6b7280;line-height:1.5"><%= declaration %></div>
+        </div>
+      <% end %>
+      <div style="margin-top:12px;font-size:10px;color:#9ca3af;font-style:italic">
+        Generated on <%= Date.today.strftime('%d %b %Y') %> &nbsp;·&nbsp; <%= org.name %>
+      </div>
+    </td>
+    <td style="padding:12px 0;vertical-align:top;text-align:right">
+      <div style="font-size:12px;font-weight:600;color:#1a1f2e;margin-bottom:6px">
+        for <%= org.name %>
+      </div>
+      <div style="margin-top:50px;display:inline-block;min-width:180px;text-align:center">
+        <div style="border-top:1px solid #9ca3af;padding-top:6px;
+                    font-size:11px;color:#6b7280">Authorised Signatory</div>
+      </div>
+    </td>
+  </tr>
+</table>

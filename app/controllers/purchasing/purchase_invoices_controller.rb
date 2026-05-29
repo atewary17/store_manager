@@ -96,6 +96,19 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     end
 
     if @invoice.confirm!(current_user)
+      begin
+        ActivityLogger.log(
+          organisation:     @invoice.organisation,
+          user:             current_user,
+          activity_type:    'purchase',
+          activity_subtype: 'confirmed',
+          description:      "Purchase invoice #{@invoice.invoice_number} confirmed",
+          reference:        @invoice,
+          metadata:         { invoice_number: @invoice.invoice_number, supplier: @invoice.supplier&.name }.compact
+        )
+      rescue => e
+        Rails.logger.warn("[ActivityLog] purchase confirm #{@invoice.id}: #{e.message}")
+      end
       redirect_to purchasing_purchase_invoice_path(@invoice),
         notice: "Invoice confirmed. Stock updated for #{@invoice.purchase_invoice_items.matched.count} product(s)."
     else

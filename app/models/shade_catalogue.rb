@@ -62,9 +62,10 @@ class ShadeCatalogue < ApplicationRecord
   private
 
   def strip_whitespace
-    self.shade_code    = shade_code.strip    if shade_code.present?
-    self.shade_name    = shade_name.strip    if shade_name.present?
-    self.colour_family = colour_family.strip if colour_family.present?
+    self.shade_code     = shade_code.strip     if shade_code.present?
+    self.shade_name     = shade_name.strip     if shade_name.present?
+    self.colour_family  = colour_family.strip  if colour_family.present?
+    self.product_family = product_family.strip if product_family.present?
   end
 
   def upcase_shade_code

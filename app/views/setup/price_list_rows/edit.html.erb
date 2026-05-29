@@ -1,0 +1,38 @@
+<%# app/views/setup/price_list_rows/edit.html.erb %>
+<% content_for :title, "Edit Price List Row" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Price List', setup_price_list_rows_path %>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to "##{@row.id}", setup_price_list_row_path(@row) %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">Edit</span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Edit Price List Row</div>
+    <div class="page-subtitle" style="font-family:var(--mono);font-size:13px">
+      <%= @row.product_base_name %>
+      <% if @row.shade_code.present? %>
+        <span style="color:var(--accent);margin-left:6px">· <%= @row.shade_code %></span>
+      <% end %>
+      <span style="color:var(--text-dim);margin-left:6px">
+        · <%= @row.effective_date.strftime('%d %b %Y') %>
+      </span>
+    </div>
+  </div>
+</div>
+
+<%= form_with model: [:setup, @row], local: true do |f| %>
+  <div class="form-card" style="max-width:780px">
+    <%= render 'form', row: @row, f: f %>
+    <div class="form-actions">
+      <%= f.submit 'Save Changes', class: 'btn btn-primary' %>
+      <%= link_to 'Cancel', setup_price_list_row_path(@row), class: 'btn btn-secondary' %>
+    </div>
+  </div>
+<% end %>

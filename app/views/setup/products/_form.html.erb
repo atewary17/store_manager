@@ -113,6 +113,15 @@
         <div class="form-error"><%= product.errors[:product_code].first %></div>
       <% end %>
     </div>
+
+    <div class="form-group">
+      <%= f.label :shade_code, "Shade Code" %>
+      <%= f.text_field :shade_code,
+            placeholder: 'e.g. AP-101, NW-5501',
+            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            class: 'form-control' %>
+      <div class="form-hint">Shade / colour code — optional</div>
+    </div>
   </div>
 </div>
 

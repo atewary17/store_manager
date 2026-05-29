@@ -12,6 +12,10 @@ class Setup::ProductImportsController < Setup::BaseController
                         else
                           []
                         end
+    if current_user.super_admin? &&
+        ActiveRecord::Base.connection.table_exists?(:price_list_imports)
+      @price_list_imports = PriceListImport.recent.includes(:user).limit(50)
+    end
   end
 
   def new
@@ -82,7 +86,7 @@ class Setup::ProductImportsController < Setup::BaseController
     wb      = package.workbook
 
     wb.add_worksheet(name: 'Import Errors') do |sheet|
-      headers = %w[row_number error category uom brand pack_code description
+      headers = %w[row_number error category uom brand pack_code shade_code description
                    material_code product_code hsn_code gst_rate
                    mrp internal_code local_description active]
       sheet.add_row headers
@@ -134,18 +138,18 @@ class Setup::ProductImportsController < Setup::BaseController
       # ── Row 1: Column headers ──
       sheet.add_row(
         # Core fields
-        ['category', 'uom', 'brand', 'pack_code', 'description',
+        ['category', 'uom', 'brand', 'pack_code', 'shade_code', 'description',
          'material_code', 'product_code', 'hsn_code', 'gst_rate',
          'mrp', 'internal_code', 'local_description', 'active',
          # Metadata fields
-         'meta:tint', 'meta:family_colour', 'meta:canister_volume_ml',
+         'meta:tint', 'meta:family_colour', 'meta:canister_volume_ml', 'meta:is_tinting_base',
          'meta:source', 'meta:validation_status', 'meta:ai_confidence',
          'meta:ai_brand_guess', 'meta:ai_category_guess', 'meta:ai_notes',
          'meta:original_name'],
-        style: [hdr, hdr, hdr, hdr, hdr,
+        style: [hdr, hdr, hdr, hdr, txt_hdr, hdr,
                 txt_hdr, txt_hdr, txt_hdr, hdr,
                 hdr, hdr, hdr, hdr,
-                meta_hdr, meta_hdr, meta_hdr,
+                meta_hdr, meta_hdr, meta_hdr, meta_hdr,
                 meta_hdr, meta_hdr, meta_hdr,
                 meta_hdr, meta_hdr, meta_hdr, meta_hdr],
         height: 28
@@ -153,15 +157,15 @@ class Setup::ProductImportsController < Setup::BaseController
 
       # ── Row 2: Required / Optional ──
       sheet.add_row(
-        ['REQUIRED', 'REQUIRED', 'REQUIRED', 'optional', 'REQUIRED',
+        ['REQUIRED', 'REQUIRED', 'REQUIRED', 'optional', 'optional', 'REQUIRED',
          'optional*', 'optional*', 'optional', 'REQUIRED',
          'optional', 'optional', 'optional', 'REQUIRED',
-         'optional', 'optional', 'optional',
+         'optional', 'optional', 'optional', 'optional',
          'optional', 'optional', 'optional',
          'optional', 'optional', 'optional', 'optional'],
-        style: [req, req, req, opt, req, opt, opt, opt, req,
+        style: [req, req, req, opt, opt, req, opt, opt, opt, req,
                 opt, opt, opt, req,
-                meta_opt, meta_opt, meta_opt,
+                meta_opt, meta_opt, meta_opt, meta_opt,
                 meta_opt, meta_opt, meta_opt,
                 meta_opt, meta_opt, meta_opt, meta_opt],
         height: 20
@@ -174,6 +178,7 @@ class Setup::ProductImportsController < Setup::BaseController
           'UOM short name e.g. Ltr / Kg / Pcs / Mtr',
           'Brand name (text)',
           'Pack size e.g. 1L / 500ml / 20Kg',
+          'Shade code e.g. AP-101, NW-5501 (optional)',
           'Full product description (text)',
           'Material code — unique import key (*)',
           'Product code — optional import key (*)',
@@ -187,6 +192,7 @@ class Setup::ProductImportsController < Setup::BaseController
           'true = colorant for tinting machine',
           'Colour family e.g. Red Oxide, Burnt Amber',
           'Volume in ml e.g. 500, 1000',
+          'true = Tinting Base (Deep/White Base) for custom colour mixing',
           'Leave blank or: ai_enrichment',
           'pending / approved / needs_validation',
           'AI confidence 0.0–1.0',
@@ -195,9 +201,9 @@ class Setup::ProductImportsController < Setup::BaseController
           'Notes from AI enrichment',
           'Original product name from invoice'
         ],
-        style: [desc, desc, desc, desc, desc, desc, desc, desc, desc,
+        style: [desc, desc, desc, desc, desc, desc, desc, desc, desc, desc,
                 desc, desc, desc, desc,
-                meta_desc, meta_desc, meta_desc,
+                meta_desc, meta_desc, meta_desc, meta_desc,
                 meta_desc, meta_desc, meta_desc,
                 meta_desc, meta_desc, meta_desc, meta_desc],
         height: 48
@@ -205,43 +211,44 @@ class Setup::ProductImportsController < Setup::BaseController
 
       # ── Row 4–6: Example data ──
       sheet.add_row(
-        ['Paints', 'Ltr', 'Asian Paints', '1L', 'Tractor Emulsion Interior',
+        ['Paints', 'Ltr', 'Asian Paints', '1L', '', 'Tractor Emulsion Interior',
          'AP-EMU-1L', 'PROD-001', '3208', '18', '450.00', 'SH-001', '', 'true',
-         '', '', '', '', '', '', '', '', '', ''],
-        style: [example, example, example, example, example,
+         '', '', '', '', '', '', '', '', '', '', ''],
+        style: [example, example, example, example, txt_example, example,
                 txt_example, txt_example, txt_example, example,
                 example, example, example, example,
                 meta_ex, meta_ex, meta_ex, meta_ex, meta_ex,
-                meta_ex, meta_ex, meta_ex, meta_ex, meta_ex],
+                meta_ex, meta_ex, meta_ex, meta_ex, meta_ex, meta_ex],
         height: 18
       )
       sheet.add_row(
-        ['Paints', 'Ltr', 'Asian Paints', '200ml',
+        ['Paints', 'Ltr', 'Asian Paints', '200ml', '',
          'APCO Gloss Enamel Gold 200ML',
          '0001M003120', '', '3209', '18', '95.00', '', '', 'true',
-         'true', 'Gold Oxide', '200', '', '', '', '', '', '', ''],
-        style: [example, example, example, example, example,
+         'true', 'Gold Oxide', '200', 'false', '', '', '', '', '', '', ''],
+        style: [example, example, example, example, txt_example, example,
                 txt_example, txt_example, txt_example, example,
                 example, example, example, example,
                 meta_ex, meta_ex, meta_ex, meta_ex, meta_ex,
-                meta_ex, meta_ex, meta_ex, meta_ex, meta_ex],
+                meta_ex, meta_ex, meta_ex, meta_ex, meta_ex, meta_ex],
         height: 18
       )
       sheet.add_row(
-        ['Pipes & Fittings', 'Mtr', 'Supreme', '6m', 'UPVC Column Pipe 4 inch',
-         '', 'SP-UPVC-6M', '3917', '12', '180.00', '', 'Supreme 4" column pipe 6m', 'true',
-         '', '', '', '', '', '', '', '', '', ''],
-        style: [example, example, example, example, example,
+        ['Paints', 'Ltr', 'Asian Paints', '1L', 'NW-5501',
+         'Apex Ultima Deep Base 1L',
+         'AP-APEX-DB-1L', '', '3210', '18', '620.00', '', '', 'true',
+         'false', '', '', 'true', '', '', '', '', '', '', ''],
+        style: [example, example, example, example, txt_example, example,
                 txt_example, txt_example, txt_example, example,
                 example, example, example, example,
                 meta_ex, meta_ex, meta_ex, meta_ex, meta_ex,
-                meta_ex, meta_ex, meta_ex, meta_ex, meta_ex],
+                meta_ex, meta_ex, meta_ex, meta_ex, meta_ex, meta_ex],
         height: 18
       )
 
-      # Column widths: core 13 cols + 10 metadata cols
-      sheet.column_widths 24, 12, 18, 12, 34, 20, 20, 12, 10, 12, 18, 28, 12,
-                          14, 20, 18, 16, 20, 14, 18, 20, 28, 24
+      # Column widths: 14 core cols + 11 metadata cols = 25
+      sheet.column_widths 24, 12, 18, 12, 16, 34, 20, 20, 12, 10, 12, 18, 28, 12,
+                          12, 20, 18, 22, 16, 20, 14, 18, 20, 28, 24
     end
 
     # ── Instructions sheet ──
@@ -281,9 +288,11 @@ class Setup::ProductImportsController < Setup::BaseController
       sheet.add_row ['• On UPDATE, existing metadata is merged — only keys present in the file are overwritten'], style: b, height: 18
       sheet.add_row ['']
       sheet.add_row ['TINTING MACHINE METADATA'], style: h, height: 22
-      sheet.add_row ['meta:tint             → true = this product is a colorant for the tinting machine'], style: cd, height: 16
-      sheet.add_row ['meta:family_colour    → colour family name shown in tinting machine UI (e.g. Red Oxide)'], style: cd, height: 16
-      sheet.add_row ['meta:canister_volume_ml → default volume in ml when loaded into machine (e.g. 1000)'], style: cd, height: 16
+      sheet.add_row ['shade_code              → Shade/colour code assigned to the product (e.g. AP-101, NW-5501). Optional — leave blank for non-tinted products.'], style: cd, height: 16
+      sheet.add_row ['meta:tint               → true = Tintable Colourant — pigment/colorant product loaded into tinting machine canisters. NOT for paint bases.'], style: cd, height: 16
+      sheet.add_row ['meta:family_colour      → colour family name shown on tinting machine canister card (e.g. Red Oxide, Burnt Amber). Required for colourants.'], style: cd, height: 16
+      sheet.add_row ['meta:canister_volume_ml → default volume in ml when loaded into machine (e.g. 1000). Derived from pack_code if blank.'], style: cd, height: 16
+      sheet.add_row ['meta:is_tinting_base    → true = Tinting Base — paint base (Deep Base, White Base) that customers order for tinted paint. Appears in Sales Invoice base selector. NOT in tinting machine.'], style: cd, height: 16
       sheet.add_row ['']
       sheet.add_row ['AI ENRICHMENT METADATA (auto-set by AI — edit only if needed)'], style: h, height: 22
       sheet.add_row ['meta:source             → ai_enrichment (set automatically, do not change)'], style: cd, height: 16

@@ -1,0 +1,168 @@
+<%# app/views/setup/price_list_rows/_form.html.erb %>
+<% if row.errors.any? %>
+  <div class="flash alert" style="margin:0 0 20px">
+    <strong><%= row.errors.count %> error(s):</strong>
+    <ul style="margin-top:6px;padding-left:16px">
+      <% row.errors.full_messages.each do |msg| %>
+        <li style="margin-top:2px"><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<%# ── Product identity ── %>
+<div class="form-section">
+  <div class="form-section-title">Product Identity</div>
+
+  <div class="form-group">
+    <%= f.label :product_base_name, "Product Base Name *" %>
+    <%= f.text_field :product_base_name,
+          placeholder: 'e.g. ASIAN PAINTS APCOLITE PREMIUM GLOSS ENAMEL (W)',
+          class: row.errors[:product_base_name].any? ? 'form-control input-error' : 'form-control' %>
+    <div class="form-hint">Full product line name as it appears on the price list</div>
+    <% if row.errors[:product_base_name].any? %>
+      <div class="form-error"><%= row.errors[:product_base_name].first %></div>
+    <% end %>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :brand_id, "Brand" %>
+      <%= f.select :brand_id,
+            options_from_collection_for_select(@brands, :id, :name, row.brand_id),
+            { include_blank: '— No brand linked —' },
+            { class: 'form-control' } %>
+      <div class="form-hint">Matched to system brands — leave blank if unknown</div>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :effective_date, "Effective Date *" %>
+      <%= f.date_field :effective_date,
+            class: row.errors[:effective_date].any? ? 'form-control input-error' : 'form-control',
+            style: 'font-family:var(--mono)' %>
+      <% if row.errors[:effective_date].any? %>
+        <div class="form-error"><%= row.errors[:effective_date].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%# ── Codes ── %>
+<div class="form-section">
+  <div class="form-section-title">Codes</div>
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :prod_code, "Product Code" %>
+      <%= f.text_field :prod_code,
+            placeholder: 'e.g. 0026',
+            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            class: 'form-control' %>
+      <div class="form-hint">4-digit code — leading zeros are preserved</div>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :shade_code, "Shade Code" %>
+      <%= f.text_field :shade_code,
+            placeholder: 'e.g. 0912, 0W06',
+            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            class: 'form-control' %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :pack_code, "Pack Code" %>
+      <%= f.text_field :pack_code,
+            placeholder: 'e.g. 150, 210, 320',
+            style: 'font-family:var(--mono);letter-spacing:0.04em',
+            class: 'form-control' %>
+    </div>
+  </div>
+</div>
+
+<%# ── Shade & Pack details ── %>
+<div class="form-section">
+  <div class="form-section-title">Shade & Pack Details</div>
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :shade_name, "Shade Name" %>
+      <%= f.text_field :shade_name,
+            placeholder: 'e.g. Brilliant White',
+            class: 'form-control' %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :pack_size_litres, "Pack Size (litres)" %>
+      <%= f.number_field :pack_size_litres,
+            placeholder: 'e.g. 0.500',
+            step: '0.001', min: '0',
+            style: 'font-family:var(--mono)',
+            class: 'form-control' %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :dpl_group, "DPL Group" %>
+      <%= f.number_field :dpl_group,
+            placeholder: 'e.g. 1',
+            step: '1', min: '0',
+            style: 'font-family:var(--mono)',
+            class: 'form-control' %>
+      <div class="form-hint">Dealer price list group number</div>
+    </div>
+  </div>
+</div>
+
+<%# ── Pricing ── %>
+<div class="form-section">
+  <div class="form-section-title">Pricing</div>
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :dealer_price, "Dealer Price (₹) *" %>
+      <%= f.number_field :dealer_price,
+            placeholder: '0.00',
+            step: '0.01', min: '0',
+            style: 'font-family:var(--mono)',
+            class: row.errors[:dealer_price].any? ? 'form-control input-error' : 'form-control' %>
+      <% if row.errors[:dealer_price].any? %>
+        <div class="form-error"><%= row.errors[:dealer_price].first %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%# ── Matching ── %>
+<div class="form-section">
+  <div class="form-section-title">
+    Catalogue Matching
+    <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:8px">
+      — normally set by the background matching job
+    </span>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <%= f.label :match_status, "Match Status" %>
+      <%= f.select :match_status,
+            PriceListRow::MATCH_STATUSES.map { |s| [s.humanize, s] },
+            { selected: row.match_status },
+            { class: 'form-control' } %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :matched_product_id, "Matched Product ID" %>
+      <%= f.number_field :matched_product_id,
+            placeholder: 'Product ID (integer)',
+            step: '1', min: '1',
+            style: 'font-family:var(--mono)',
+            class: 'form-control' %>
+      <% if row.matched_product %>
+        <div class="form-hint">
+          Currently:
+          <%= link_to row.matched_product.display_name,
+                setup_product_path(row.matched_product),
+                style: 'color:var(--accent)', target: '_blank' %>
+        </div>
+      <% else %>
+        <div class="form-hint">Enter a product ID to manually link this row</div>
+      <% end %>
+    </div>
+  </div>
+</div>

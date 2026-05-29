@@ -46,19 +46,25 @@
       <% end %>
     </td>
     <td style="text-align:center;white-space:nowrap">
-      <div class="sl-card" data-level-id="<%= level.id %>"
-           style="display:inline-flex;align-items:center;gap:6px">
-        <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="-1"
-                data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
-                style="width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
-                       background:var(--bg);color:var(--text);font-size:14px;cursor:pointer;
-                       display:flex;align-items:center;justify-content:center">−</button>
-        <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="+1"
-                data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
-                style="width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
-                       background:var(--bg);color:var(--text);font-size:14px;cursor:pointer;
-                       display:flex;align-items:center;justify-content:center">+</button>
-      </div>
+      <% if stock_locked %>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);
+                     padding:2px 7px;border:1px solid var(--border);border-radius:6px"
+              title="Stock updates are locked">🔒</span>
+      <% else %>
+        <div class="sl-card" data-level-id="<%= level.id %>"
+             style="display:inline-flex;align-items:center;gap:6px">
+          <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="-1"
+                  data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
+                  style="width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
+                         background:var(--bg);color:var(--text);font-size:14px;cursor:pointer;
+                         display:flex;align-items:center;justify-content:center">−</button>
+          <button class="sl-adj-btn" data-id="<%= level.id %>" data-delta="+1"
+                  data-url="<%= quick_adjust_inventory_stock_level_path(level) %>"
+                  style="width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
+                         background:var(--bg);color:var(--text);font-size:14px;cursor:pointer;
+                         display:flex;align-items:center;justify-content:center">+</button>
+        </div>
+      <% end %>
     </td>
     <td>
       <%= link_to 'Ledger', ledger_inventory_opening_stock_path(product_id: p.id),

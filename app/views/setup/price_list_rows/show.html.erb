@@ -1,0 +1,234 @@
+<%# app/views/setup/price_list_rows/show.html.erb %>
+<% content_for :title, "Price List Row" %>
+<% content_for :breadcrumb do %>
+  <span style="color:var(--text-dim)">Setup</span>
+  <span class="breadcrumb-sep">/</span>
+  <%= link_to 'Price List', setup_price_list_rows_path %>
+  <span class="breadcrumb-sep">/</span>
+  <span class="breadcrumb-current">#<%= @row.id %></span>
+<% end %>
+
+<%= render 'setup/shared/master_styles' %>
+
+<div style="max-width:780px">
+
+  <%# ── Match status banner ── %>
+  <% case @row.match_status
+     when 'matched' %>
+    <div style="background:var(--success-dim,#e8f5e9);border:1px solid var(--success);
+                border-radius:10px;padding:12px 16px;margin-bottom:20px;
+                display:flex;align-items:center;gap:10px;font-size:13px">
+      <span style="color:var(--success);font-size:18px">✓</span>
+      <span style="color:var(--success);font-weight:600">Matched</span>
+      <% if @row.matched_at %>
+        <span style="color:var(--text-dim)">— matched <%= @row.matched_at.strftime('%d %b %Y %H:%M') %></span>
+      <% end %>
+    </div>
+  <% when 'pending' %>
+    <div style="background:var(--warning-dim);border:1px solid var(--warning);
+                border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;
+                color:var(--warning)">
+      ⏳ <strong>Pending</strong> — awaiting background matching job
+    </div>
+  <% when 'unmatched' %>
+    <div style="background:#fef2f2;border:1px solid var(--danger);
+                border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;
+                color:var(--danger)">
+      ✗ <strong>Unmatched</strong> — no product found in the catalogue
+    </div>
+  <% when 'ambiguous' %>
+    <div style="background:var(--bg);border:1px solid var(--border);
+                border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;
+                color:var(--text-dim)">
+      ⚠ <strong>Ambiguous</strong> — multiple possible product matches found
+    </div>
+  <% end %>
+
+  <%# ── Price list data ── %>
+  <div class="form-card">
+    <div class="form-section-title" style="padding:16px 20px 0;font-size:14px;font-weight:600">
+      Price List Data
+    </div>
+    <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Product Base Name
+        </div>
+        <div style="font-size:14px;font-weight:600"><%= @row.product_base_name %></div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Brand
+        </div>
+        <div style="font-size:14px">
+          <% if @row.brand %>
+            <%= link_to @row.brand.name, edit_setup_brand_path(@row.brand),
+                  style: 'color:var(--accent);text-decoration:none' %>
+          <% else %>
+            <span style="color:var(--text-dim)">—</span>
+          <% end %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Effective Date
+        </div>
+        <div style="font-size:14px;font-family:var(--mono)">
+          <%= @row.effective_date.strftime('%d %b %Y') %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Prod Code
+        </div>
+        <div style="font-size:14px;font-family:var(--mono);color:var(--accent)">
+          <%= @row.prod_code.presence || '—' %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Dealer Price
+        </div>
+        <div style="font-size:18px;font-family:var(--mono);font-weight:700;color:var(--accent)">
+          ₹<%= number_with_precision(@row.dealer_price, precision: 2) %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Shade Code
+        </div>
+        <div style="font-size:14px;font-family:var(--mono);color:var(--accent)">
+          <%= @row.shade_code.presence || '—' %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Shade Name
+        </div>
+        <div style="font-size:14px"><%= @row.shade_name.presence || '—' %></div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Pack Code
+        </div>
+        <div style="font-size:14px;font-family:var(--mono)">
+          <%= @row.pack_code.presence || '—' %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Pack Size
+        </div>
+        <div style="font-size:14px;font-family:var(--mono)">
+          <% if @row.pack_size_litres %>
+            <%= number_with_precision(@row.pack_size_litres, precision: 3,
+                  strip_insignificant_zeros: true) %> L
+          <% else %>
+            —
+          <% end %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          DPL Group
+        </div>
+        <div style="font-size:14px;font-family:var(--mono)">
+          <%= @row.dpl_group.presence || '—' %>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+          Imported At
+        </div>
+        <div style="font-size:13px;color:var(--text-dim)">
+          <%= @row.imported_at ? @row.imported_at.strftime('%d %b %Y %H:%M') : '—' %>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <%# ── Matched product ── %>
+  <div class="form-card" style="margin-top:16px">
+    <div class="form-section-title" style="padding:16px 20px 0;font-size:14px;font-weight:600">
+      Matched Product
+    </div>
+    <div style="padding:16px 20px">
+      <% if @row.matched_product %>
+        <% p = @row.matched_product %>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                        letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+              Description
+            </div>
+            <div style="font-size:14px;font-weight:600">
+              <%= link_to p.display_name, setup_product_path(p),
+                    style: 'color:var(--accent);text-decoration:none' %>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                        letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+              Material Code
+            </div>
+            <div style="font-size:13px;font-family:var(--mono)">
+              <%= p.material_code.presence || '—' %>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                        letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+              Brand
+            </div>
+            <div style="font-size:13px"><%= p.brand&.name || '—' %></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;
+                        letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px">
+              GST Rate
+            </div>
+            <div style="font-size:13px;font-family:var(--mono)"><%= p.gst_rate %>%</div>
+          </div>
+        </div>
+        <% if @row.matched_at %>
+          <div style="margin-top:12px;font-size:12px;color:var(--text-dim)">
+            Matched at <%= @row.matched_at.strftime('%d %b %Y %H:%M') %>
+          </div>
+        <% end %>
+      <% else %>
+        <div style="color:var(--text-dim);font-size:13px">
+          No product matched yet.
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;display:flex;gap:10px">
+    <%= link_to 'Edit', edit_setup_price_list_row_path(@row), class: 'btn btn-primary' %>
+    <%= link_to '← Back to Price List', setup_price_list_rows_path, class: 'btn btn-secondary' %>
+  </div>
+
+</div>

@@ -14,6 +14,7 @@
   <%= link_to '+ Import Products', new_setup_product_import_path, class: 'btn btn-primary' %>
   <% if current_user.super_admin? %>
     <%= link_to '+ Import Shades', import_new_setup_shade_catalogues_path, class: 'btn btn-secondary' %>
+    <%= link_to '+ Import Price List', import_setup_price_list_rows_path, class: 'btn btn-secondary' %>
   <% end %>
 </div>
 
@@ -154,3 +155,71 @@
   </div>
 </div>
 <% end %><%# end super_admin guard %>
+
+<%# ── Price List Imports — super_admin only ── %>
+<% if current_user.super_admin? && defined?(@price_list_imports) %>
+<div style="margin-top:32px">
+  <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px">
+    Price List Imports
+  </div>
+  <div class="table-wrap">
+    <% if @price_list_imports.any? %>
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Uploaded By</th>
+            <th>Date</th>
+            <th>Effective Date</th>
+            <th style="color:var(--success)">Added</th>
+            <th style="color:var(--accent)">Updated</th>
+            <th style="color:var(--text-dim)">Skipped</th>
+            <th style="color:var(--danger)">Errors</th>
+            <th>Size</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @price_list_imports.each do |imp| %>
+            <tr>
+              <td style="font-family:var(--mono);font-size:12px"><%= imp.file_name %></td>
+              <td><%= imp.user.full_name %></td>
+              <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
+                <%= imp.created_at.strftime('%d %b %Y, %H:%M') %>
+              </td>
+              <td style="font-family:var(--mono);font-size:12px">
+                <%= imp.effective_date ? imp.effective_date.strftime('%d %b %Y') : '—' %>
+              </td>
+              <td style="font-family:var(--mono);color:var(--success)">
+                <%= imp.success_count > 0 ? imp.success_count : '—' %>
+              </td>
+              <td style="font-family:var(--mono);color:var(--accent)">
+                <%= imp.update_count > 0 ? imp.update_count : '—' %>
+              </td>
+              <td style="font-family:var(--mono);color:var(--text-dim)">
+                <%= imp.skip_count > 0 ? imp.skip_count : '—' %>
+              </td>
+              <td>
+                <% if imp.has_errors? %>
+                  <span style="color:var(--danger);font-family:var(--mono)"><%= imp.error_count %></span>
+                <% else %>
+                  <span style="color:var(--text-dim)">—</span>
+                <% end %>
+              </td>
+              <td style="font-family:var(--mono);font-size:12px"><%= imp.file_size_human %></td>
+              <td>
+                <%= link_to 'View', import_show_setup_price_list_rows_path(imp),
+                      class: 'btn btn-secondary btn-sm' %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <div class="empty-state">
+        <p>No price list imports yet. <%= link_to 'Start your first import', import_setup_price_list_rows_path %>.</p>
+      </div>
+    <% end %>
+  </div>
+</div>
+<% end %><%# end price_list_imports guard %>

@@ -75,6 +75,7 @@
           <th>Shade Code</th>
           <th>Shade Name</th>
           <th>Brand</th>
+          <th>Product Family</th>
           <th>Colour Family</th>
           <th>Category</th>
           <th>Notes</th>
@@ -93,6 +94,7 @@
             </td>
             <td style="font-weight:500"><%= shade.shade_name %></td>
             <td style="color:var(--text-dim);font-size:13px"><%= shade.brand&.name || '—' %></td>
+            <td style="font-size:13px;color:var(--text-dim)"><%= shade.product_family.presence || '—' %></td>
             <td>
               <% if shade.colour_family.present? %>
                 <span class="badge" style="background:var(--accent-dim);color:var(--accent);

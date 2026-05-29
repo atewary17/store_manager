@@ -85,13 +85,37 @@ class Sales::SalesInvoicesController < Sales::BaseController
     result = @invoice.confirm!(current_user)
 
     if result[:success]
-      flash[:notice] = "Invoice confirmed."
-      flash[:stock_lines] = result[:stock_lines]   # passed to show view
+      # Log AFTER transaction commits — invoice is more important than the log
+      log_sales_activity  # each item rescues internally; never raises
+
+      if tinting_prompt_needed?
+        flash[:tinting_prompt]   = true
+        flash[:tinting_brand_id] = tinting_brand_id_for_invoice
+        flash[:tinting_action]   = @invoice.organisation.settings['tinting_prompt_action'].presence || 'new_tab'
+      end
+      flash[:notice]      = "Invoice confirmed."
+      flash[:stock_lines] = result[:stock_lines]
       redirect_to sales_sales_invoice_path(@invoice)
     else
       flash[:alert] = "Could not confirm: #{result[:errors]&.join(', ')}"
       redirect_to preview_sales_sales_invoice_path(@invoice)
     end
+  end
+
+  # POST /sales/sales_invoices/tinting_snooze
+  def tinting_snooze
+    org = @organisation
+    current_total = org.tinting_litres_since_reset.values.sum
+    threshold     = org.settings['tinting_prompt_threshold_litres'].to_f
+    threshold     = 20.0 if threshold <= 0
+
+    snooze_until  = case params[:snooze_type]
+                    when 'skip' then current_total + (threshold / 2.0)
+                    else             current_total + threshold
+                    end
+
+    session[:tinting_snooze_until_litres] = snooze_until
+    render json: { ok: true }
   end
 
   # PATCH /sales/sales_invoices/:id/update_due_date
@@ -174,7 +198,8 @@ class Sales::SalesInvoicesController < Sales::BaseController
   end
 
   # GET /sales/sales_invoices/base_search
-  # Paint-category products in stock (for base selection on paint rows)
+  # Paint base products in stock — excludes primers, putties, sealers, thinners.
+  # Filter: is_tinting_base=true (synced products) OR paint category + no non-base keywords.
   def base_search
     q = params[:q].to_s.strip
     return render json: [] if q.length < 2
@@ -186,21 +211,59 @@ class Sales::SalesInvoicesController < Sales::BaseController
       .where('quantity > 0')
       .pluck(:product_id)
 
+    non_base_exclusion = %w[primer putty sealer thinner bond filler]
+      .map { |kw| "LOWER(products.description) NOT LIKE '%#{kw}%'" }
+      .join(' AND ')
+
+    base_filter = "products.metadata->>'is_tinting_base' = 'true'
+                   OR (#{non_base_exclusion})"
+
+    # Build a LEFT JOIN on brands so brand name is searchable without N+1
+    tokens = q.downcase.split.select { |t| t.length >= 2 }
+    tokens = [q.downcase] if tokens.empty?
+
     products = Product.for_org(@organisation)
       .active
       .where(id: in_stock_ids)
       .where(product_category_id: paint_cat_ids)
-      .includes(:brand, :base_uom)
-      .where('LOWER(products.description) LIKE :q OR LOWER(products.material_code) LIKE :q
-              OR LOWER(products.pack_code) LIKE :q', q: "%#{q.downcase}%")
-      .limit(10)
+      .where(base_filter)
+      .joins('LEFT JOIN brands ON brands.id = products.brand_id')
+      .includes(:base_uom)
+      .then { |scope|
+        tokens.reduce(scope) { |s, token|
+          term = "%#{token}%"
+          s.where(
+            "LOWER(brands.name)                            LIKE :t OR
+             LOWER(products.description)                   LIKE :t OR
+             LOWER(products.material_code)                 LIKE :t OR
+             LOWER(products.pack_code)                     LIKE :t OR
+             LOWER(COALESCE(products.shade_code, ''))      LIKE :t OR
+             LOWER(COALESCE(products.metadata->>'product_line_desc', '')) LIKE :t OR
+             LOWER(COALESCE(products.metadata->>'pack_size_desc',    '')) LIKE :t OR
+             LOWER(COALESCE(products.metadata->>'shade_name',        '')) LIKE :t",
+            t: term
+          )
+        }
+      }
+      .order(
+        Arel.sql(
+          "CASE WHEN LOWER(products.material_code) = #{ActiveRecord::Base.connection.quote(q.downcase)} THEN 0
+                WHEN LOWER(products.description) LIKE #{ActiveRecord::Base.connection.quote("#{q.downcase}%")} THEN 1
+                ELSE 2 END"
+        )
+      )
+      .limit(15)
+
+    stock_map = StockLevel
+      .where(organisation_id: @organisation.id, product_id: products.map(&:id))
+      .index_by(&:product_id)
 
     render json: products.map { |p|
       half  = (p.gst_rate.to_f / 2).round(2)
-      level = StockLevel.find_by(organisation_id: @organisation.id, product_id: p.id)
+      level = stock_map[p.id]
       {
         id:        p.id,
-        label:     [p.brand&.name, p.pack_code, p.description].compact_blank.join(' — '),
+        label:     p.full_display_name,
         uom:       p.base_uom&.short_name,
         mrp:       p.mrp,
         cgst:      half,
@@ -229,6 +292,88 @@ class Sales::SalesInvoicesController < Sales::BaseController
 
   private
 
+  def log_sales_activity
+    @invoice.sales_invoice_items.each do |item|
+      case item.line_type
+      when 'paint'
+        next unless item.base_product.present?
+        per_pack = item.base_product.pack_size_litres ||
+                   (TintingMachineCanister.volume_from_pack_code(item.base_product.pack_code) / 1000.0)
+        litres   = (item.quantity.to_f * per_pack).round(4)
+        ActivityLogger.log(
+          organisation:     @invoice.organisation,
+          user:             current_user,
+          activity_type:    'sales',
+          activity_subtype: 'confirmed',
+          description:      "Sold #{item.quantity} × #{item.shade_display}",
+          quantity_litres:  litres > 0 ? litres : nil,
+          reference:        @invoice,
+          metadata: {
+            invoice_number:  @invoice.invoice_number,
+            shade_code:      item.metadata['shade_code'],
+            shade_name:      item.metadata['shade_name'],
+            base_product_id: item.base_product_id,
+            base_name:       item.base_product.display_name,
+            pack_code:       item.base_product.pack_code
+          }.compact
+        )
+      when 'product'
+        next unless item.product.present?
+        ActivityLogger.log(
+          organisation:     @invoice.organisation,
+          user:             current_user,
+          activity_type:    'sales',
+          activity_subtype: 'confirmed',
+          description:      "Sold #{item.quantity} × #{item.product.display_name}",
+          reference:        @invoice,
+          metadata: {
+            invoice_number: @invoice.invoice_number,
+            product_id:     item.product_id,
+            material_code:  item.product.material_code
+          }.compact
+        )
+      when 'adhoc'
+        next if item.description.blank?
+        ActivityLogger.log(
+          organisation:     @invoice.organisation,
+          user:             current_user,
+          activity_type:    'sales',
+          activity_subtype: 'confirmed',
+          description:      "Sold #{item.quantity} × #{item.description} (adhoc)",
+          reference:        @invoice,
+          metadata:         { invoice_number: @invoice.invoice_number }
+        )
+      end
+    rescue => e
+      Rails.logger.warn("[ActivityLog] sales item #{item.id}: #{e.message}")
+    end
+  end
+
+  def tinting_brand_id_for_invoice
+    paint_items = @invoice.sales_invoice_items
+                          .paint_lines
+                          .select { |i| i.base_product&.brand_id.present? }
+    return nil if paint_items.empty?
+
+    paint_items.group_by { |i| i.base_product.brand_id }
+               .max_by { |_, items| items.size }
+               &.first
+  end
+
+  def tinting_prompt_needed?
+    org = @invoice.organisation
+    return false unless org.settings['tinting_prompt_enabled']
+
+    threshold = org.settings['tinting_prompt_threshold_litres'].to_f
+    return false if threshold <= 0
+
+    total        = org.tinting_litres_since_reset.values.sum
+    snooze_until = session[:tinting_snooze_until_litres].to_f
+    total >= threshold && (snooze_until <= 0 || total >= snooze_until)
+  rescue StandardError
+    false
+  end
+
   def set_invoice
     @invoice = SalesInvoice
       .includes(sales_invoice_items: [:product, :shade_catalogue, :base_product, :tinter_product])
@@ -243,13 +388,12 @@ class Sales::SalesInvoicesController < Sales::BaseController
     params.require(:sales_invoice).permit(
       :customer_id, :referrer_id, :invoice_number, :invoice_date, :payment_due_date,
       :payment_mode, :reverse_charge, :status,
-      :overall_discount_amount,
       metadata: {},
       sales_invoice_items_attributes: [
         :id, :line_type, :product_id, :shade_catalogue_id,
         :base_product_id, :tinter_product_id,
         :description,
-        :quantity, :unit_rate,
+        :quantity, :unit_rate, :discount_percent,
         :taxable_amount, :tax_amount, :total_amount,
         :_destroy,
         metadata: {}

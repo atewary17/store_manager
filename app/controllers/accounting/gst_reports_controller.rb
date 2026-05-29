@@ -217,6 +217,22 @@ class Accounting::GstReportsController < Accounting::BaseController
     )
 
     if entry.save
+      begin
+        ActivityLogger.log(
+          organisation:     @organisation,
+          user:             current_user,
+          activity_type:    'gst',
+          activity_subtype: 'period_closed',
+          description:      "GST period closed — #{Date::MONTHNAMES[month]} #{year}",
+          reference:        entry,
+          metadata:         {
+            year: year, month: month,
+            cash_payable: (result[:igst_payable] + result[:cgst_payable] + result[:sgst_payable]).round(2)
+          }
+        )
+      rescue => e
+        Rails.logger.warn("[ActivityLog] gst close_period #{entry.id}: #{e.message}")
+      end
       redirect_to accounting_gstr3b_path(month: month, year: year),
         notice: "Period #{Date::MONTHNAMES[month]} #{year} closed. "                 "Carry-forward: IGST ₹#{result[:igst_credit]}, "                 "CGST ₹#{result[:cgst_credit]}, SGST ₹#{result[:sgst_credit]}."
     else

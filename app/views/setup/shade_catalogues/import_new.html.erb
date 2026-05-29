@@ -68,12 +68,13 @@
         </thead>
         <tbody>
           <% [
-            ['shade_code',    'Yes', 'Unique per category. Auto-uppercased.'],
-            ['shade_name',    'Yes', 'Full descriptive name.'],
-            ['manufacturer',  'No',  'Brand name e.g. Asian Paints.'],
-            ['colour_family', 'No',  'e.g. Blues, Whites, Neutrals.'],
-            ['notes',         'No',  'Any special notes.'],
-            ['active',        'No',  'true/false. Defaults to true.'],
+            ['shade_code',      'Yes', 'Unique per category. Auto-uppercased.'],
+            ['shade_name',      'Yes', 'Full descriptive name.'],
+            ['brand',           'No',  'Brand name e.g. Asian Paints. Must match an existing brand.'],
+            ['product_family',  'No',  'Product line e.g. Apcolite Premium Gloss, Royale.'],
+            ['colour_family',   'No',  'e.g. Blues, Whites, Neutrals.'],
+            ['notes',           'No',  'Any special notes.'],
+            ['active',          'No',  'true/false. Defaults to true.'],
           ].each do |col, req, note| %>
             <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:5px 8px;font-family:var(--mono);font-size:11px;color:var(--accent)"><%= col %></td>
