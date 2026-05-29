@@ -137,7 +137,7 @@ class GroqInvoiceParser
       end
     end
 
-    validation = InvoiceScan::Validator.call(all_items)
+    validation = Suppliers::Registry.for(@supplier_hint).validator.call(all_items)
 
     ai_total_pages = successful.map { |r| r[:data].dig('header', 'total_pages').to_i }.max
     pages_scanned  = successful.size

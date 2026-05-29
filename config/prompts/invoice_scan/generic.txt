@@ -1,9 +1,9 @@
-You are an expert at reading Indian B2B purchase invoices for paint and hardware distributors.
+You are an expert at reading Indian B2B tax invoices from distributors and hardware suppliers.
 
 Extract all data from this invoice image and return ONLY a valid JSON object — no markdown,
 no explanation, no code fences. Just the raw JSON.
 
-The JSON must have exactly this structure:
+The JSON must have exactly this structure — include ONLY these fields, no extras:
 
 {
   "supplier": {
@@ -18,14 +18,14 @@ The JSON must have exactly this structure:
     "invoice_number": "...",
     "invoice_date": "YYYY-MM-DD",
     "delivery_date": "YYYY-MM-DD or null",
-    "delivery_number": "...",
-    "po_reference": "...",
+    "delivery_number": "",
+    "po_reference": "",
     "place_of_supply": "...",
-    "irn": "...",
-    "eway_bill": "...",
-    "lr_number": "...",
-    "transporter": "...",
-    "vehicle_number": "...",
+    "irn": null,
+    "eway_bill": null,
+    "lr_number": null,
+    "transporter": null,
+    "vehicle_number": null,
     "total_taxable_amount": 0.00,
     "total_cgst": 0.00,
     "total_sgst": 0.00,
@@ -40,102 +40,133 @@ The JSON must have exactly this structure:
   "items": [
     {
       "sr_no": 1,
-      "material_code": "...",
       "description": "...",
       "hsn_code": "...",
-      "pack_size": "...",
-      "num_packs": 0,
       "quantity": 0,
-      "volume": 0.000,
       "unit": "...",
-      "rate_per_pack": 0.00,
       "unit_rate": 0.00,
-      "value": 0.00,
       "discount_percent": 0.00,
       "discount_amount": 0.00,
       "taxable_amount": 0.00,
-      "cgst_percent": 0.00,
+      "cgst_percent": 0,
       "cgst_amount": 0.00,
-      "sgst_percent": 0.00,
+      "sgst_percent": 0,
       "sgst_amount": 0.00,
-      "igst_percent": 0.00,
+      "igst_percent": 0,
       "igst_amount": 0.00,
       "total_amount": 0.00
     }
   ]
 }
 
-PARSING RULES:
+════════════════════════════════════════════════════════════
+CRITICAL — READ THIS BEFORE EXTRACTING ANYTHING
+════════════════════════════════════════════════════════════
 
-material_code:
-  - The supplier's internal product or material code.
-  - Some invoices (e.g. Asian Paints) stack the material code and HSN in one cell:
-      Top line:    the material code  (e.g. "00010210210", "5057IE24122")
-      Bottom line: "HSN - 320890" or "HSN-320890"
-  - material_code = the top line only. hsn_code = digits from the bottom line.
-  - Never put an HSN value into material_code.
-  - If the cell only contains "HSN-...", set material_code to null.
+These invoices have GST applied ONLY at the invoice footer, NOT per line item.
+
+THE "Amount" COLUMN = pre-GST, post-discount line total.
+It is calculated as: quantity × unit_rate × (1 − discount_percent/100)
+
+WHAT TO DO:
+  ✓ total_amount  = read the "Amount" column value EXACTLY as printed
+  ✓ taxable_amount = same as total_amount
+  ✓ discount_percent = read from the "Disc.%" column (see rules below)
+  ✗ DO NOT add GST to total_amount
+  ✗ DO NOT set cgst_percent / sgst_percent / igst_percent on line items — always 0
+  ✗ DO NOT set cgst_amount / sgst_amount / igst_amount on line items — always 0.00
+
+VERIFICATION: sum of all items' total_amount ≈ header.total_taxable_amount (the pre-GST subtotal).
+If your sum ≈ header.total_amount (the grand total including GST), you made the error above.
+
+════════════════════════════════════════════════════════════
+WORKED EXAMPLE
+════════════════════════════════════════════════════════════
+
+Invoice line:  Qty=10  Rate=1,700.00  Disc.%=15.254%  Amount=14,406.82
+Footer shows:  Taxable total=24,339.02  CGST 9%=2,190.51  SGST 9%=2,190.51  Grand Total=28,720.00
+
+CORRECT item extraction:
+  "quantity": 10,
+  "unit_rate": 1700.00,
+  "discount_percent": 15.254,       ← from Disc.% column
+  "discount_amount": 2593.18,       ← 10 × 1700 × 15.254/100
+  "total_amount": 14406.82,         ← Amount column, NOT 10×1700×1.18=20060
+  "taxable_amount": 14406.82,       ← same as total_amount
+  "cgst_percent": 0,                ← NOT 9
+  "cgst_amount": 0.00,              ← NOT 1296.61
+  "sgst_percent": 0,                ← NOT 9
+  "sgst_amount": 0.00               ← NOT 1296.61
+
+CORRECT header extraction:
+  "total_taxable_amount": 24339.02  ← the pre-GST subtotal from footer
+  "total_cgst": 2190.51             ← footer CGST line
+  "total_sgst": 2190.51             ← footer SGST line
+  "total_amount": 28720.00          ← grand total from footer
+
+════════════════════════════════════════════════════════════
+FIELD RULES
+════════════════════════════════════════════════════════════
 
 description:
-  - The full product name as printed.
-  - Exclude tax-type annotation lines such as "IN: Central GST OP" or "IN: State GST OP".
+  Full product name as printed. No HSN codes or tax annotation lines.
 
 quantity:
-  - INTEGER count of individual units (cans, bottles, drums, pieces).
-  - Use the "Qty" or "Quantity" column, NOT the volume/weight column.
-  - Must be a whole number.
-
-num_packs:
-  - Count of cartons, drums, or boxes.
-  - If the invoice has a "Packs" column, read the numeric part (e.g. "2 DRM" → 2).
-  - If no Packs column exists, set num_packs equal to quantity.
-
-pack_size:
-  - The pack unit from the Packs column (e.g. "CAR", "DRM", "CAN").
-  - If no Packs column exists, use the unit of measure for a single item.
-
-volume:
-  - Decimal total weight or volume from a "Volume", "Kg/Lt/M", or similar column.
-  - Use 0 if no such column exists.
+  Number from the Quantity column.
 
 unit:
-  - Unit of measure for the quantity field, exactly as shown on the invoice.
-  - For Asian Paints invoices this is always "UNT".
-
-rate_per_pack:
-  - Price per pack (carton/drum). If the Rate column stacks rate and GST%,
-    the top number is the rate and the bottom number(s) are GST percentages.
+  Unit of measure (e.g. "Nos", "pcs", "bgs", "Kgs", "Ltr").
 
 unit_rate:
-  - Rate per individual unit. If not shown explicitly, calculate: value / quantity.
-
-value:
-  - Line gross value before discount: quantity × rate_per_pack (or unit_rate × quantity).
-
-discount_amount:
-  - Per-line cash discount in rupees.
-  - Values with a trailing "−" (e.g. "83.70-") are positive discounts — store as 83.70.
-  - Use 0 if no per-line discount.
+  Value from the Rate column — the price per unit BEFORE discount.
 
 discount_percent:
-  - Only when the invoice shows a percentage discount on the line. Otherwise use 0.
+  Read from the discount column on the line item row.
+  Column header may appear as: "Disc.%"  "Disc %"  "Disc%"  "Discount%"
+    "Discount %" "Disc."  "Discount"  — all mean the same field.
+  Strip any trailing "%" and store as a plain number:
+    "15.254%" → 15.254   "15.254" → 15.254   NOT 0.15254
+  OCR artefact: if the value is a whole number > 100 (e.g. "15254") and
+    qty × rate × (1 − value/1000/100) ≈ Amount, then use value/1000 (e.g. 15.254).
+  Use 0.00 if the column is blank, shows "—", or is absent.
 
-cash_discount_amount (header):
-  - Total fast/cash discount from the invoice summary (e.g. "Fast Cash Discount: 2119.50-" → 2119.50).
-  - Often appears only on the last page. Use 0 if not visible on this page.
+discount_amount:
+  Compute: round(quantity × unit_rate × discount_percent / 100, 2)
+  Use 0.00 if discount_percent is 0.
+
+total_amount:
+  Read DIRECTLY from the "Amount" column as printed.
+  DO NOT compute qty × rate × (1 + GST%). That produces the wrong value.
 
 taxable_amount:
-  - value − discount_amount.
+  Set equal to total_amount.
+
+cgst_percent / sgst_percent / igst_percent:
+  Always 0 for every line item. Never copy the invoice's GST Rate column here.
+
+cgst_amount / sgst_amount / igst_amount:
+  Always 0.00 for every line item.
 
 hsn_code:
-  - Digits only, no "HSN" prefix or slashes. e.g. "320890" not "HSN - 320890".
+  Digits only, no "HSN" prefix. e.g. "3208" not "HSN-3208".
+  Some invoices have an "MRP/Marginal" column — ignore it.
+
+HEADER total fields:
+  total_taxable_amount = the pre-GST subtotal printed in the footer (sum of Amount column).
+  total_cgst  = CGST amount from footer (e.g. "OUTWARD CGST 9%: 6,322.87" → 6322.87).
+  total_sgst  = SGST amount from footer.
+  total_igst  = IGST amount from footer (inter-state only). Use 0 if absent.
+  total_amount = grand total as printed (includes GST and rounding).
 
 page_number / total_pages:
-  - Read from the page footer, e.g. "Page 1 of 3" → page_number=1, total_pages=3.
-  - If not printed, use page_number=1, total_pages=1.
+  From footer e.g. "Page 1 of 3". Use 1/1 if not printed.
 
-GENERAL RULES:
-  - Dates: YYYY-MM-DD format. Use null if missing.
+════════════════════════════════════════════════════════════
+GENERAL RULES
+════════════════════════════════════════════════════════════
+  - Dates: YYYY-MM-DD. Use null if missing.
   - All numeric fields must be numbers, not strings. Use 0 if missing.
-  - Return items: [] for non-item pages (terms, signature, acknowledgement pages).
-  - Do not invent data. Extract only what is visually present on this page.
+  - Return items: [] for non-item pages (terms, signature pages).
+  - Round-off lines (e.g. "R/off: -0.04") are NOT line items — ignore them.
+  - Do not invent data. Extract only what is visually present.
+  - Do not add fields not listed in the JSON template above.

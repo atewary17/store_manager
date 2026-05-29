@@ -301,6 +301,47 @@
     70%, 78%   { opacity: 1; }
     85%, 100%  { opacity: 0; }
   }
+
+  /* ── Supplier modal ─────────────────────────────────────────── */
+  #supplier-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,0.72);
+    align-items: center;
+    justify-content: center;
+  }
+  #supplier-modal.open { display: flex; }
+  .modal-sup-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    background: var(--bg);
+    margin-bottom: 8px;
+    user-select: none;
+  }
+  .modal-sup-card:hover { border-color: rgba(79,142,247,0.5); background: rgba(79,142,247,0.04); }
+  .modal-sup-card.selected { border-color: var(--accent); background: rgba(79,142,247,0.07); }
+  .sup-badge-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    max-width: 820px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .sup-badge-bar:hover { border-color: rgba(79,142,247,0.4); }
 </style>
 
 <div class="page-header">
@@ -315,52 +356,38 @@
 <%= form_with url: purchasing_digitise_index_path, method: :post,
       multipart: true, local: true, id: 'upload-form' do |f| %>
 
-  <div class="supplier-card" style="max-width:820px">
-    <div class="supplier-card-title">
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-      Select Supplier
-      <span style="font-size:10px;color:var(--text-dim);font-weight:400;letter-spacing:0;
-                   text-transform:none;margin-left:4px">
-        — choose for best accuracy
-      </span>
+  <%# Hidden field posted with the form — value set by JS when user picks a supplier %>
+  <input type="hidden" name="supplier_hint" id="supplier-hint-input" value="">
+
+  <%# Selected-supplier badge — click to reopen the modal %>
+  <div class="sup-badge-bar" onclick="openSupplierModal()" title="Click to change supplier">
+    <div id="sup-badge-icon"
+         style="width:38px;height:38px;border-radius:8px;display:flex;align-items:center;
+                justify-content:center;font-size:14px;font-weight:800;font-family:var(--mono);
+                flex-shrink:0;background:rgba(107,114,128,0.12);color:#6b7280">
+      ?
     </div>
-
-    <div class="supplier-options">
-
-      <label class="supplier-option">
-        <input type="radio" name="supplier_hint" value="" checked>
-        <div class="supplier-option-label">
-          <div class="supplier-option-icon"
-               style="background:rgba(255,255,255,0.06);color:var(--text-dim)">
-            ?
-          </div>
-          <div class="supplier-option-text">
-            <div class="supplier-option-name">Generic / Unknown</div>
-            <div class="supplier-option-desc">Works for any supplier</div>
-          </div>
-          <div class="supplier-option-check"></div>
-        </div>
-      </label>
-
-      <label class="supplier-option">
-        <input type="radio" name="supplier_hint" value="Asian Paints Limited">
-        <div class="supplier-option-label">
-          <div class="supplier-option-icon"
-               style="background:rgba(239,68,68,0.12);color:#ef4444;font-size:11px">
-            AP
-          </div>
-          <div class="supplier-option-text">
-            <div class="supplier-option-name">Asian Paints Limited</div>
-            <div class="supplier-option-desc">Optimised column mapping</div>
-          </div>
-          <div class="supplier-option-check"></div>
-        </div>
-      </label>
-
+    <div style="flex:1;min-width:0">
+      <div style="font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;
+                  letter-spacing:.07em;margin-bottom:3px">Supplier</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span id="sup-badge-name"
+              style="font-size:14px;font-weight:600;color:var(--text)">
+          Others
+        </span>
+        <span id="sup-badge-tagline"
+              style="font-size:11px;color:var(--text-dim)">
+          Works for any supplier
+        </span>
+      </div>
     </div>
+    <button type="button"
+            style="font-size:11px;font-weight:600;color:var(--accent);
+                   background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.25);
+                   border-radius:6px;padding:5px 14px;cursor:pointer;white-space:nowrap;
+                   flex-shrink:0">
+      Change
+    </button>
   </div>
 
   <%# ── TWO-COLUMN GRID ── %>
@@ -554,6 +581,63 @@
 
 <% end %><%# end form %>
 
+<%# ── Supplier selection modal ── %>
+<div id="supplier-modal">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;
+              padding:28px 32px;max-width:480px;width:92%;
+              box-shadow:0 24px 64px rgba(0,0,0,0.55)">
+
+    <div style="margin-bottom:22px">
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:5px">
+        Select Supplier
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.5">
+        Choose the correct supplier for the best AI extraction accuracy.
+        You can change this later.
+      </div>
+    </div>
+
+    <% Suppliers::Registry.all.each do |profile| %>
+      <%
+        is_generic = profile.slug == 'generic'
+        val        = profile.display_name
+        hex        = profile.icon_colour.sub(/\A#/, '')
+        ir, ig, ib = [0, 2, 4].map { |i| hex[i, 2].to_i(16) }
+        icon_st    = "background:rgba(#{ir},#{ig},#{ib},0.15);color:#{profile.icon_colour}"
+        icon_st   += ';font-size:11px' if profile.icon_initials.length > 1
+        onclick    = "selectSupplier('#{profile.slug}',#{val.to_json},#{profile.display_name.to_json},#{profile.icon_initials.to_json},#{profile.icon_colour.to_json},#{profile.tagline.to_json})"
+      %>
+      <div class="modal-sup-card<%= is_generic ? ' selected' : '' %>"
+           id="modal-card-<%= profile.slug %>"
+           onclick="<%= onclick %>">
+        <div style="<%= icon_st %>;width:40px;height:40px;border-radius:9px;
+                    display:flex;align-items:center;justify-content:center;
+                    font-weight:800;font-family:var(--mono);flex-shrink:0">
+          <%= profile.icon_initials %>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">
+            <%= profile.display_name %>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+            <%= profile.tagline %>
+          </div>
+        </div>
+        <div id="modal-check-<%= profile.slug %>"
+             style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+                    transition:all 0.15s;
+                    <%= is_generic ? 'border-color:var(--accent);background:var(--accent)' : '' %>">
+          <% if is_generic %>
+            <span style="width:6px;height:6px;background:#fff;border-radius:50%;display:block"></span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+  </div>
+</div>
+
 <script>
   function onFileChosen(input) {
     var files = Array.from(input.files);
@@ -611,5 +695,69 @@
     document.getElementById('submit-btn').disabled = true;
     document.getElementById('submit-btn').style.opacity = '0.6';
     document.getElementById('uploading-msg').style.display = 'inline';
+  });
+
+  // ── Supplier modal ───────────────────────────────────────────────────────
+  var currentSlug = 'generic';
+
+  function openSupplierModal() {
+    document.getElementById('supplier-modal').classList.add('open');
+  }
+
+  function closeSupplierModal() {
+    document.getElementById('supplier-modal').classList.remove('open');
+  }
+
+  function selectSupplier(slug, value, display, initials, colour, tagline) {
+    currentSlug = slug;
+
+    // Update hidden form field
+    document.getElementById('supplier-hint-input').value = value;
+
+    // Update badge bar
+    var hex = colour.replace(/^#/, '');
+    var r   = parseInt(hex.substring(0, 2), 16);
+    var g   = parseInt(hex.substring(2, 4), 16);
+    var b   = parseInt(hex.substring(4, 6), 16);
+    var iconEl = document.getElementById('sup-badge-icon');
+    iconEl.style.background  = 'rgba(' + r + ',' + g + ',' + b + ',0.12)';
+    iconEl.style.color        = colour;
+    iconEl.style.fontSize     = initials.length > 1 ? '11px' : '16px';
+    iconEl.textContent        = initials;
+    document.getElementById('sup-badge-name').textContent    = display;
+    document.getElementById('sup-badge-tagline').textContent = tagline;
+
+    // Update modal card selection state
+    document.querySelectorAll('.modal-sup-card').forEach(function(card) {
+      card.classList.remove('selected');
+    });
+    document.querySelectorAll('[id^="modal-check-"]').forEach(function(el) {
+      el.style.borderColor = 'var(--border)';
+      el.style.background  = '';
+      el.innerHTML         = '';
+    });
+    var selCard  = document.getElementById('modal-card-'  + slug);
+    var selCheck = document.getElementById('modal-check-' + slug);
+    if (selCard)  selCard.classList.add('selected');
+    if (selCheck) {
+      selCheck.style.borderColor = 'var(--accent)';
+      selCheck.style.background  = 'var(--accent)';
+      selCheck.innerHTML = '<span style="width:6px;height:6px;background:#fff;border-radius:50%;display:block"></span>';
+    }
+
+    closeSupplierModal();
+  }
+
+  // Auto-open on page load
+  window.addEventListener('load', function() { openSupplierModal(); });
+
+  // Close when clicking the dark overlay
+  document.getElementById('supplier-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeSupplierModal();
+  });
+
+  // Escape key closes
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeSupplierModal();
   });
 </script>

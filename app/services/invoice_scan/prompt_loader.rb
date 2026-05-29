@@ -9,6 +9,10 @@ module InvoiceScan
     #   → falls back to generic.txt
     def self.for_supplier(supplier_name)
       slug = supplier_name.to_s.downcase.gsub(/[^a-z0-9]+/, '_').gsub(/_+$/, '').gsub(/^_+/, '')
+
+      # Blank slug (nil/empty hint) → generic immediately; never glob all files.
+      return File.read(DIR.join('generic.txt')) if slug.blank?
+
       path = DIR.join("#{slug}.txt")
 
       unless path.exist?
