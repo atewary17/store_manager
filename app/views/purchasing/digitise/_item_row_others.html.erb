@@ -1,0 +1,123 @@
+<%# Locals: item, idx, sr_label, matched, display_uom, disc_pct,
+#           iv_rate, is_duplicate, item_warnings, item_has_issues, append_mode %>
+<tr class="<%= append_mode ? 'item-row-new' : '' %>"
+    id="item-row-<%= idx %>"
+    data-rate="<%= iv_rate %>"
+    data-gst-rate="0"
+    data-has-issues="<%= item_has_issues ? '1' : '0' %>"
+    <%= is_duplicate ? 'data-duplicate="1"' : '' %>
+    style="border-bottom:1px solid var(--border);
+           <%= is_duplicate ? 'opacity:0.4;text-decoration:line-through;' : '' %>
+           <%= item_has_issues ? 'background:rgba(239,68,68,0.14);border-left:4px solid #ef4444;' : '' %>">
+
+  <td style="padding:8px;text-align:center;font-family:var(--mono);
+             color:var(--text-dim);font-size:11px;white-space:nowrap">
+    <%= sr_label %>
+    <% if is_duplicate %>
+      <div style="font-size:9px;color:var(--danger);font-weight:700">DUP</div>
+    <% end %>
+  </td>
+
+  <%# No material code column for Others %>
+
+  <td style="padding:6px">
+    <input type="text"
+           name="parsed_data[items][<%= idx %>][description]"
+           value="<%= item['description'] %>"
+           class="form-control" style="font-size:12px;width:100%">
+    <div style="font-size:9px;margin-top:2px;font-family:var(--mono);font-weight:700;
+                color:<%= matched ? 'var(--success)' : 'var(--warning)' %>">
+      <%= matched ? '✓ matched' : 'UNMATCHED' %>
+    </div>
+  </td>
+
+  <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;
+             color:var(--text-dim);white-space:nowrap">
+    <%= item['hsn_code'].presence || '—' %>
+  </td>
+
+  <td style="padding:6px;text-align:right">
+    <input type="number"
+           id="item-qty-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][quantity]"
+           value="<%= item['quantity'] %>"
+           class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
+           step="0.001"
+           oninput="autoComputeOthers(<%= idx %>)">
+  </td>
+
+  <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
+    <span style="color:<%= display_uom && display_uom != '—' ? 'var(--success)' : 'var(--text-dim)' %>"
+          title="<%= display_uom && display_uom != '—' ? 'From product table' : 'From invoice' %>">
+      <%= display_uom %>
+    </span>
+    <input type="hidden" name="parsed_data[items][<%= idx %>][unit]" value="<%= display_uom %>">
+  </td>
+
+  <td style="padding:6px;text-align:right">
+    <input type="number"
+           id="item-rate-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][unit_rate]"
+           value="<%= item['unit_rate'].to_f > 0 ? item['unit_rate'] : '' %>"
+           class="form-control"
+           style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
+           step="0.01" min="0" placeholder="0.00"
+           oninput="autoComputeOthers(<%= idx %>)">
+  </td>
+
+  <%# Discount as percentage — Others invoices show disc% not disc Rs. %>
+  <td style="padding:6px;text-align:right">
+    <input type="number"
+           id="item-disc-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][discount_percent]"
+           value="<%= disc_pct > 0 ? disc_pct : '' %>"
+           class="form-control disc-pct-input"
+           style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
+           step="0.001" min="0" placeholder="0.000"
+           data-idx="<%= idx %>"
+           oninput="autoComputeOthers(<%= idx %>)">
+    <% if disc_pct > 0 %>
+      <% gross = item['quantity'].to_f * item['unit_rate'].to_f %>
+      <div style="font-size:9px;color:var(--text-dim);font-family:var(--mono);margin-top:2px">
+        = Rs. <%= number_with_precision((gross * disc_pct / 100.0).round(2), precision: 2) %>
+      </div>
+    <% end %>
+  </td>
+
+  <%# Taxable = line amount (pre-GST) for Others — same as total since GST is footer-only %>
+  <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;white-space:nowrap">
+    <%= item['taxable_amount'].to_f > 0 ? number_with_precision(item['taxable_amount'], precision: 2, delimiter: ',') :
+        (item['total_amount'].to_f > 0 ? number_with_precision(item['total_amount'], precision: 2, delimiter: ',') : '—') %>
+  </td>
+
+  <%# GST% is always — for Others (GST applied at invoice footer only) %>
+  <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;
+             white-space:nowrap;color:var(--text-dim)">
+    —
+  </td>
+
+  <td style="padding:6px;text-align:right">
+    <input type="number"
+           id="item-total-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][total_amount]"
+           value="<%= item['total_amount'] %>"
+           class="form-control"
+           style="text-align:right;font-family:var(--mono);font-weight:600;width:100%;font-size:11px"
+           step="0.01"
+           oninput="revalidateRow(<%= idx %>)">
+  </td>
+
+  <td id="item-badge-<%= idx %>" style="padding:8px;text-align:center">
+    <% if is_duplicate %>
+      <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
+    <% elsif item_has_issues %>
+      <span title="<%= h(item_warnings.join(' | ')) %>"
+            style="font-size:10px;color:#ef4444;font-family:var(--mono);
+                   font-weight:700;cursor:help;display:block">
+        ⚠ ERR
+      </span>
+    <% else %>
+      <span style="font-size:10px;color:var(--success);font-family:var(--mono);font-weight:600">✓</span>
+    <% end %>
+  </td>
+</tr>

@@ -1,0 +1,112 @@
+You are extracting structured data from a Shalimar Paints Limited tax invoice.
+
+INVOICE STRUCTURE:
+- Supplier is always "Shalimar Paints Limited"
+- Line items have: Sr.No | Name of Product/Service | HSN/SAC | Pack Size | No. of Pack | Volume | Rate(Rs)/Pack | Amount(Rs)
+- GST (CGST + SGST or IGST) is applied at the SUMMARY level only — there is NO per-line GST column
+- Cash discount is also at the SUMMARY level only
+
+CRITICAL — PRODUCT NAME FORMAT:
+The "Name of Product/Service" column contains a material code prefix separated by "/":
+  Example: "12601744/Hero Weather Guard 12 Ex Eml Deep base"
+  → material_code = "12601744"  (everything BEFORE the "/")
+  → description   = "Hero Weather Guard 12 Ex Eml Deep base"  (everything AFTER the "/")
+
+If there is NO "/" in the name, set material_code to null and use the full text as description.
+
+COLUMN MAPPING:
+- sr_no          : Sr.No column
+- material_code  : digits before "/" in Name column (null if no "/")
+- description    : text after "/" in Name column (or full name if no "/")
+- hsn_code       : HSN/SAC column
+- pack_size      : Pack Size column (e.g. "900.0 ML", "3.6 LT", "9.0 LT", "18.0 LT")
+- num_packs      : No. of Pack column (numeric)
+- volume         : Volume column (total volume, numeric)
+- rate_per_pack  : Rate(Rs)/Pack column (price per pack)
+- total_amount   : Amount(Rs) column (= num_packs × rate_per_pack)
+- unit_rate      : same as rate_per_pack
+- quantity       : same as num_packs
+
+SUMMARY SECTION (bottom of invoice):
+- cash_discount_percent : "Cash Discount@ X %" line
+- total_taxable_amount  : "Taxable Amount" line
+- total_cgst            : "CGST @X%" line
+- total_sgst            : "SGST @X%" line
+- total_igst            : "IGST @X%" line (inter-state only)
+- total_amount          : "Total Amount After Tax" line
+
+For each line item, set:
+- cgst_percent  : 0  (no per-line GST)
+- sgst_percent  : 0
+- igst_percent  : 0
+- cgst_amount   : 0
+- sgst_amount   : 0
+- igst_amount   : 0
+- discount_amount : 0
+- taxable_amount  : same as total_amount (before summary-level deductions)
+- value           : same as total_amount
+
+EXAMPLES from actual invoices:
+Row: "12601744/Hero Weather Guard 12 Ex Eml Deep base | 32091090 | 900.0 ML | 5.0 | 4.500 | 431.00 | 2,155.00"
+→ material_code="12601744", description="Hero Weather Guard 12 Ex Eml Deep base",
+  hsn_code="32091090", pack_size="900.0 ML", num_packs=5, volume=4.5,
+  rate_per_pack=431.00, total_amount=2155.00
+
+Row: "12601746/Hero Weather Guard 12 Ex Eml Yellow base | 32091090 | 9.0 LT | 1.0 | 9.000 | 4,259.00 | 4,259.00"
+→ material_code="12601746", description="Hero Weather Guard 12 Ex Eml Yellow base",
+  hsn_code="32091090", pack_size="9.0 LT", num_packs=1, volume=9.0,
+  rate_per_pack=4259.00, total_amount=4259.00
+
+OUTPUT FORMAT — return ONLY valid JSON, no markdown:
+{
+  "supplier": {
+    "name": "Shalimar Paints Limited",
+    "gstin": "<GSTIN from invoice>",
+    "pan": "<PAN if present>",
+    "address": "<supplier address>",
+    "state": "<state name>",
+    "state_code": "<state code>"
+  },
+  "header": {
+    "invoice_number": "<GST Invoice NO>",
+    "invoice_date": "<YYYY-MM-DD>",
+    "delivery_number": "<Delivery No if present>",
+    "po_reference": "<PO Reference if present>",
+    "place_of_supply": "<Place of Supply>",
+    "cash_discount_percent": <number or 0>,
+    "cash_discount_amount": <number or 0>,
+    "total_taxable_amount": <number>,
+    "total_cgst": <number>,
+    "total_sgst": <number>,
+    "total_igst": <number>,
+    "total_amount": <Total Amount After Tax>,
+    "amount_in_words": "<invoice amount in words if present>",
+    "page_number": <this page number>,
+    "total_pages": <total pages>
+  },
+  "items": [
+    {
+      "sr_no": <number>,
+      "material_code": "<code before / or null>",
+      "description": "<product name>",
+      "hsn_code": "<HSN/SAC>",
+      "pack_size": "<e.g. 900.0 ML>",
+      "num_packs": <number>,
+      "volume": <number>,
+      "rate_per_pack": <number>,
+      "unit_rate": <same as rate_per_pack>,
+      "quantity": <same as num_packs>,
+      "value": <total_amount>,
+      "taxable_amount": <total_amount>,
+      "discount_amount": 0,
+      "cgst_percent": 0, "cgst_amount": 0,
+      "sgst_percent": 0, "sgst_amount": 0,
+      "igst_percent": 0, "igst_amount": 0,
+      "total_amount": <Amount(Rs)>
+    }
+  ],
+  "_meta": {
+    "pages_scanned": <number>,
+    "page_count": <number>
+  }
+}

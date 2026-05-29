@@ -92,11 +92,16 @@ class Purchasing::DigitiseController < Purchasing::BaseController
 
     # All files in this upload share a session_id so they can be linked
     # to the same invoice if the user uploads multiple pages separately.
-    session_id = SecureRandom.uuid
+    session_id    = SecureRandom.uuid
+    supplier_hint = params[:supplier_hint].presence
 
     imports = files.map do |file|
       raw_bytes   = file.read
       base64_data = Base64.strict_encode64(raw_bytes)
+
+      # Seed supplier name into parsed_data so the job can pick it up immediately
+      # without waiting for a prior successful scan.
+      initial_parsed = supplier_hint.present? ? { 'supplier' => { 'name' => supplier_hint } } : {}
 
       DigitiseImport.create!(
         organisation:      @organisation,
@@ -106,7 +111,8 @@ class Purchasing::DigitiseController < Purchasing::BaseController
         file_size:         file.size,
         file_content_type: file.content_type,
         file_data:         base64_data,
-        session_id:        session_id
+        session_id:        session_id,
+        parsed_data:       initial_parsed
       )
     end
 
@@ -170,10 +176,11 @@ class Purchasing::DigitiseController < Purchasing::BaseController
         end
       end
 
-      codes = @merged_items.map { |i| sanitise_material_code(i['material_code'].to_s) }.compact
-      @product_by_code = Product.includes(:base_uom)
-                                .where(material_code: codes)
-                                .index_by(&:material_code)
+      supplier_hint    = @import.parsed_data&.dig('supplier', 'name').to_s
+      @supplier_profile = Suppliers::Registry.for(supplier_hint)
+      match_result     = @supplier_profile.matcher.call(@merged_items, @organisation)
+      @product_map     = match_result[:product_map]
+      @match_key_fn    = match_result[:match_key_fn]
 
       # Append mode: check if a draft invoice already exists for this invoice number.
       # Always scoped to organisation — multi-tenant safety.
@@ -360,7 +367,8 @@ class Purchasing::DigitiseController < Purchasing::BaseController
   # Confirmed invoices cannot be appended to — only drafts.
   #
   def append_items_to_invoice(invoice, import)
-    items = import.parsed_items
+    items            = import.parsed_items
+    supplier_profile = Suppliers::Registry.for(import.parsed_supplier['name'])
 
     duplicates = invoice.duplicate_items(items)
     if duplicates.any?
@@ -375,7 +383,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
       next if qty == 0 && total == 0
 
       raw_code            = item['material_code'].to_s.strip
-      clean_material_code = sanitise_material_code(raw_code)
+      clean_material_code = supplier_profile.matcher.display_code(item)
       rescued_hsn = if clean_material_code.nil? && raw_code.present?
                       raw_code.gsub(/\AHSN[-\s]*/i, '').gsub(/\D/, '').presence
                     end
@@ -391,6 +399,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
         unit_rate:    item['unit_rate'].to_f,
         total_amount: total,
         metadata: {
+          'supplier_hint'    => import.parsed_supplier['name'].presence,
           'material_code'    => clean_material_code,
           'description'      => item['description'],
           'raw_description'  => item['description'],
@@ -419,9 +428,10 @@ class Purchasing::DigitiseController < Purchasing::BaseController
 
   # ── Build a new PurchaseInvoice from parsed import data ───────────────────
   def build_invoice_from_import(import)
-    hdr      = import.parsed_header
-    sup_data = import.parsed_supplier
-    items    = import.parsed_items
+    hdr              = import.parsed_header
+    sup_data         = import.parsed_supplier
+    items            = import.parsed_items
+    supplier_profile = Suppliers::Registry.for(sup_data['name'])
 
     supplier = find_or_create_supplier(sup_data)
 
@@ -457,23 +467,23 @@ class Purchasing::DigitiseController < Purchasing::BaseController
       next if qty == 0 && total == 0
 
       raw_code            = item['material_code'].to_s.strip
-      clean_material_code = sanitise_material_code(raw_code)
+      clean_material_code = supplier_profile.matcher.display_code(item)
       rescued_hsn = if clean_material_code.nil? && raw_code.present?
                       raw_code.gsub(/\AHSN[-\s]*/i, '').gsub(/\D/, '').presence
                     end
       effective_hsn  = item['hsn_code'].presence || rescued_hsn
-      product        = nil
-      effective_unit = product&.base_uom&.name.presence || item['unit'].presence
+      effective_unit = item['unit'].presence
       line_disc_pct  = item['discount_percent'].to_f
       line_disc_amt  = item['discount_amount'].to_f
 
       invoice.purchase_invoice_items.build(
-        product:      product,
-        unmatched:    product.nil?,
+        product:      nil,
+        unmatched:    true,
         quantity:     qty,
         unit_rate:    item['unit_rate'].to_f,
         total_amount: total,
         metadata: {
+          'supplier_hint'    => sup_data['name'].presence,
           'material_code'    => clean_material_code,
           'description'      => item['description'],
           'raw_description'  => item['description'],
@@ -541,17 +551,6 @@ class Purchasing::DigitiseController < Purchasing::BaseController
 
     @supplier_matched = supplier_matched
     supplier
-  end
-
-  HSN_PATTERN = /\AHSN[-\s]/i
-
-  helper_method :sanitise_material_code
-  def sanitise_material_code(raw)
-    return nil if raw.blank?
-    code = raw.to_s.strip
-    return nil if code.match?(HSN_PATTERN)
-    return nil if code.match?(/\A\d{4,8}\z/)
-    code
   end
 
   def parse_date(val)

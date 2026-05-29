@@ -13,9 +13,9 @@ class DigitiseImportJob < ApplicationJob
     attempt_num = import.attempt_count + 1
     import.update!(status: 'processing', attempt_count: attempt_num)
 
-    base64_data = import.file_data.to_s.gsub(/\s+/, '')
-
-    user_pref = import.user&.preferences&.dig('ai_provider').presence
+    base64_data   = import.file_data.to_s.gsub(/\s+/, '')
+    user_pref     = import.user&.preferences&.dig('ai_provider').presence
+    supplier_hint = import.parsed_data&.dig('supplier', 'name').presence
 
     provider = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase
     result = ExternalApiLog.record(
@@ -24,12 +24,13 @@ class DigitiseImportJob < ApplicationJob
       organisation_id: import.organisation_id,
       user_id:         import.user_id,
       metadata:        { digitise_import_id: import.id, file_name: import.file_name,
-                         attempt: attempt_num }
+                         attempt: attempt_num, supplier_hint: supplier_hint }
     ) do
       InvoiceAiService.call(
-        base64_data: base64_data,
-        mime_type:   import.file_content_type,
-        user_pref:   user_pref
+        base64_data:   base64_data,
+        mime_type:     import.file_content_type,
+        user_pref:     user_pref,
+        supplier_hint: supplier_hint
       )
     end
 
