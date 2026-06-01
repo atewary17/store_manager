@@ -22,6 +22,19 @@ class Admin::SystemProcessesController < Admin::BaseController
     @tab  = params[:tab] || 'jobs'
     @page = [params[:page].to_i, 1].max
 
+    # ── Active users (session tracking) ──────────────────────────
+    if @tab == 'active_users'
+      @active_users = User.where.not(session_token: nil)
+                          .where('last_activity_at > ?', 60.minutes.ago)
+                          .includes(:organisation)
+                          .order(last_activity_at: :desc)
+      @active_user_count = @active_users.size
+    else
+      @active_user_count = User.where.not(session_token: nil)
+                               .where('last_activity_at > ?', 60.minutes.ago)
+                               .count
+    end
+
     @jobs = case params[:filter]
             when 'queued'    then GoodJob::Job.where(finished_at: nil, performed_at: nil)
             when 'running'   then GoodJob::Job.where.not(performed_at: nil).where(finished_at: nil)
@@ -169,6 +182,42 @@ class Admin::SystemProcessesController < Admin::BaseController
                              .offset((@page - 1) * PER_PAGE)
                              .limit(PER_PAGE)
     end
+  end
+
+  # POST /admin/system_processes/force_logout_user
+  # Super-admin force-signs-out any user by clearing their session token.
+  # Org isolation: this action is super_admin only (enforced by Admin::BaseController).
+  def force_logout_user
+    user = User.find(params[:user_id])
+
+    if user == current_user
+      redirect_to admin_system_processes_path(tab: 'active_users'),
+                  alert: 'You cannot force-logout yourself.'
+      return
+    end
+
+    user.clear_session_token!
+
+    begin
+      ActivityLogger.log(
+        organisation:     nil,
+        user:             current_user,
+        activity_type:    'admin_action',
+        activity_subtype: 'force_logout',
+        description:      "Force signed out #{user.email} (#{user.full_name})",
+        reference:        user,
+        metadata:         { target_user_id: user.id, target_email: user.email,
+                            target_org: user.organisation&.name }.compact
+      )
+    rescue => e
+      Rails.logger.warn("[ActivityLog] force_logout #{user.id}: #{e.message}")
+    end
+
+    redirect_to admin_system_processes_path(tab: 'active_users'),
+                notice: "#{user.email} has been signed out."
+  rescue ActiveRecord::RecordNotFound
+    redirect_to admin_system_processes_path(tab: 'active_users'),
+                alert: 'User not found.'
   end
 
   # POST /admin/system_processes/trigger_price_list_sync
