@@ -45,4 +45,31 @@ class User < ApplicationRecord
   def effective_ai_provider
     preferred_ai_provider || ENV['INVOICE_AI_PROVIDER'] || 'gemini'
   end
+
+  # ── Single-session enforcement ────────────────────────────────────────────
+  SESSION_IDLE_THRESHOLD = 30.minutes
+
+  def active_elsewhere?
+    session_token.present? &&
+      last_activity_at.present? &&
+      last_activity_at > SESSION_IDLE_THRESHOLD.ago
+  end
+
+  def idle_elsewhere?
+    session_token.present? &&
+      (last_activity_at.blank? || last_activity_at <= SESSION_IDLE_THRESHOLD.ago)
+  end
+
+  def generate_session_token!
+    update_columns(session_token: SecureRandom.hex(32), last_activity_at: Time.current)
+    session_token
+  end
+
+  def clear_session_token!
+    update_columns(session_token: nil, last_activity_at: nil)
+  end
+
+  def touch_activity!
+    update_columns(last_activity_at: Time.current)
+  end
 end

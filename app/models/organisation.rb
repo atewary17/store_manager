@@ -46,6 +46,33 @@ class Organisation < ApplicationRecord
     update!(settings: settings.merge(key.to_s => value))
   end
 
+  # ── Org product filter ────────────────────────────────────────────────────
+  # The filter is built by OrgProductFilterService and stored in settings.
+  # It is strictly scoped to this org — never shared across orgs.
+
+  def product_filter
+    settings['product_filter']
+  end
+
+  def product_filter_active?
+    product_filter.present? && product_filter['brands'].present?
+  end
+
+  def product_filter_brands
+    product_filter&.dig('brands') || []
+  end
+
+  def product_filter_categories
+    product_filter&.dig('categories') || []
+  end
+
+  def product_filter_last_built
+    ts = product_filter&.dig('last_built_at')
+    ts ? Time.parse(ts) : nil
+  rescue
+    nil
+  end
+
   # ── Invoice numbering ────────────────────────────────────────────────────
   # Thread-safe, per-org sequential number generator.
   # Uses SELECT FOR UPDATE on this org's row so two simultaneous confirms on
