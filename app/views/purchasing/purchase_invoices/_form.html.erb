@@ -10,6 +10,58 @@
     </div>
   <% end %>
 
+  <%# ══ SUPPLIER TYPE SELECTOR (new invoices only) ══════════════════════ %>
+  <%
+    existing_hint = invoice.purchase_invoice_items.first&.metadata&.dig('supplier_hint').to_s
+    is_new = invoice.new_record?
+  %>
+  <input type="hidden" id="supplier-hint-field" name="supplier_hint"
+         value="<%= existing_hint %>">
+
+  <% if is_new %>
+    <div id="supplier-selector"
+         style="background:var(--surface);border:1px solid var(--border);
+                border-radius:12px;padding:24px;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">
+        What type of invoice is this?
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:18px">
+        Select the supplier type — this determines how products are matched and searched.
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        <% [
+          ['asian_paints',    'Asian Paints',    'Material code + description matching', '#ef4444', 'AP'],
+          ['shalimar_paints', 'Shalimar Paints', 'Code + description matching',          '#f97316', 'SP'],
+          ['',                'Others / Tally',  'Description matching',                  '#6b7280', '○'],
+        ].each do |hint, label, sublabel, col, icon| %>
+          <div class="supplier-type-card"
+               data-hint="<%= hint %>"
+               onclick="selectSupplierType('<%= hint %>')"
+               style="border:2px solid var(--border);border-radius:10px;padding:16px 18px;
+                      cursor:pointer;transition:all .15s;position:relative">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+              <span style="width:32px;height:32px;border-radius:8px;
+                           background:rgba(<%= col.gsub('#','').scan(/../).map{|c|c.to_i(16)}.join(',') %>,0.12);
+                           border:1px solid rgba(<%= col.gsub('#','').scan(/../).map{|c|c.to_i(16)}.join(',') %>,0.35);
+                           display:flex;align-items:center;justify-content:center;
+                           font-size:11px;font-weight:800;color:<%= col %>"><%= icon %></span>
+              <span style="font-size:14px;font-weight:700;color:var(--text)"><%= label %></span>
+            </div>
+            <div style="font-size:11px;color:var(--text-dim)"><%= sublabel %></div>
+            <div class="selected-check"
+                 style="display:none;position:absolute;top:10px;right:12px;
+                        width:20px;height:20px;border-radius:50%;background:var(--success);
+                        align-items:center;justify-content:center;font-size:11px;color:#0f172a">✓</div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Invoice body — hidden on new until supplier type is selected %>
+  <div id="invoice-body"
+       style="<%= is_new ? 'display:none' : '' %>">
+
   <%# ══════════════════════════════════════════════════════
       SECTION 1 — Supplier & Invoice Details
   ══════════════════════════════════════════════════════ %>
@@ -242,6 +294,35 @@
     </div>
   </div>
 
+  <%# ══ PRE-SAVE REVIEW PANEL ═══════════════════════════════════════════ %>
+  <div id="invoice-review-panel"
+       style="background:var(--surface);border:1px solid var(--border);
+              border-radius:10px;padding:14px 20px;margin-bottom:16px;
+              display:none">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                color:var(--text-dim);margin-bottom:10px">Invoice Summary</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px">
+      <div id="review-matched"
+           style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--success)">
+        <span style="width:18px;height:18px;border-radius:50%;background:rgba(74,222,128,0.15);
+                     display:flex;align-items:center;justify-content:center;font-size:10px">✓</span>
+        <span id="review-matched-count">0</span> matched to catalogue
+      </div>
+      <div id="review-unmatched"
+           style="display:none;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--warning)">
+        <span style="width:18px;height:18px;border-radius:50%;background:rgba(247,195,79,0.15);
+                     display:flex;align-items:center;justify-content:center;font-size:10px">⚠</span>
+        <span id="review-unmatched-count">0</span> new product(s) → will go to <strong>Product Review</strong>
+      </div>
+    </div>
+    <div id="review-unmatched-list" style="display:none;margin-top:6px">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">New products to review:</div>
+      <div id="review-unmatched-names"
+           style="font-size:12px;color:var(--warning);font-family:var(--mono);
+                  line-height:1.8"></div>
+    </div>
+  </div>
+
   <div style="display:flex;gap:12px;align-items:center">
     <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Invoice',
           id: 'invoice-submit-btn',
@@ -253,6 +334,8 @@
       Saved as draft. Confirm from detail view to update stock.
     </span>
   </div>
+
+  </div><%# /invoice-body %>
 
 <% end %>
 
@@ -266,12 +349,32 @@
         <input type="hidden"
                name="purchase_invoice[purchase_invoice_items_attributes][INDEX][product_id]"
                class="product-id-input" value="">
+        <%# These three fields MUST live inside .autocomplete-wrap so wrap.querySelector() finds them %>
+        <input type="hidden" class="raw-desc-field"
+               name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][raw_description]" value="">
+        <input type="hidden" class="supplier-hint-field"
+               name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][supplier_hint]" value="">
+        <input type="hidden" class="material-code-hidden"
+               name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][material_code]" value="">
         <input type="text" class="product-search-input"
                placeholder="Search by name, code…" autocomplete="off"
                style="width:100%;background:var(--bg);border:1px solid var(--border);
                       border-radius:5px;padding:6px 9px;color:var(--text);font-size:12.5px;outline:none">
-        <div class="product-meta-line"
-             style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:2px;min-height:13px"></div>
+        <div class="material-code-wrap" style="display:none;margin-top:5px">
+          <input type="text" class="material-code-input" autocomplete="off"
+                 placeholder="Material code"
+                 oninput="syncMaterialCode(this)"
+                 style="width:100%;background:var(--bg);border:1px solid var(--border);
+                        border-radius:4px;padding:5px 9px;color:var(--text);
+                        font-family:var(--mono);font-size:11px;outline:none">
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
+          <div class="product-meta-line"
+               style="font-family:var(--mono);font-size:10px;color:var(--text-dim);min-height:13px"></div>
+          <div class="match-status-badge"
+               style="display:none;align-items:center;padding:2px 7px;border-radius:4px;
+                      border:1px solid var(--border);font-size:10px;font-weight:700"></div>
+        </div>
         <div class="ac-dropdown"
              style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
                     background:var(--surface);border:1px solid var(--border);border-radius:6px;
@@ -290,8 +393,6 @@
                     font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
     </td>
     <%# Hidden fields for proper columns — synced by recalcRow, finalised by confirm! %>
-    <input type="hidden" class="raw-desc-field"
-           name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][raw_description]" value="">
     <input type="hidden" class="taxable-field"
            name="purchase_invoice[purchase_invoice_items_attributes][INDEX][taxable_amount]" value="">
     <input type="hidden" class="tax-field"
@@ -522,11 +623,16 @@
       // Keep raw description in sync so unmatched items save their name
       var rawDescField = wrap.querySelector('.raw-desc-field');
       if (rawDescField) rawDescField.value = this.value.trim();
+      updateRowMatchBadge(row, false, this.value.trim());
+      updateReviewPanel();
       clearTimeout(timer);
       var q = this.value.trim();
       if (q.length < 2) { dropdown.style.display = 'none'; return; }
       timer = setTimeout(function() {
-        fetch('/purchasing/purchase_invoices/product_search?q=' + encodeURIComponent(q), {
+        var hint = document.getElementById('supplier-hint-field')?.value || '';
+        var url  = '/purchasing/purchase_invoices/product_search?q=' + encodeURIComponent(q) +
+                   (hint ? '&supplier_hint=' + encodeURIComponent(hint) : '');
+        fetch(url, {
           headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
           .then(function(r) { return r.json(); })
@@ -586,9 +692,12 @@
         // Clear the unmatched description — product is now linked
         var rawDescField = wrap.querySelector('.raw-desc-field');
         if (rawDescField) rawDescField.value = '';
+        // Update match status badge
+        updateRowMatchBadge(row, true, p.label);
         // Trigger recalc so taxable/tax fields get populated immediately
         recalcRow(row);
         dropdown.style.display = 'none';
+        updateReviewPanel();
       });
       dropdown.appendChild(el);
     });
@@ -606,6 +715,13 @@
     row.setAttribute('data-row', idx);
     document.getElementById('items-tbody').appendChild(row);
 
+    // Stamp current supplier_hint into the new row's hidden field
+    var hint = document.getElementById('supplier-hint-field')?.value || '';
+    var hf = row.querySelector('.supplier-hint-field');
+    if (hf) hf.value = hint;
+    // Show/hide material code field based on supplier
+    applySupplierUiToRow(row, hint);
+
     // Copy discount from row 1
     var disc = getRow1Discount();
     if (disc) {
@@ -617,12 +733,117 @@
     wireRowEvents(row);
   };
 
+  // ══════════════════════════════════════════════════════════════
+  //  MATERIAL CODE SYNC
+  // ══════════════════════════════════════════════════════════════
+  window.syncMaterialCode = function(input) {
+    var row = input.closest('tr');
+    if (!row) return;
+    var hf = row.querySelector('.material-code-hidden');
+    if (hf) hf.value = input.value.trim().toUpperCase();
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  //  SUPPLIER TYPE SELECTION
+  // ══════════════════════════════════════════════════════════════
+  window.selectSupplierType = function(hint) {
+    // Update hidden field
+    document.getElementById('supplier-hint-field').value = hint;
+
+    // Update card styles
+    document.querySelectorAll('.supplier-type-card').forEach(function(card) {
+      var selected = card.getAttribute('data-hint') === hint;
+      card.style.borderColor      = selected ? 'var(--accent)' : 'var(--border)';
+      card.style.background       = selected ? 'rgba(79,142,247,0.06)' : '';
+      var check = card.querySelector('.selected-check');
+      if (check) check.style.display = selected ? 'flex' : 'none';
+    });
+
+    // Show invoice body
+    document.getElementById('invoice-body').style.display = '';
+
+    // Apply UI changes to all existing rows
+    document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(row) {
+      var hf = row.querySelector('.supplier-hint-field');
+      if (hf) hf.value = hint;
+      applySupplierUiToRow(row, hint);
+    });
+  };
+
+  function applySupplierUiToRow(row, hint) {
+    var showCode = hint === 'asian_paints' || hint === 'shalimar_paints';
+    var codeWrap = row.querySelector('.material-code-wrap');
+    if (codeWrap) codeWrap.style.display = showCode ? '' : 'none';
+    // Update placeholder hint text
+    var codeInput = row.querySelector('.material-code-input');
+    if (codeInput && hint === 'asian_paints')    codeInput.placeholder = 'e.g. 67162022240';
+    if (codeInput && hint === 'shalimar_paints') codeInput.placeholder = 'e.g. 12601744/...';
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  ROW MATCH STATUS BADGE
+  // ══════════════════════════════════════════════════════════════
+  function updateRowMatchBadge(row, matched, label) {
+    var badge = row.querySelector('.match-status-badge');
+    if (!badge) return;
+    if (!label || label.trim() === '') {
+      badge.style.display = 'none';
+      return;
+    }
+    badge.style.display = 'flex';
+    if (matched) {
+      badge.innerHTML = '<span style="color:var(--success);font-size:10px;font-weight:700">✓ Matched</span>';
+      badge.style.background = 'rgba(74,222,128,0.08)';
+      badge.style.borderColor = 'rgba(74,222,128,0.25)';
+    } else {
+      badge.innerHTML = '<span style="color:var(--warning);font-size:10px;font-weight:700">⚠ New product</span>';
+      badge.style.background = 'rgba(247,195,79,0.08)';
+      badge.style.borderColor = 'rgba(247,195,79,0.25)';
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  REVIEW PANEL
+  // ══════════════════════════════════════════════════════════════
+  function updateReviewPanel() {
+    var rows        = document.querySelectorAll('#items-tbody tr[data-row]');
+    var matchedList = [], unmatchedList = [];
+
+    rows.forEach(function(row) {
+      if (row.style.display === 'none') return; // deleted rows
+      var idField   = row.querySelector('.product-id-input');
+      var rawField  = row.querySelector('.raw-desc-field');
+      var hasId     = idField && idField.value.trim() !== '';
+      var hasRaw    = rawField && rawField.value.trim() !== '';
+      if (hasId)       matchedList.push(true);
+      else if (hasRaw) unmatchedList.push(rawField.value.trim());
+    });
+
+    var panel = document.getElementById('invoice-review-panel');
+    if (matchedList.length === 0 && unmatchedList.length === 0) {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = '';
+
+    document.getElementById('review-matched-count').textContent = matchedList.length;
+    var unmatchedEl = document.getElementById('review-unmatched');
+    unmatchedEl.style.display = unmatchedList.length > 0 ? 'flex' : 'none';
+    document.getElementById('review-unmatched-count').textContent = unmatchedList.length;
+
+    var listWrap = document.getElementById('review-unmatched-list');
+    listWrap.style.display = unmatchedList.length > 0 ? '' : 'none';
+    document.getElementById('review-unmatched-names').innerHTML =
+      unmatchedList.map(function(n) { return '· ' + escHtml(n); }).join('<br>');
+  }
+
   window.deleteRow = function(btn) {
     var row = btn.closest('tr');
     var di  = row.querySelector('.destroy-input');
     if (di) { di.value = '1'; row.style.display = 'none'; }
     else    { row.remove(); }
     updateGrandTotal();
+    updateReviewPanel();
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -782,11 +1003,31 @@
   //  INIT
   // ══════════════════════════════════════════════════════════════
   document.addEventListener('DOMContentLoaded', function() {
+    var hint = document.getElementById('supplier-hint-field')?.value || '';
     document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(row) {
       setupProductAutocomplete(row);
       wireRowEvents(row);
+      if (hint) applySupplierUiToRow(row, hint);
+      // Init review badge for already-persisted matched rows
+      var idField = row.querySelector('.product-id-input');
+      var inp     = row.querySelector('.product-search-input');
+      if (idField && idField.value && inp && inp.value) {
+        updateRowMatchBadge(row, true, inp.value);
+      }
     });
     updateGrandTotal();
+    updateReviewPanel();
+    // If editing and supplier hint exists, highlight the correct card
+    if (hint) {
+      document.querySelectorAll('.supplier-type-card').forEach(function(card) {
+        if (card.getAttribute('data-hint') === hint) {
+          card.style.borderColor = 'var(--accent)';
+          card.style.background  = 'rgba(79,142,247,0.06)';
+          var check = card.querySelector('.selected-check');
+          if (check) check.style.display = 'flex';
+        }
+      });
+    }
   });
 
 })();

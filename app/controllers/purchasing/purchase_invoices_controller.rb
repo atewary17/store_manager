@@ -39,6 +39,17 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     @invoice.organisation = @organisation
     @invoice.user         = current_user
 
+    # Stamp supplier_hint from the form-level selector into each item's metadata.
+    # The item metadata field carries it through resolve_product for supplier-aware matching.
+    # Items built from the form already have metadata[supplier_hint] set via the hidden field,
+    # but we enforce it here to ensure nothing is missed.
+    supplier_hint = params[:supplier_hint].to_s.strip.presence
+    if supplier_hint
+      @invoice.purchase_invoice_items.each do |item|
+        item.metadata = item.metadata.merge('supplier_hint' => supplier_hint)
+      end
+    end
+
     if @invoice.save
       redirect_to purchasing_purchase_invoice_path(@invoice),
         notice: 'Invoice saved as draft.'
@@ -136,36 +147,43 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     q = params[:q].to_s.strip
     return render json: [] if q.length < 2
 
-    q_like = "%#{q.downcase}%"
+    q_like        = "%#{q.downcase}%"
+    supplier_hint = params[:supplier_hint].to_s.strip
 
-    # Active products enrolled in this org
-    active_products = Product.for_org(@organisation)
-      .where(active: true)
-      .includes(:brand, :base_uom)
-      .where(
-        'LOWER(products.description) LIKE :q
-         OR LOWER(products.material_code) LIKE :q
-         OR LOWER(products.product_code)  LIKE :q
-         OR LOWER(products.pack_code)     LIKE :q',
-        q: q_like
-      )
-      .limit(10)
+    # Scope to the supplier's brand when a hint is provided — keeps autocomplete relevant.
+    brand_filter = case supplier_hint
+                   when 'asian_paints'
+                     Brand.where('LOWER(name) = ?', 'asian paints').first
+                   when 'shalimar_paints'
+                     Brand.where('LOWER(name) LIKE ?', '%shalimar%').first
+                   end
 
-    # AI-enriched pending products for this org (purchase only — never in sales)
-    pending_products = Product
+    active_base = Product.for_org(@organisation).where(active: true).includes(:brand, :base_uom)
+    active_base = active_base.where(brand: brand_filter) if brand_filter
+
+    active_products = active_base.where(
+      'LOWER(products.description) LIKE :q
+       OR LOWER(products.material_code) LIKE :q
+       OR LOWER(products.product_code)  LIKE :q
+       OR LOWER(products.pack_code)     LIKE :q',
+      q: q_like
+    ).limit(10)
+
+    # AI-enriched pending products (same brand scope if applicable)
+    pending_base = Product
       .joins(:organisation_products)
       .where(organisation_products: { organisation_id: @organisation.id })
       .where(active: false)
       .where("products.metadata->>'source' = 'ai_enrichment'")
       .includes(:brand, :base_uom)
-      .where(
-        'LOWER(products.description) LIKE :q
-         OR LOWER(products.material_code) LIKE :q',
-        q: q_like
-      )
-      .limit(5)
+    pending_base = pending_base.where(brand: brand_filter) if brand_filter
 
-    results = active_products.map { |p| format_product(p, 'matched') } +
+    pending_products = pending_base.where(
+      'LOWER(products.description) LIKE :q OR LOWER(products.material_code) LIKE :q',
+      q: q_like
+    ).limit(5)
+
+    results = active_products.map  { |p| format_product(p, 'matched') } +
               pending_products.map { |p| format_product(p, 'pending') }
 
     render json: results

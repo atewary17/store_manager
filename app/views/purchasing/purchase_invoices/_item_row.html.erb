@@ -47,16 +47,6 @@
 
   <%= f.hidden_field :id %>
   <%= f.hidden_field :_destroy, value: item.marked_for_destruction? ? '1' : '0', class: 'destroy-input' %>
-  <%# Preserve metadata keys that the form doesn't re-send, so they survive the update %>
-  <% if item.persisted? %>
-    <input type="hidden"
-           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][material_code]"
-           value="<%= item.metadata['material_code'] %>">
-  <% end %>
-  <%# Always preserve raw_description so unmatched item names survive saves %>
-  <input type="hidden" class="raw-desc-field"
-         name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][raw_description]"
-         value="<%= item.metadata['raw_description'] %>">
   <%# Hidden fields for proper columns — written on form submit, finalised by confirm! %>
   <%= f.hidden_field :taxable_amount,   class: 'taxable-field',     value: total_pre > 0 ? total_pre : '' %>
   <%= f.hidden_field :tax_amount,       class: 'tax-field',         value: gst_amt  > 0 ? gst_amt  : '' %>
@@ -67,6 +57,16 @@
   <td style="padding:14px 16px;min-width:260px">
     <div class="autocomplete-wrap" style="position:relative">
       <%= f.hidden_field :product_id, class: 'product-id-input' %>
+      <%# These three fields MUST live inside .autocomplete-wrap so wrap.querySelector() finds them %>
+      <input type="hidden" class="raw-desc-field"
+             name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][raw_description]"
+             value="<%= item.metadata['raw_description'] %>">
+      <input type="hidden" class="supplier-hint-field"
+             name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][supplier_hint]"
+             value="<%= item.metadata['supplier_hint'] %>">
+      <input type="hidden" class="material-code-hidden"
+             name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][material_code]"
+             value="<%= item.metadata['material_code'] %>">
 
       <div style="display:flex;align-items:center;gap:6px">
         <input type="text"
@@ -86,15 +86,44 @@
         <% end %>
       </div>
 
-      <div class="product-meta-line"
-           style="font-family:var(--mono);font-size:12px;color:var(--text-dim);
-                  margin-top:2px;min-height:14px">
-        <% if item.product %>
-          <% parts = [] %>
-          <% parts << "M: #{item.product.material_code}" if item.product.material_code.present? %>
-          <% parts << "Pack: #{item.product.pack_code}"  if item.product.pack_code.present? %>
-          <%= parts.join('  ·  ') %>
-        <% end %>
+      <%# Material code field — shown for AP/Shalimar via applySupplierUiToRow() %>
+      <%
+        hint_val     = item.metadata['supplier_hint'].to_s
+        show_mc_field = hint_val == 'asian_paints' || hint_val == 'shalimar_paints'
+        mc_placeholder = hint_val == 'asian_paints' ? 'e.g. 67162022240' : 'e.g. 12601744/...'
+      %>
+      <div class="material-code-wrap"
+           style="margin-top:5px;<%= show_mc_field ? '' : 'display:none' %>">
+        <input type="text"
+               class="material-code-input"
+               placeholder="<%= mc_placeholder %>"
+               autocomplete="off"
+               value="<%= item.metadata['material_code'] %>"
+               oninput="syncMaterialCode(this)"
+               style="width:100%;background:var(--bg);border:1px solid var(--border);
+                      border-radius:4px;padding:5px 9px;color:var(--text);
+                      font-family:var(--mono);font-size:11px;outline:none">
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
+        <div class="product-meta-line"
+             style="font-family:var(--mono);font-size:11px;color:var(--text-dim);min-height:14px">
+          <% if item.product %>
+            <% parts = [] %>
+            <% parts << "M: #{item.product.material_code}" if item.product.material_code.present? %>
+            <% parts << "Pack: #{item.product.pack_code}"  if item.product.pack_code.present? %>
+            <%= parts.join('  ·  ') %>
+          <% end %>
+        </div>
+        <%# Match status badge — JS updates this dynamically %>
+        <div class="match-status-badge"
+             style="display:<%= item.product.present? ? 'flex' : 'none' %>;
+                    align-items:center;padding:2px 7px;border-radius:4px;
+                    border:1px solid rgba(74,222,128,0.25);background:rgba(74,222,128,0.08)">
+          <span style="color:var(--success);font-size:10px;font-weight:700">
+            <%= item.product.present? ? '✓ Matched' : '' %>
+          </span>
+        </div>
       </div>
 
       <div class="ac-dropdown"
