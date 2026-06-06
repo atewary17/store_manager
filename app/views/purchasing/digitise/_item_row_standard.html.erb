@@ -1,6 +1,18 @@
-<%# Locals: item, idx, sr_label, clean_code, matched, display_uom, disc_amt,
-#           iv_rate, iv_gst_rate, is_duplicate, item_warnings, item_has_issues,
-#           append_mode, pack_based %>
+<%# Locals: item, idx, sr_label, clean_code, matched, system_desc, display_uom,
+#           disc_amt, iv_rate, iv_gst_rate, prod_gst_rate, pb_gross_taxable,
+#           pb_gst_rate, is_duplicate, item_warnings, item_has_issues, append_mode,
+#           pack_based %>
+<%
+  # Pack-based (Shalimar) per-line model: editable Taxable is the source of truth.
+  #   net   = taxable − cash_discount
+  #   total = net × (1 + gst%/100)
+  # AP/standard keeps its existing computed-taxable behaviour.
+  local_pb_gross = defined?(pb_gross_taxable) ? pb_gross_taxable.to_f : item['taxable_amount'].to_f
+  local_pb_gst   = defined?(pb_gst_rate) ? pb_gst_rate.to_f : prod_gst_rate.to_f
+  pb_net         = (local_pb_gross - disc_amt.to_f).round(2)
+  pb_net         = 0 if pb_net < 0
+  pb_total       = (pb_net * (1 + local_pb_gst / 100.0)).round(2)
+%>
 <tr class="<%= append_mode ? 'item-row-new' : '' %>"
     id="item-row-<%= idx %>"
     data-rate="<%= iv_rate %>"
@@ -31,10 +43,28 @@
   </td>
 
   <td style="padding:6px">
-    <input type="text"
-           name="parsed_data[items][<%= idx %>][description]"
-           value="<%= item['description'] %>"
-           class="form-control" style="font-size:12px;width:100%">
+    <%# Matched rows show the canonical catalogue description (read-only). Unmatched
+        rows keep the editable AI-parsed text so the reviewer can correct OCR before
+        it goes to the product-review queue. readonly inputs still submit their value. %>
+    <% use_catalogue = matched && defined?(system_desc) && system_desc.present? %>
+    <% if use_catalogue %>
+      <input type="text"
+             name="parsed_data[items][<%= idx %>][description]"
+             value="<%= system_desc %>"
+             readonly
+             title="From product catalogue (matched)"
+             class="form-control"
+             style="font-size:12px;width:100%;background:rgba(255,255,255,0.03);
+                    cursor:default;color:var(--text)">
+      <div style="font-size:9px;color:var(--success);font-family:var(--mono);margin-top:2px">
+        ✓ from catalogue
+      </div>
+    <% else %>
+      <input type="text"
+             name="parsed_data[items][<%= idx %>][description]"
+             value="<%= item['description'] %>"
+             class="form-control" style="font-size:12px;width:100%">
+    <% end %>
     <% if item['pack_size'].present? %>
       <div style="font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--mono)">
         <%= item['pack_size'] %> × <%= item['num_packs'] %>
@@ -47,12 +77,12 @@
     <%= item['hsn_code'].presence || '—' %>
   </td>
 
-  <td style="padding:6px;text-align:right">
+  <td style="padding:6px 4px;text-align:right">
     <input type="number"
            id="item-qty-<%= idx %>"
            name="parsed_data[items][<%= idx %>][quantity]"
            value="<%= item['quantity'] %>"
-           class="form-control" style="text-align:right;font-family:var(--mono);width:100%"
+           class="form-control no-spin" style="text-align:right;font-family:var(--mono);width:56px;font-size:11px"
            step="0.001"
            oninput="revalidateRow(<%= idx %>)">
   </td>
@@ -70,51 +100,107 @@
     <%= item['unit_rate'].to_f > 0 ? number_with_precision(item['unit_rate'], precision: 2, delimiter: ',') : '—' %>
   </td>
 
-  <td style="padding:6px;text-align:right">
+  <td style="padding:6px 4px;text-align:right">
     <input type="number"
            id="item-disc-<%= idx %>"
            name="parsed_data[items][<%= idx %>][discount_amount]"
            value="<%= disc_amt > 0 ? disc_amt : '' %>"
-           class="form-control disc-amt-input"
-           style="text-align:right;font-family:var(--mono);width:100%;font-size:11px"
+           class="form-control disc-amt-input no-spin"
+           style="text-align:right;font-family:var(--mono);width:60px;font-size:11px"
            step="0.01" min="0" placeholder="0.00"
            data-idx="<%= idx %>" data-value="<%= item['value'].to_f %>"
-           oninput="revalidateRow(<%= idx %>)">
+           oninput="<%= pack_based ? "autoComputePack(#{idx})" : "revalidateRow(#{idx})" %>">
   </td>
 
-  <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;white-space:nowrap">
-    <%= item['taxable_amount'].to_f > 0 ? number_with_precision(item['taxable_amount'], precision: 2, delimiter: ',') : '—' %>
-  </td>
+  <% if pack_based %>
+    <%# Editable Taxable (gross line amount) — drives GST + Total live %>
+    <td style="padding:6px 4px;text-align:right">
+      <input type="number"
+             id="item-taxable-<%= idx %>"
+             name="parsed_data[items][<%= idx %>][taxable_amount]"
+             value="<%= local_pb_gross > 0 ? local_pb_gross : '' %>"
+             class="form-control no-spin"
+             style="text-align:right;font-family:var(--mono);width:62px;font-size:11px;font-weight:600"
+             step="0.01" min="0" placeholder="0.00"
+             oninput="autoComputePack(<%= idx %>)">
+    </td>
+  <% else %>
+    <td style="padding:6px;text-align:right;font-family:var(--mono);font-size:11px;white-space:nowrap">
+      <%= item['taxable_amount'].to_f > 0 ? number_with_precision(item['taxable_amount'], precision: 2, delimiter: ',') : '—' %>
+    </td>
+  <% end %>
 
-  <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
-    <% gst = item['cgst_percent'].to_f + item['sgst_percent'].to_f + item['igst_percent'].to_f %>
-    <span style="color:<%= gst > 0 ? 'var(--text)' : 'var(--text-dim)' %>">
-      <%= gst > 0 ? "#{gst.to_i}%" : '—' %>
-    </span>
+  <%# GST — editable. Falls back to the matched product's catalogue rate when the
+      invoice carries no per-line GST (e.g. Shalimar, where GST is footer-only). %>
+  <td style="padding:6px;text-align:center">
+    <%
+      iv_gst         = item['cgst_percent'].to_f + item['sgst_percent'].to_f + item['igst_percent'].to_f
+      cat_gst        = prod_gst_rate.to_f
+      # Pack-based defaults to the per-line rate (catalogue → 18%); standard keeps invoice→catalogue
+      effective_gst  = pack_based ? local_pb_gst : (iv_gst > 0 ? iv_gst : cat_gst)
+      from_catalogue = effective_gst > 0 && iv_gst.zero?
+    %>
+    <input type="number"
+           id="item-gst-<%= idx %>"
+           name="parsed_data[items][<%= idx %>][gst_percent]"
+           value="<%= effective_gst > 0 ? effective_gst : '' %>"
+           class="form-control gst-pct-input no-spin"
+           style="text-align:center;font-family:var(--mono);width:50px;font-size:11px;
+                  <%= from_catalogue ? 'color:var(--warning);border-color:rgba(245,158,11,0.45)' : '' %>"
+           step="0.01" min="0" max="100" placeholder="—"
+           title="<%= from_catalogue ? 'From product catalogue' : 'From invoice' %>"
+           oninput="<%= pack_based ? "autoComputePack(#{idx})" : "revalidateRow(#{idx})" %>">
+    <% if from_catalogue %>
+      <div style="font-size:8px;color:var(--warning);font-family:var(--mono);margin-top:1px">catalogue</div>
+    <% end %>
   </td>
 
   <td style="padding:6px;text-align:right">
+    <%# Pack-based total is computed (taxable − disc) × (1 + gst%); editable for manual override %>
     <input type="number"
            id="item-total-<%= idx %>"
            name="parsed_data[items][<%= idx %>][total_amount]"
-           value="<%= item['total_amount'] %>"
+           value="<%= pack_based ? (pb_total > 0 ? pb_total : '') : item['total_amount'] %>"
            class="form-control"
            style="text-align:right;font-family:var(--mono);font-weight:600;width:100%;font-size:11px"
            step="0.01"
            oninput="revalidateRow(<%= idx %>)">
   </td>
 
-  <td id="item-badge-<%= idx %>" style="padding:8px;text-align:center">
-    <% if is_duplicate %>
-      <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
-    <% elsif item_has_issues %>
-      <span title="<%= h(item_warnings.join(' | ')) %>"
-            style="font-size:10px;color:#ef4444;font-family:var(--mono);
-                   font-weight:700;cursor:help;display:block">
-        ⚠ ERR
+  <td id="item-badge-<%= idx %>"
+      style="padding:8px;text-align:center;white-space:nowrap;min-width:56px;
+             position:sticky;right:0;background:var(--surface);z-index:1">
+    <input type="hidden" class="excluded-flag"
+           name="parsed_data[items][<%= idx %>][_excluded]" value="0">
+    <div style="display:flex;align-items:center;justify-content:center;gap:5px">
+      <%# JS (revalidateRow) updates ONLY this .status-icon span — never the whole
+          cell — so the remove button + undo + hidden flag below always survive. %>
+      <span class="status-icon">
+        <% if is_duplicate %>
+          <span style="font-size:10px;color:var(--danger);font-family:var(--mono);font-weight:700">SKIP</span>
+        <% elsif item_has_issues %>
+          <span title="<%= h(item_warnings.join(' | ')) %>"
+                style="font-size:10px;color:#ef4444;font-family:var(--mono);
+                       font-weight:700;cursor:help">⚠ ERR</span>
+        <% else %>
+          <span style="font-size:10px;color:var(--success);font-family:var(--mono);font-weight:600">✓</span>
+        <% end %>
       </span>
-    <% else %>
-      <span style="font-size:10px;color:var(--success);font-family:var(--mono);font-weight:600">✓</span>
-    <% end %>
+
+      <button type="button"
+              class="exclude-btn"
+              onclick="excludeItem(<%= idx %>)"
+              title="Remove this item from the invoice"
+              style="background:none;border:none;cursor:pointer;padding:2px 4px;
+                     color:var(--text-dim);font-size:15px;line-height:1;border-radius:3px;
+                     transition:color .15s">×</button>
+    </div>
+
+    <div class="undo-chip" id="undo-<%= idx %>" style="display:none">
+      <a href="#" onclick="restoreItem(<%= idx %>); return false;"
+         style="font-size:10px;color:var(--accent);text-decoration:none;font-weight:600">
+        Undo
+      </a>
+    </div>
   </td>
 </tr>

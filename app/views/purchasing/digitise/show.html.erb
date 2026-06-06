@@ -253,6 +253,11 @@
       i['cgst_percent'].to_f + i['sgst_percent'].to_f + i['igst_percent'].to_f > 0
     } ? :per_line : :summary
 
+    # Pack-based suppliers (Shalimar) now use an editable per-line Taxable with the
+    # cash discount distributed across lines and GST applied per line — so they are
+    # always per-line mode regardless of what the parser put in per-line GST fields.
+    gst_mode = :per_line if @supplier_profile&.column_set == :pack_based
+
     # Summary-mode: derive the GST rate from the invoice header and apply it to rc_total
     # before comparing with ex_total so the reconciliation check is meaningful.
     summary_gst_rate  = (ex_taxable > 0 && ex_gst > 0) ? (ex_gst / ex_taxable * 100).round(2) : 0
@@ -293,6 +298,16 @@
     .main-content { max-width: 100% !important; }
     .form-card    { max-width: 100% !important; }
     .page-content { padding: 20px 24px !important; }
+
+    /* Hide number-input spinner arrows so narrow numeric cells show full digits */
+    .no-spin::-webkit-outer-spin-button,
+    .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .no-spin { -moz-appearance: textfield; appearance: textfield; }
+
+    /* The items table uses border-collapse:separate so the Status column can be
+       position:sticky. In separate mode <tr> borders are ignored, so row dividers
+       must live on the cells. */
+    .items-grid td { border-bottom: 1px solid var(--border); }
 
     /* Two-column review layout */
     .review-layout {
@@ -743,7 +758,7 @@
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                 <span style="font-size:10px;font-weight:700;color:var(--text-dim);
                              text-transform:uppercase;letter-spacing:.07em">Invoice Reconciliation</span>
-                <span style="font-size:11px;font-weight:700;
+                <span id="rec-banner" style="font-size:11px;font-weight:700;
                              color:<%= rec_has_err ? 'var(--danger)' : rec_all_ok ? 'var(--success)' : 'var(--warning)' %>">
                   <%= rec_has_err ? '✗ Issues found — check highlighted items' :
                       rec_all_ok  ? '✓ All checks passed' :
@@ -779,13 +794,13 @@
                 <div style="display:grid;grid-template-columns:1fr 100px 100px 24px;
                             gap:0;font-size:11px;padding:3px 0;color:var(--text-dim)">
                   <span>− Cash Discount</span>
-                  <span style="text-align:right;font-family:var(--mono);color:var(--warning)">
+                  <span id="rec-cash-disc" style="text-align:right;font-family:var(--mono);color:var(--warning)">
                     <%= rc_cash_disc > 0 ? number_with_precision(rc_cash_disc, precision: 2, delimiter: ',') : '—' %>
                   </span>
                   <span style="text-align:right;font-family:var(--mono)">
                     <%= ex_cash_disc > 0 ? number_with_precision(ex_cash_disc, precision: 2, delimiter: ',') : '—' %>
                   </span>
-                  <span style="text-align:center;font-weight:700;color:<%= rec_color.(rec_cash_disc_st) %>">
+                  <span id="rec-cash-disc-status" style="text-align:center;font-weight:700;color:<%= rec_color.(rec_cash_disc_st) %>">
                     <%= rec_icon.(rec_cash_disc_st) %>
                   </span>
                 </div>
@@ -797,13 +812,13 @@
                             gap:0;font-size:11px;padding:3px 0;font-weight:600;color:var(--text);
                             border-top:1px solid rgba(255,255,255,0.06)">
                   <span>= Taxable Amount</span>
-                  <span style="text-align:right;font-family:var(--mono)">
+                  <span id="rec-taxable" style="text-align:right;font-family:var(--mono)">
                     <%= number_with_precision(rc_taxable, precision: 2, delimiter: ',') %>
                   </span>
                   <span style="text-align:right;font-family:var(--mono);font-weight:400;color:var(--text-dim)">
                     <%= ex_taxable > 0 ? number_with_precision(ex_taxable, precision: 2, delimiter: ',') : '—' %>
                   </span>
-                  <span style="text-align:center;font-weight:700;color:<%= rec_color.(rec_taxable_st) %>">
+                  <span id="rec-taxable-status" style="text-align:center;font-weight:700;color:<%= rec_color.(rec_taxable_st) %>">
                     <%= rec_icon.(rec_taxable_st) %>
                   </span>
                 </div>
@@ -817,7 +832,7 @@
                     <span style="font-family:var(--mono);font-size:10px">
                       (<%= (ex_cgst / ex_taxable * 100).round(1) %>%)
                     </span><% end %></span>
-                  <span style="text-align:right;font-family:var(--mono)">
+                  <span id="rec-cgst" style="text-align:right;font-family:var(--mono)">
                     <%= rc_cgst > 0 ? number_with_precision(rc_cgst, precision: 2, delimiter: ',') : '—' %>
                   </span>
                   <span style="text-align:right;font-family:var(--mono)">
@@ -835,7 +850,7 @@
                     <span style="font-family:var(--mono);font-size:10px">
                       (<%= (ex_sgst / ex_taxable * 100).round(1) %>%)
                     </span><% end %></span>
-                  <span style="text-align:right;font-family:var(--mono)">
+                  <span id="rec-sgst" style="text-align:right;font-family:var(--mono)">
                     <%= rc_sgst > 0 ? number_with_precision(rc_sgst, precision: 2, delimiter: ',') : '—' %>
                   </span>
                   <span style="text-align:right;font-family:var(--mono)">
@@ -853,7 +868,7 @@
                     <span style="font-family:var(--mono);font-size:10px">
                       (<%= (ex_igst / ex_taxable * 100).round(1) %>%)
                     </span><% end %></span>
-                  <span style="text-align:right;font-family:var(--mono)">
+                  <span id="rec-igst" style="text-align:right;font-family:var(--mono)">
                     <%= rc_igst > 0 ? number_with_precision(rc_igst, precision: 2, delimiter: ',') : '—' %>
                   </span>
                   <span style="text-align:right;font-family:var(--mono)">
@@ -869,13 +884,13 @@
                             gap:0;font-size:11px;padding:3px 0;color:var(--text);font-weight:600;
                             border-top:1px dashed rgba(255,255,255,0.06)">
                   <span>+ GST Total</span>
-                  <span style="text-align:right;font-family:var(--mono)">
+                  <span id="rec-gst-total" style="text-align:right;font-family:var(--mono)">
                     <%= number_with_precision(rc_gst, precision: 2, delimiter: ',') %>
                   </span>
                   <span style="text-align:right;font-family:var(--mono);font-weight:400;color:var(--text-dim)">
                     <%= ex_gst > 0 ? number_with_precision(ex_gst, precision: 2, delimiter: ',') : '—' %>
                   </span>
-                  <span style="text-align:center;font-weight:700;color:<%= rec_color.(rec_gst_st) %>">
+                  <span id="rec-gst-status" style="text-align:center;font-weight:700;color:<%= rec_color.(rec_gst_st) %>">
                     <%= rec_icon.(rec_gst_st) %>
                   </span>
                 </div>
@@ -903,6 +918,11 @@
                 <span id="rec-computed-total"
                       data-gst-mode="<%= gst_mode %>"
                       data-summary-gst-rate="<%= summary_gst_rate %>"
+                      data-gst-split="<%= (rc_igst > 0 || ex_igst > 0) ? 'inter' : 'intra' %>"
+                      data-ex-cash-disc="<%= ex_cash_disc %>"
+                      data-ex-taxable="<%= ex_taxable %>"
+                      data-ex-gst="<%= ex_gst %>"
+                      data-ex-total="<%= ex_total %>"
                       style="text-align:right;font-family:var(--mono)">
                   <%= number_with_precision(rc_total_with_gst, precision: 2, delimiter: ',') %>
                   <% if gst_mode == :summary && summary_gst_rate > 0 %>
@@ -920,17 +940,26 @@
                 </span>
               </div>
 
-              <%# Footnote: commercial rounding or error explanation %>
-              <% if rec_rounding && rec_total_st != :error %>
-                <div style="font-size:10px;color:var(--text-dim);margin-top:4px;font-style:italic">
-                  Difference Rs. <%= number_with_precision((rc_total_with_gst - ex_total).abs, precision: 2) %> — commercial rounding applied by supplier
-                </div>
-              <% elsif total_mismatch %>
-                <div style="font-size:10px;color:var(--danger);margin-top:4px">
-                  Diff Rs. <%= number_with_precision((rc_total_with_gst - ex_total).abs, precision: 2, delimiter: ',') %> —
-                  pages may be missing or AI misread a column. Check quantities carefully.
-                </div>
-              <% end %>
+              <%# Footnote: commercial rounding or error explanation.
+                  Always rendered (id=rec-footnote) so updateReconciliation() can
+                  refresh/hide it live after client-side edits. %>
+              <%
+                fn_initial =
+                  if rec_rounding && rec_total_st != :error
+                    { text: "Difference Rs. #{number_with_precision((rc_total_with_gst - ex_total).abs, precision: 2)} — commercial rounding applied by supplier",
+                      color: 'var(--text-dim)', show: true }
+                  elsif total_mismatch
+                    { text: "Diff Rs. #{number_with_precision((rc_total_with_gst - ex_total).abs, precision: 2, delimiter: ',')} — pages may be missing or AI misread a column. Check quantities carefully.",
+                      color: 'var(--danger)', show: true }
+                  else
+                    { text: '', color: 'var(--text-dim)', show: false }
+                  end
+              %>
+              <div id="rec-footnote"
+                   style="font-size:10px;margin-top:4px;color:<%= fn_initial[:color] %>;
+                          <%= fn_initial[:show] ? '' : 'display:none' %>">
+                <%= fn_initial[:text] %>
+              </div>
 
             </div>
           <% end %>
@@ -975,7 +1004,7 @@
       </div>
 
       <div style="overflow-x:auto;width:100%">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto">
+        <table class="items-grid" style="width:100%;border-collapse:separate;border-spacing:0;font-size:12px;table-layout:auto">
           <thead>
             <tr style="background:var(--bg)">
               <% pack_based = @supplier_profile&.column_set == :pack_based %>
@@ -983,10 +1012,10 @@
               <% col_count  = generic ? 11 : 12 %>
               <% [
                 ['#',                                              '28px',  'center'],
-                (generic ? nil : ['Material Code',                 '90px',  'left']),
+                (generic ? nil : [pack_based ? 'Product Code' : 'Material Code', '90px', 'left']),
                 ['Description',                                    'auto',  'left'],
                 ['HSN',                                            '58px',  'center'],
-                [pack_based ? 'Packs'     : 'Qty',                 '62px',  'right'],
+                [pack_based ? 'Packs'     : 'Qty',                 '58px',  'right'],
                 ['UOM',                                            '46px',  'center'],
                 [pack_based ? 'Rate/Pack' : 'Rate/Unit',           '72px',  'right'],
                 [generic ? 'Disc %' : 'Disc Rs.',                  '62px',  'right'],
@@ -995,10 +1024,11 @@
                 ['Total (Rs.)',                                    '82px',  'right'],
                 ['Status',                                         '56px',  'center'],
               ].compact.each do |lbl, w, align| %>
+                <% sticky = (lbl == 'Status') ? 'position:sticky;right:0;background:var(--bg);z-index:2;' : '' %>
                 <th style="min-width:<%= w %>;padding:7px 6px;text-align:<%= align %>;
                            font-family:var(--mono);font-size:10px;letter-spacing:.07em;
                            text-transform:uppercase;color:var(--text-dim);
-                           border-bottom:1px solid var(--border);white-space:nowrap"><%= lbl %></th>
+                           border-bottom:1px solid var(--border);white-space:nowrap;<%= sticky %>"><%= lbl %></th>
               <% end %>
             </tr>
           </thead>
@@ -1103,8 +1133,21 @@
                     matched      = matched_prod.present?
                     prod_uom     = matched_prod&.base_uom&.name.presence
                     display_uom  = prod_uom || item['unit'].presence || '—'
+                    prod_gst_rate = matched_prod&.gst_rate.to_f
                     disc_amt     = item['discount_amount'].to_f
                     disc_pct     = item['discount_percent'].to_f
+
+                    # Pack-based (Shalimar): the line Amount is the pre-GST taxable.
+                    # Distribute the invoice-level cash discount % across each line so
+                    # GST is charged on the post-discount amount and totals reconcile.
+                    pb_gross_taxable = item['taxable_amount'].to_f > 0 ?
+                                         item['taxable_amount'].to_f : item['total_amount'].to_f
+                    pb_cash_disc_pct = hdr['cash_discount_percent'].to_f
+                    if pack_based && disc_amt.zero? && pb_cash_disc_pct > 0 && pb_gross_taxable > 0
+                      disc_amt = (pb_gross_taxable * pb_cash_disc_pct / 100.0).round(2)
+                    end
+                    # Effective per-line GST for pack-based: invoice rate → catalogue → 18% default
+                    pb_gst_rate = prod_gst_rate > 0 ? prod_gst_rate : 18.0
 
                     is_duplicate = if generic
                       @duplicates&.any? { |d|
@@ -1161,6 +1204,15 @@
                         exp_total = (iv_taxable + iv_gst_amt).round(2)
                         item_warnings << "Total ₹#{iv_total} ≠ Taxable(₹#{iv_taxable}) + GST(₹#{iv_gst_amt}) = ₹#{exp_total}" if (exp_total - iv_total).abs > 1.0
                       end
+
+                      # GST cross-check against the matched product's catalogue rate.
+                      # Only flags when the invoice carries a per-line GST that disagrees
+                      # with the catalogue. Shalimar items (per-line GST = 0) fall back to
+                      # the catalogue rate for display rather than triggering a warning.
+                      if matched && prod_gst_rate > 0 && iv_gst_rate > 0 &&
+                         (iv_gst_rate - prod_gst_rate).abs > 1.0
+                        item_warnings << "GST #{iv_gst_rate.to_i}% on invoice ≠ #{prod_gst_rate.to_i}% in catalogue"
+                      end
                     end
 
                     item_has_issues = item_warnings.any? && !is_duplicate
@@ -1192,8 +1244,11 @@
                     <%= render 'item_row_standard',
                           item: item, idx: idx, sr_label: sr_label,
                           clean_code: clean_code, matched: matched,
+                          system_desc: matched_prod&.description,
                           display_uom: display_uom, disc_amt: disc_amt,
                           iv_rate: iv_rate, iv_gst_rate: iv_gst_rate,
+                          prod_gst_rate: prod_gst_rate,
+                          pb_gross_taxable: pb_gross_taxable, pb_gst_rate: pb_gst_rate,
                           is_duplicate: is_duplicate, item_warnings: item_warnings,
                           item_has_issues: item_has_issues, append_mode: append_mode,
                           pack_based: pack_based %>
@@ -1247,7 +1302,8 @@
                 Grand Total (computed)
               </div>
               <%# Primary figure is always the sum of line items — not the AI-extracted header value %>
-              <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)">
+              <div id="live-grand-total"
+                   style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)">
                 Rs. <%= number_with_precision(computed_grand_total, precision: 2, delimiter: ',') %>
               </div>
               <% if total_mismatch %>
@@ -1346,6 +1402,26 @@
       if (e.key === 'Escape') lbClose();
     });
 
+    // ── Pack-based (Shalimar): taxable is editable; derive GST + total ───────
+    //   net = taxable − cash_disc ; total = net × (1 + gst%/100)
+    function autoComputePack(idx) {
+      var taxEl  = document.getElementById('item-taxable-' + idx);
+      var discEl = document.getElementById('item-disc-'    + idx);
+      var gstEl  = document.getElementById('item-gst-'     + idx);
+      var totEl  = document.getElementById('item-total-'   + idx);
+      if (!taxEl || !totEl) return;
+
+      var taxable = parseFloat(taxEl.value)  || 0;
+      var disc    = parseFloat(discEl ? discEl.value : '0') || 0;
+      var gst     = parseFloat(gstEl  ? gstEl.value  : '0') || 0;
+
+      var net = taxable - disc;
+      if (net < 0) net = 0;
+      totEl.value = (Math.round(net * (1 + gst / 100) * 100) / 100).toFixed(2);
+
+      revalidateRow(idx);
+    }
+
     // ── Others: auto-compute total from qty × rate × (1 − disc%) ────────────
     function autoComputeOthers(idx) {
       var rateEl  = document.getElementById('item-rate-'  + idx);
@@ -1370,14 +1446,22 @@
     function revalidateRow(idx) {
       var tr    = document.getElementById('item-row-'  + idx);
       var badge = document.getElementById('item-badge-' + idx);
+      // Update ONLY the status-icon span, never the whole cell — otherwise the
+      // remove (×) button, Undo link and hidden _excluded flag get destroyed.
+      var statusIcon = badge ? badge.querySelector('.status-icon') : null;
       if (!tr || tr.dataset.duplicate === '1') return;
+      // Excluded rows keep their faded state — don't re-style or re-badge them
+      var exFlag = tr.querySelector('.excluded-flag');
+      if (exFlag && exFlag.value === '1') return;
 
       var rate    = parseFloat(tr.dataset.rate)    || 0;
-      var gstRate = parseFloat(tr.dataset.gstRate) || 0;
 
       var qtyEl   = document.getElementById('item-qty-'   + idx);
       var discEl  = document.getElementById('item-disc-'  + idx);
       var totalEl = document.getElementById('item-total-' + idx);
+      var gstEl   = document.getElementById('item-gst-'   + idx);
+      // Prefer the editable GST input; fall back to the row's original rate
+      var gstRate = gstEl ? (parseFloat(gstEl.value) || 0) : (parseFloat(tr.dataset.gstRate) || 0);
 
       var qty   = parseFloat(qtyEl   ? qtyEl.value   : '0') || 0;
       var disc  = parseFloat(discEl  ? discEl.value  : '0') || 0;
@@ -1401,16 +1485,21 @@
             );
           }
         }
-      } else if (rate > 0 && qty > 0 && total > 0) {
-        // Standard (AP / Shalimar): (qty × rate − disc_rs) × (1 + gst%) = total
-        var taxable = Math.round((qty * rate - disc) * 100) / 100;
-        var expectedTotal = Math.round(taxable * (1 + gstRate / 100) * 100) / 100;
-        if (Math.abs(expectedTotal - total) > 1.0) {
-          warnings.push(
-            'Expected ₹' + expectedTotal.toFixed(2) +
-            ' (taxable ₹' + taxable.toFixed(2) +
-            (gstRate > 0 ? ' + ' + gstRate + '% GST' : '') + ')'
-          );
+      } else {
+        // Standard (AP) uses qty × rate as gross; pack-based (Shalimar) uses the
+        // editable Taxable input as gross. Both: (gross − disc) × (1 + gst%) = total
+        var taxableEl = document.getElementById('item-taxable-' + idx);
+        var gross = taxableEl ? (parseFloat(taxableEl.value) || 0) : (qty * rate);
+        if (gross > 0 && total > 0) {
+          var taxable = Math.round((gross - disc) * 100) / 100;
+          var expectedTotal = Math.round(taxable * (1 + gstRate / 100) * 100) / 100;
+          if (Math.abs(expectedTotal - total) > 1.0) {
+            warnings.push(
+              'Expected ₹' + expectedTotal.toFixed(2) +
+              ' (taxable ₹' + taxable.toFixed(2) +
+              (gstRate > 0 ? ' + ' + gstRate + '% GST' : '') + ')'
+            );
+          }
         }
       }
 
@@ -1420,14 +1509,14 @@
       if (hasIssues) {
         tr.style.background = 'rgba(239,68,68,0.14)';
         tr.style.borderLeft = '4px solid #ef4444';
-        if (badge) badge.innerHTML =
+        if (statusIcon) statusIcon.innerHTML =
           '<span title="' + escHtml(warnings.join(' | ')) + '" ' +
           'style="font-size:10px;color:#ef4444;font-family:var(--mono);' +
           'font-weight:700;cursor:help">⚠ ERR</span>';
       } else {
         tr.style.background = '';
         tr.style.borderLeft = '';
-        if (badge) badge.innerHTML =
+        if (statusIcon) statusIcon.innerHTML =
           '<span style="font-size:10px;color:var(--success);' +
           'font-family:var(--mono);font-weight:600">✓</span>';
       }
@@ -1435,33 +1524,158 @@
       updateReconciliation();
     }
 
-    // ── Live reconciliation total update ─────────────────────────────────────
-    function updateReconciliation() {
-      var inputs = document.querySelectorAll('[id^="item-total-"]');
-      var computed = 0;
-      inputs.forEach(function(inp) { computed += parseFloat(inp.value) || 0; });
-      computed = Math.round(computed * 100) / 100;
-
-      var rcComp = document.getElementById('rec-computed-total');
-      var gstMode = rcComp ? (rcComp.dataset.gstMode || 'per_line') : 'per_line';
-      var summaryGstRate = rcComp ? (parseFloat(rcComp.dataset.summaryGstRate) || 0) : 0;
-      var effective = (gstMode === 'summary' && summaryGstRate > 0)
-        ? Math.round(computed * (1 + summaryGstRate / 100) * 100) / 100
-        : computed;
-
-      if (rcComp) rcComp.textContent = effective.toLocaleString('en-IN', {
+    // ── Live reconciliation — full client-side recompute ─────────────────────
+    // Recomputes taxable / GST / cash-discount / grand total from the CURRENT
+    // (non-excluded, non-duplicate) rows, then refreshes every reconciliation
+    // cell and its ✓/⚠/✗ status. Runs on any row edit and on exclude/restore.
+    function fmtMoney(v) {
+      return (Math.round(v * 100) / 100).toLocaleString('en-IN', {
         minimumFractionDigits: 2, maximumFractionDigits: 2
       });
+    }
+    function setRecCell(id, val) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = fmtMoney(val);
+    }
+    // Same tolerances as the server's rec_st lambda: ≤1.5 ok, ≤10 warn, else error.
+    function statusOf(computed, extracted) {
+      if (extracted <= 0) return 'na';
+      var d = Math.abs(computed - extracted);
+      return d <= 1.5 ? 'ok' : (d <= 10.0 ? 'warn' : 'error');
+    }
+    function setRecStatus(id, computed, extracted) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var map = { na:  ['—', 'var(--text-dim)'], ok: ['✓', 'var(--success)'],
+                  warn: ['⚠', 'var(--warning)'], error: ['✗', 'var(--danger)'] };
+      var s = map[statusOf(computed, extracted)];
+      el.textContent = s[0];
+      el.style.color = s[1];
+    }
 
-      var rcAi   = document.getElementById('rec-ai-total');
-      var aiTotal = rcAi ? (parseFloat(rcAi.dataset.value) || 0) : 0;
-      var statusEl = document.getElementById('rec-total-status');
-      if (statusEl && aiTotal > 0) {
-        var diff = Math.abs(effective - aiTotal);
-        if (diff <= 1.5)       { statusEl.textContent = '✓'; statusEl.style.color = 'var(--success)'; }
-        else if (diff <= 10.0) { statusEl.textContent = '⚠'; statusEl.style.color = 'var(--warning)'; }
-        else                   { statusEl.textContent = '✗'; statusEl.style.color = 'var(--danger)';  }
+    function updateReconciliation() {
+      var rcComp = document.getElementById('rec-computed-total');
+      if (!rcComp) return;
+
+      var gstMode     = rcComp.dataset.gstMode || 'per_line';
+      var summaryRate = parseFloat(rcComp.dataset.summaryGstRate) || 0;
+      var isInter     = rcComp.dataset.gstSplit === 'inter';
+      var exCashDisc  = parseFloat(rcComp.dataset.exCashDisc) || 0;
+      var exTaxable   = parseFloat(rcComp.dataset.exTaxable)  || 0;
+      var exGst       = parseFloat(rcComp.dataset.exGst)      || 0;
+      var exTotal     = parseFloat(rcComp.dataset.exTotal)    || 0;
+
+      var sumTaxable = 0, sumGst = 0, sumDisc = 0, sumLineTotal = 0;
+
+      document.querySelectorAll('tr[id^="item-row-"]').forEach(function(row) {
+        var flag = row.querySelector('.excluded-flag');
+        if (flag && flag.value === '1') return;        // skip excluded
+        if (row.dataset.duplicate === '1') return;      // skip duplicates
+
+        var idx    = row.id.replace('item-row-', '');
+        var qtyEl  = document.getElementById('item-qty-'     + idx);
+        var discEl = document.getElementById('item-disc-'    + idx);
+        var gstEl  = document.getElementById('item-gst-'     + idx);
+        var totEl  = document.getElementById('item-total-'   + idx);
+        var taxEl  = document.getElementById('item-taxable-' + idx);
+
+        var qty   = parseFloat(qtyEl  ? qtyEl.value  : '0') || 0;
+        var disc  = parseFloat(discEl ? discEl.value : '0') || 0;
+        var total = parseFloat(totEl  ? totEl.value  : '0') || 0;
+        var rate  = parseFloat(row.dataset.rate) || 0;
+        var gstPct = parseFloat(gstEl ? gstEl.value : '0') || 0;
+        var isPctDisc = discEl && discEl.classList.contains('disc-pct-input');
+
+        sumLineTotal += total;
+
+        if (gstMode === 'summary') {
+          // Per-line GST is 0; the line total is the pre-GST taxable amount.
+          sumTaxable += total;
+          if (!isPctDisc) sumDisc += disc;
+        } else {
+          // per_line: gross taxable = editable Taxable input (Shalimar) or qty×rate (AP)
+          // net = gross − disc ; gst = net × gst%/100 ; rec-taxable shows net (post-disc)
+          var gross = taxEl ? (parseFloat(taxEl.value) || 0) : (qty * rate);
+          var lineTaxable = Math.round((gross - disc) * 100) / 100;
+          if (lineTaxable < 0) lineTaxable = 0;
+          sumTaxable += lineTaxable;
+          sumGst     += Math.round(lineTaxable * gstPct / 100 * 100) / 100;
+          sumDisc    += disc;
+        }
+      });
+
+      var gstTotal, grandTotal;
+      if (gstMode === 'summary') {
+        gstTotal   = summaryRate > 0 ? sumTaxable * summaryRate / 100 : 0;
+        grandTotal = sumTaxable + gstTotal;
+      } else {
+        gstTotal   = sumGst;
+        grandTotal = sumLineTotal;   // per-line totals already include GST
       }
+
+      // Update value cells (each setter no-ops if the cell isn't rendered)
+      setRecCell('rec-cash-disc', sumDisc);
+      setRecCell('rec-taxable',   sumTaxable);
+      if (isInter) {
+        setRecCell('rec-igst', gstTotal);
+      } else {
+        setRecCell('rec-cgst', gstTotal / 2);
+        setRecCell('rec-sgst', gstTotal / 2);
+      }
+      setRecCell('rec-gst-total',      gstTotal);
+      setRecCell('rec-computed-total', grandTotal);
+
+      // Refresh statuses
+      setRecStatus('rec-cash-disc-status', sumDisc,    exCashDisc);
+      setRecStatus('rec-taxable-status',   sumTaxable, exTaxable);
+      setRecStatus('rec-gst-status',       gstTotal,   exGst);
+      setRecStatus('rec-total-status',     grandTotal, exTotal);
+
+      // ── Overall verdict banner ──────────────────────────────────────────
+      var stCashDisc = (sumDisc > 0 || exCashDisc > 0) ? statusOf(sumDisc, exCashDisc) : 'na';
+      var stTaxable  = statusOf(sumTaxable, exTaxable);
+      var stGst      = statusOf(gstTotal,   exGst);
+      var stTotal    = statusOf(grandTotal, exTotal);
+
+      var active = [stCashDisc, stTaxable, stGst, stTotal].filter(function(s) { return s !== 'na'; });
+      var hasErr = active.indexOf('error') !== -1;
+      var allOk  = active.length > 0 && active.every(function(s) { return s === 'ok'; });
+
+      var banner = document.getElementById('rec-banner');
+      if (banner) {
+        if (hasErr) {
+          banner.textContent = '✗ Issues found — check highlighted items';
+          banner.style.color = 'var(--danger)';
+        } else if (allOk) {
+          banner.textContent = '✓ All checks passed';
+          banner.style.color = 'var(--success)';
+        } else {
+          banner.textContent = '⚠ Minor differences';
+          banner.style.color = 'var(--warning)';
+        }
+      }
+
+      // ── Footnote (rounding note / mismatch note / hidden) ────────────────
+      var footnote = document.getElementById('rec-footnote');
+      if (footnote) {
+        var diff = Math.abs(grandTotal - exTotal);
+        if (exTotal > 0 && diff >= 0.01 && diff <= 2.0 && stTotal !== 'error') {
+          footnote.textContent = 'Difference Rs. ' + fmtMoney(diff) + ' — commercial rounding applied by supplier';
+          footnote.style.color = 'var(--text-dim)';
+          footnote.style.display = '';
+        } else if (stTotal === 'error') {
+          footnote.textContent = 'Diff Rs. ' + fmtMoney(diff) +
+            ' — pages may be missing or AI misread a column. Check quantities carefully.';
+          footnote.style.color = 'var(--danger)';
+          footnote.style.display = '';
+        } else {
+          footnote.style.display = 'none';
+        }
+      }
+
+      // Keep the form-footer grand total in sync
+      var liveEl = document.getElementById('live-grand-total');
+      if (liveEl) liveEl.textContent = 'Rs. ' + fmtMoney(grandTotal);
     }
 
     function escHtml(s) {
@@ -1487,6 +1701,68 @@
           badRows[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       });
+    })();
+
+    // ── EXCLUDE / RESTORE ITEM ROWS ────────────────────────────────────────
+    window.excludeItem = function(idx) {
+      var row   = document.getElementById('item-row-' + idx);
+      var flag  = row ? row.querySelector('.excluded-flag') : null;
+      var undo  = document.getElementById('undo-' + idx);
+      var btn   = row ? row.querySelector('.exclude-btn') : null;
+      if (!row || !flag) return;
+
+      flag.value = '1';
+      row.style.opacity         = '0.3';
+      row.style.textDecoration  = 'line-through';
+      row.style.pointerEvents   = 'none';
+      if (btn)  btn.style.display  = 'none';
+      if (undo) undo.style.display = 'block';
+
+      refreshAfterExclusion();
+    };
+
+    window.restoreItem = function(idx) {
+      var row  = document.getElementById('item-row-' + idx);
+      var flag = row ? row.querySelector('.excluded-flag') : null;
+      var undo = document.getElementById('undo-' + idx);
+      var btn  = row ? row.querySelector('.exclude-btn') : null;
+      if (!row || !flag) return;
+
+      flag.value = '0';
+      row.style.opacity        = '';
+      row.style.textDecoration = '';
+      row.style.pointerEvents  = '';
+      if (btn)  btn.style.display  = '';
+      if (undo) undo.style.display = 'none';
+
+      refreshAfterExclusion();
+    };
+
+    // Re-run every visible row's validation, then recompute the whole
+    // reconciliation panel — so excluding/restoring a line cascades through
+    // all totals, GST, and ✓/⚠/✗ statuses client-side.
+    function refreshAfterExclusion() {
+      document.querySelectorAll('tr[id^="item-row-"]').forEach(function(row) {
+        var flag = row.querySelector('.excluded-flag');
+        if (flag && flag.value === '1') return;
+        var idx = row.id.replace('item-row-', '');
+        revalidateRow(idx);
+      });
+      updateReconciliation();
+    }
+
+    // ── INIT ON LOAD (pack-based only) ─────────────────────────────────────
+    // Shalimar rows compute Total from the editable Taxable, then the whole
+    // reconciliation panel is recomputed so it reflects the per-line model
+    // (net taxable, per-line GST, distributed cash discount) immediately.
+    // Standard/AP invoices are left on their server-rendered values.
+    (function initPackReconciliation() {
+      var taxInputs = document.querySelectorAll('input[id^="item-taxable-"]');
+      if (taxInputs.length === 0) return;
+      taxInputs.forEach(function(taxEl) {
+        autoComputePack(taxEl.id.replace('item-taxable-', ''));
+      });
+      if (document.getElementById('rec-computed-total')) updateReconciliation();
     })();
   </script>
 

@@ -1,7 +1,7 @@
 # app/controllers/admin/product_reviews_controller.rb
 class Admin::ProductReviewsController < Admin::BaseController
 
-  before_action :set_product, only: [:show, :update, :approve, :reject, :merge]
+  before_action :set_product, only: [:show, :update, :approve, :reject, :merge, :apply_suggestion]
 
   PER_PAGE = 25
 
@@ -38,6 +38,7 @@ class Admin::ProductReviewsController < Admin::BaseController
     @brands     = Brand.ordered.pluck(:name, :id)
     @categories = ProductCategory.ordered.pluck(:name, :id)
     @uoms       = Uom.ordered.map { |u| [u.display, u.id] }
+    @suggestion = ApPriceListSuggestionService.build(@product)
   end
 
   # PATCH /admin/product_reviews/:id
@@ -134,6 +135,55 @@ class Admin::ProductReviewsController < Admin::BaseController
     end
   end
 
+  # POST /admin/product_reviews/:id/apply_suggestion
+  # Writes price-list-derived fields into the product's description + metadata.
+  # Product stays under_review — admin must still approve manually.
+  def apply_suggestion
+    description       = params[:suggested_description].to_s.strip
+    shade_name        = params[:shade_name].to_s.strip.presence
+    product_line_desc = params[:product_line_desc].to_s.strip.presence
+    pack_size_desc    = params[:pack_size_desc].to_s.strip.presence
+    pack_size_litres  = params[:pack_size_litres].presence&.to_f
+    dealer_price      = params[:dealer_price].presence&.to_d
+    brand_id          = params[:brand_id].presence&.to_i
+    category_name     = params[:category_name].to_s.strip.presence
+
+    meta = @product.metadata.dup
+    meta['product_line_desc'] = product_line_desc if product_line_desc
+    meta['shade_name']        = shade_name        if shade_name
+    meta['pack_size_desc']    = pack_size_desc     if pack_size_desc
+    meta['pack_size_litres']  = pack_size_litres   if pack_size_litres
+    meta['dealer_price']      = dealer_price       if dealer_price
+
+    updates = {
+      description: description.presence || @product.description,
+      metadata:    meta
+    }
+
+    # Apply brand — only overwrite if currently blank or "Others"
+    if brand_id.present?
+      current_brand_name = @product.brand&.name&.downcase
+      updates[:brand_id] = brand_id if current_brand_name.blank? || current_brand_name == 'others'
+    end
+
+    # Apply category — look up by name, only overwrite if currently "Others"
+    if category_name.present?
+      current_cat_name = @product.product_category&.name&.downcase
+      if current_cat_name.blank? || current_cat_name == 'others'
+        cat = ProductCategory.find_by('LOWER(name) = ?', category_name.downcase)
+        updates[:product_category_id] = cat.id if cat
+      end
+    end
+
+    @product.update!(updates)
+
+    redirect_to admin_product_review_path(@product),
+                notice: 'Suggestion applied — description, brand, and category updated. Review and approve when ready.'
+  rescue => e
+    redirect_to admin_product_review_path(@product),
+                alert: "Could not apply suggestion: #{e.message}"
+  end
+
   private
 
   def set_product
@@ -143,7 +193,7 @@ class Admin::ProductReviewsController < Admin::BaseController
 
   def product_params
     params.require(:product).permit(
-      :description, :material_code, :brand_id,
+      :description, :material_code, :product_code, :brand_id,
       :product_category_id, :base_uom_id, :hsn_code, :gst_rate
     )
   end

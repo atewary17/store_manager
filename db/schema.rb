@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_17_134649) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_01_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
@@ -793,10 +793,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_17_134649) do
     t.string "last_name"
     t.string "phone_number"
     t.jsonb "preferences", default: {}, null: false
+    t.string "session_token"
+    t.datetime "last_activity_at"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["organisation_id"], name: "index_users_on_organisation_id"
     t.index ["preferences"], name: "index_users_on_preferences", using: :gin
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.index ["session_token"], name: "index_users_on_session_token", unique: true
   end
 
   add_foreign_key "activity_logs", "organisations"
