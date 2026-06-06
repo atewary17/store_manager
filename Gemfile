@@ -31,6 +31,7 @@ gem 'dotenv-rails'  # not grouped, so it loads in production too
 gem 'mini_magick'   # ImageMagick wrapper for invoice image preprocessing
 gem 'caxlsx', '~> 3.4'
 gem 'caxlsx_rails', '~> 0.6'
+gem 'lograge'       # condense noisy per-request logs into one line so errors stand out
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]
@@ -44,6 +45,9 @@ end
 group :development do
   gem "web-console"
   gem 'pry-byebug'
+  # Rich in-browser error page with a live REPL at the crash point
+  gem 'better_errors'
+  gem 'binding_of_caller'
 end
 
 group :test do

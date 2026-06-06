@@ -279,17 +279,31 @@
     </div>
 
     <div style="padding:12px 20px;border-top:1px solid var(--border);
-                display:flex;justify-content:flex-end;gap:32px">
+                display:flex;justify-content:flex-end;align-items:flex-end;gap:32px;flex-wrap:wrap">
       <div style="text-align:right">
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
                     text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Total Items</div>
         <div style="font-family:var(--mono);font-size:16px;font-weight:600" id="total-items">0</div>
+      </div>
+      <%# Stated invoice total (from the printed invoice) — reconciliation target %>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
+                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Invoice Total (printed)</div>
+        <input type="number" id="stated-invoice-total"
+               name="purchase_invoice[metadata][stated_invoice_total]"
+               value="<%= invoice.metadata['stated_invoice_total'] %>"
+               placeholder="0.00" min="0" step="0.01"
+               style="width:130px;background:var(--bg);border:1px solid var(--border);
+                      border-radius:5px;padding:7px 10px;color:var(--text);
+                      font-family:var(--mono);font-size:14px;outline:none;text-align:right">
       </div>
       <div style="text-align:right">
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
                     text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Grand Total (₹)</div>
         <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent)"
              id="grand-total">0.00</div>
+        <div id="reconcile-status"
+             style="font-family:var(--mono);font-size:11px;font-weight:600;margin-top:3px;display:none"></div>
       </div>
     </div>
   </div>
@@ -401,11 +415,13 @@
            name="purchase_invoice[purchase_invoice_items_attributes][INDEX][discount_percent]" value="">
     <input type="hidden" class="disc-amt-field"
            name="purchase_invoice[purchase_invoice_items_attributes][INDEX][discount_amount]" value="">
-    <td style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text-dim)">
-      <input type="hidden" class="rate-input"
+    <td style="padding:6px 8px">
+      <input type="number" class="rate-input"
              name="purchase_invoice[purchase_invoice_items_attributes][INDEX][unit_rate]"
-             value="">
-      <span class="rate-display">—</span>
+             placeholder="0.00" min="0" step="any"
+             style="width:90px;background:var(--bg);border:1px solid var(--border);
+                    border-radius:5px;padding:6px 8px;color:var(--text);
+                    font-family:var(--mono);font-size:12.5px;outline:none;text-align:right">
     </td>
     <td style="padding:6px 8px">
       <input type="number" class="discount-input"
@@ -482,67 +498,52 @@
   }
 
   // ══════════════════════════════════════════════════════════════
-  //  ROW CALCULATIONS
-  //  User fills: qty, discount%, total_amount
-  //  Calculated: unit_rate = total_amount / qty
+  //  ROW CALCULATIONS — taxable-driven (same identity as digitise review)
+  //  User fills: qty, unit_rate, discount%, gst%
+  //  Computed : taxable = qty×rate×(1−disc%) ; total = taxable×(1+gst%)
   // ══════════════════════════════════════════════════════════════
   function recalcRow(row) {
-    var qtyEl    = row.querySelector('.qty-input');
-    var totalEl  = row.querySelector('.total-editable');
-    if (!qtyEl || !totalEl) return;
+    var qtyEl  = row.querySelector('.qty-input');
+    var rateEl = row.querySelector('.rate-input');
+    if (!qtyEl || !rateEl) return;
 
-    var qty      = parseFloat(qtyEl.value)   || 0;
-    var payable  = parseFloat(totalEl.value) || 0;
+    var qty     = parseFloat(qtyEl.value)  || 0;
+    var rate    = parseFloat(rateEl.value) || 0;
 
-    // Sync hidden total
-    var totalInput = row.querySelector('.total-input');
-    if (totalInput) totalInput.value = payable > 0 ? payable.toFixed(2) : '';
-
-    // ── Derive breakdown from payable ──────────────────────
     var gstRateEl = row.querySelector('.gst-rate-input');
     var discEl    = row.querySelector('.discount-input');
     var gstPct    = gstRateEl ? (parseFloat(gstRateEl.value) || 0) : 0;
     var discPct   = discEl    ? (parseFloat(discEl.value)    || 0) : 0;
 
-    var totalPre = gstPct > 0 ? (payable / (1 + gstPct / 100)).round2() : payable;
-    var gstAmt   = (payable - totalPre).round2();
-    var subtotal = discPct > 0 ? (totalPre / (1 - discPct / 100)).round2() : totalPre;
-    var unitRate = (qty > 0 && subtotal > 0) ? (subtotal / qty).round4() : 0;
-    var discAmt  = discPct > 0 ? (subtotal - totalPre).round2() : 0;
+    var gross    = (qty * rate).round2();
+    var discAmt  = discPct > 0 ? (gross * discPct / 100).round2() : 0;
+    var totalPre = (gross - discAmt).round2();         // taxable (pre-GST)
+    var gstAmt   = gstPct > 0 ? (totalPre * gstPct / 100).round2() : 0;
+    var payable  = (totalPre + gstAmt).round2();       // total incl GST
 
-    // Sync rate hidden + display
-    var rateInput = row.querySelector('.rate-input');
-    if (rateInput) rateInput.value = unitRate > 0 ? unitRate.toFixed(4) : '';
-    var rateDisplay = row.querySelector('.rate-display');
-    if (rateDisplay) {
-      rateDisplay.textContent = unitRate > 0
-        ? unitRate.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})
-        : '—';
-      rateDisplay.style.color = unitRate > 0 ? 'var(--text)' : 'var(--text-dim)';
-    }
+    // Write computed total into the editable total field + hidden mirror
+    var totalEl    = row.querySelector('.total-editable');
+    var totalInput = row.querySelector('.total-input');
+    if (totalEl)    totalEl.value    = payable > 0 ? payable.toFixed(2) : '';
+    if (totalInput) totalInput.value = payable > 0 ? payable.toFixed(2) : '';
 
-    // Update total-pre display (taxable amount before GST)
+    // Pre-GST (taxable) display
     var preDsp = row.querySelector('.total-pre-display');
     if (preDsp) preDsp.textContent = totalPre > 0
       ? totalPre.toLocaleString('en-IN', {minimumFractionDigits: 2}) : '—';
 
-    // Update GST display
+    // GST display
     var gstDsp = row.querySelector('.gst-display');
     if (gstDsp) gstDsp.textContent = gstAmt > 0
       ? gstAmt.toLocaleString('en-IN', {minimumFractionDigits: 2}) : '—';
-
-    // Update GST breakdown (CGST/SGST split)
     var gstBrk = row.querySelector('.gst-breakdown');
-    if (gstBrk) {
-      gstBrk.textContent = gstPct > 0 ? '(' + gstPct.toFixed(0) + '%)' : '';
-    }
+    if (gstBrk) gstBrk.textContent = gstPct > 0 ? '(' + gstPct.toFixed(0) + '%)' : '';
 
-    // Update discount amount label
+    // Discount amount label
     var discLbl = row.querySelector('.disc-amt-label');
     if (discLbl) discLbl.textContent = discAmt > 0 ? '₹' + discAmt.toFixed(2) : '';
 
-    // ── Sync proper-column hidden fields ──────────────────────────────────
-    // gst_rate is now a visible editable input (gst-rate-input) — no sync needed.
+    // ── Sync proper-column hidden fields (finalised by confirm!) ──────────
     var taxableField = row.querySelector('.taxable-field');
     var taxField     = row.querySelector('.tax-field');
     var discPctField = row.querySelector('.disc-pct-field');
@@ -552,6 +553,7 @@
     if (discPctField) discPctField.value = discPct > 0 ? discPct.toFixed(2) : '';
     if (discAmtField) discAmtField.value = discAmt > 0 ? discAmt.toFixed(2) : '';
 
+    validateRow(row);
     updateGrandTotal();
   }
 
@@ -563,32 +565,89 @@
     var total = 0, count = 0;
     document.querySelectorAll('#items-tbody tr[data-row]').forEach(function(row) {
       if (row.style.display === 'none') return;
-      var t = parseFloat(row.querySelector('.total-input').value) || 0;
+      var ti = row.querySelector('.total-input');
+      var t  = ti ? (parseFloat(ti.value) || 0) : 0;
       if (t > 0) { total += t; count++; }
     });
     document.getElementById('grand-total').textContent =
       total.toLocaleString('en-IN', {minimumFractionDigits: 2});
     document.getElementById('total-items').textContent = count;
+    updateReconcile(total);
+  }
+
+  // ── Reconciliation vs the printed invoice total (same tolerances as digitise) ──
+  function updateReconcile(computed) {
+    var statedEl = document.getElementById('stated-invoice-total');
+    var statusEl = document.getElementById('reconcile-status');
+    if (!statusEl) return;
+    var stated = statedEl ? (parseFloat(statedEl.value) || 0) : 0;
+    if (stated <= 0) { statusEl.style.display = 'none'; return; }
+
+    var diff = Math.abs(computed - stated);
+    statusEl.style.display = 'block';
+    if (diff <= 1.5) {
+      statusEl.textContent = '✓ Matches invoice total';
+      statusEl.style.color = 'var(--success)';
+    } else if (diff <= 10.0) {
+      statusEl.textContent = '⚠ Off by ₹' + diff.toFixed(2) + ' (rounding?)';
+      statusEl.style.color = 'var(--warning)';
+    } else {
+      statusEl.textContent = '✗ Off by ₹' + diff.toLocaleString('en-IN', {minimumFractionDigits: 2});
+      statusEl.style.color = 'var(--danger)';
+    }
+  }
+
+  // ── Per-row validation — flags a manually-overridden total that no longer
+  //    equals qty×rate×(1−disc%)×(1+gst%). Mirrors the digitise row check.
+  function validateRow(row) {
+    var qtyEl  = row.querySelector('.qty-input');
+    var rateEl = row.querySelector('.rate-input');
+    var totEl  = row.querySelector('.total-editable');
+    if (!qtyEl || !rateEl || !totEl) return;
+
+    var qty   = parseFloat(qtyEl.value)  || 0;
+    var rate  = parseFloat(rateEl.value) || 0;
+    var gstEl = row.querySelector('.gst-rate-input');
+    var dEl   = row.querySelector('.discount-input');
+    var gst   = gstEl ? (parseFloat(gstEl.value) || 0) : 0;
+    var disc  = dEl   ? (parseFloat(dEl.value)   || 0) : 0;
+    var total = parseFloat(totEl.value) || 0;
+
+    var bad = false;
+    if (qty > 0 && rate > 0 && total > 0) {
+      var taxable  = (qty * rate * (1 - disc / 100)).round2();
+      var expected = (taxable * (1 + gst / 100)).round2();
+      bad = Math.abs(expected - total) > 1.0;
+    }
+    row.dataset.invalid = bad ? '1' : '0';
+    row.style.background = bad ? 'rgba(239,68,68,0.10)' : '';
+    if (totEl) totEl.style.borderColor = bad ? 'var(--danger)' : 'var(--border)';
   }
 
   function wireRowEvents(row) {
     // Guard — skip if essential inputs missing (e.g. blank/destroyed rows)
-    var qtyEl   = row.querySelector('.qty-input');
-    var totalEl = row.querySelector('.total-editable');
-    if (!qtyEl || !totalEl) return;
+    var qtyEl  = row.querySelector('.qty-input');
+    var rateEl = row.querySelector('.rate-input');
+    if (!qtyEl || !rateEl) return;
 
-    // qty, gst rate, or total changes → recalc
-    qtyEl.addEventListener('input', function() { recalcRow(row); });
+    // Taxable-driven: qty / rate / gst% / disc% all recompute the total
+    qtyEl.addEventListener('input',  function() { recalcRow(row); });
+    rateEl.addEventListener('input', function() { recalcRow(row); });
     var gstRateEl = row.querySelector('.gst-rate-input');
     if (gstRateEl) gstRateEl.addEventListener('input', function() { recalcRow(row); });
-    totalEl.addEventListener('input', function() {
-      var t = parseFloat(this.value) || 0;
+
+    // Manual override of the computed total — just sync the hidden mirror and
+    // refresh the grand total; do NOT reverse-compute rate/taxable.
+    var totalEl = row.querySelector('.total-editable');
+    if (totalEl) totalEl.addEventListener('input', function() {
+      var t  = parseFloat(this.value) || 0;
       var hi = row.querySelector('.total-input');
       if (hi) hi.value = t > 0 ? t.toFixed(2) : '';
-      recalcRow(row);
+      validateRow(row);
+      updateGrandTotal();
     });
 
-    // discount change on row 1 → push to all subsequent rows
+    // discount change on row 1 → push to all subsequent rows, then recompute each
     var discEl = row.querySelector('.discount-input');
     if (discEl) discEl.addEventListener('input', function() {
       var rows = document.querySelectorAll('#items-tbody tr[data-row]');
@@ -597,9 +656,10 @@
         for (var i = 1; i < rows.length; i++) {
           if (rows[i].style.display === 'none') continue;
           var d = rows[i].querySelector('.discount-input');
-          if (d) d.value = val;
+          if (d) { d.value = val; recalcRow(rows[i]); }
         }
       }
+      recalcRow(row);
     });
   }
 
@@ -741,7 +801,84 @@
     if (!row) return;
     var hf = row.querySelector('.material-code-hidden');
     if (hf) hf.value = input.value.trim().toUpperCase();
+    scheduleAutoMatch(row);
   };
+
+  // ══════════════════════════════════════════════════════════════
+  //  LIVE AUTO-MATCH — same supplier matchers as the digitise screen
+  //  AP: material_code · Shalimar: product_code(+pack) · Generic: description
+  // ══════════════════════════════════════════════════════════════
+  var _matchTimers = {};
+  function scheduleAutoMatch(row) {
+    var idx = row.getAttribute('data-row');
+    clearTimeout(_matchTimers[idx]);
+    _matchTimers[idx] = setTimeout(function() { tryAutoMatch(row); }, 300);
+  }
+
+  function tryAutoMatch(row) {
+    var hint   = document.getElementById('supplier-hint-field') ?
+                 document.getElementById('supplier-hint-field').value : '';
+    var codeEl = row.querySelector('.material-code-input');
+    var srchEl = row.querySelector('.product-search-input');
+    var code   = codeEl ? codeEl.value.trim() : '';
+    var desc   = srchEl ? srchEl.value.trim() : '';
+    if (code.length < 2 && desc.length < 2) return;
+
+    var qs = 'supplier_hint=' + encodeURIComponent(hint) +
+             '&material_code=' + encodeURIComponent(code) +
+             '&description='   + encodeURIComponent(desc);
+    fetch('/purchasing/purchase_invoices/match_product?' + qs,
+          { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.matched && data.product) applyMatchToRow(row, data.product);
+        else                                      clearAutoMatch(row);
+      })
+      .catch(function() {});
+  }
+
+  function applyMatchToRow(row, p) {
+    var idField = row.querySelector('.product-id-input');
+    if (idField) idField.value = p.id;
+
+    var uomCell = row.querySelector('.uom-cell');
+    if (uomCell) uomCell.textContent = p.uom || '—';
+
+    // Pull GST rate from the catalogue only if the user hasn't typed one
+    var gstEl = row.querySelector('.gst-rate-input');
+    if (gstEl && p.gst_rate != null && !gstEl.value) { gstEl.value = p.gst_rate; }
+
+    // Fill the search box with the canonical catalogue description (stays editable)
+    var srchEl = row.querySelector('.product-search-input');
+    if (srchEl && (p.description || p.label)) srchEl.value = p.description || p.label;
+
+    var rawDesc = row.querySelector('.raw-desc-field');
+    if (rawDesc) rawDesc.value = '';   // matched → not an unmatched new product
+
+    var meta = row.querySelector('.product-meta-line');
+    if (meta) {
+      var parts = [];
+      if (p.material_code) parts.push('M: ' + p.material_code);
+      if (p.product_code)  parts.push('PC: ' + p.product_code);
+      if (p.pack_code)     parts.push('Pack: ' + p.pack_code);
+      meta.textContent = parts.join('  ·  ');
+    }
+    updateRowMatchBadge(row, true, p.description || p.label);
+    recalcRow(row);
+    updateReviewPanel();
+  }
+
+  function clearAutoMatch(row) {
+    // Code no longer resolves to a catalogue product → mark as new/unmatched,
+    // but keep whatever the user has typed.
+    var idField = row.querySelector('.product-id-input');
+    if (idField && idField.value) {
+      idField.value = '';
+      var srchEl = row.querySelector('.product-search-input');
+      updateRowMatchBadge(row, false, srchEl ? srchEl.value.trim() : '');
+      updateReviewPanel();
+    }
+  }
 
   // ══════════════════════════════════════════════════════════════
   //  SUPPLIER TYPE SELECTION
@@ -1014,9 +1151,15 @@
       if (idField && idField.value && inp && inp.value) {
         updateRowMatchBadge(row, true, inp.value);
       }
+      validateRow(row);
     });
     updateGrandTotal();
     updateReviewPanel();
+
+    // Reconciliation refreshes when the printed invoice total is edited
+    var statedEl = document.getElementById('stated-invoice-total');
+    if (statedEl) statedEl.addEventListener('input', function() { updateGrandTotal(); });
+
     // If editing and supplier hint exists, highlight the correct card
     if (hint) {
       document.querySelectorAll('.supplier-type-card').forEach(function(card) {
@@ -1028,6 +1171,19 @@
         }
       });
     }
+
+    // Submit guard — warn if any row's total no longer matches its computed value
+    var form = document.getElementById('invoice-form');
+    if (form) form.addEventListener('submit', function(e) {
+      var bad = document.querySelectorAll('#items-tbody tr[data-row][data-invalid="1"]');
+      var visibleBad = Array.prototype.filter.call(bad, function(r) { return r.style.display !== 'none'; });
+      if (visibleBad.length === 0) return;
+      if (!confirm(visibleBad.length + ' line item' + (visibleBad.length > 1 ? 's have' : ' has') +
+                   ' a total that does not match qty × rate × GST. Save anyway?')) {
+        e.preventDefault();
+        visibleBad[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
   });
 
 })();

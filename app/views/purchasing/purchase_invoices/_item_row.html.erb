@@ -28,18 +28,30 @@
               end
   gst_pct   = gst_rate
 
-  # Prefer stored taxable/tax amounts if already calculated (confirmed invoices)
-  if item.taxable_amount.to_f > 0
-    total_pre = item.taxable_amount.to_f
-    gst_amt   = item.tax_amount.to_f
-  else
-    total_pre = gst_pct > 0 ? (payable / (1 + gst_pct / 100.0)).round(2) : payable
-    gst_amt   = (payable - total_pre).round(2)
+  # ── Taxable-driven (same identity as the digitise review screen) ──────────
+  #   gross    = qty × unit_rate
+  #   taxable  = gross × (1 − disc%/100)
+  #   gst_amt  = taxable × gst%/100
+  #   payable  = taxable + gst_amt
+  # Unit rate is the editable source; total is computed (editable for override).
+  unit_rate = item.unit_rate.to_f
+  if unit_rate.zero? && item.taxable_amount.to_f > 0 && qty > 0
+    # Back-fill rate for legacy/confirmed rows that only stored taxable.
+    base      = discount > 0 ? (item.taxable_amount.to_f / (1 - discount / 100.0)) : item.taxable_amount.to_f
+    unit_rate = (base / qty).round(4)
   end
 
-  subtotal  = discount > 0 ? (total_pre / (1 - discount / 100.0)).round(2) : total_pre
-  unit_rate = qty > 0 ? (subtotal / qty).round(4) : item.unit_rate.to_f
-  disc_amt  = discount > 0 ? (subtotal - total_pre).round(2) : 0
+  gross     = (qty * unit_rate).round(2)
+  if item.taxable_amount.to_f > 0
+    total_pre = item.taxable_amount.to_f
+    gst_amt   = item.tax_amount.to_f > 0 ? item.tax_amount.to_f : (total_pre * gst_pct / 100.0).round(2)
+  else
+    disc_amt_calc = discount > 0 ? (gross * discount / 100.0).round(2) : 0
+    total_pre     = (gross - disc_amt_calc).round(2)
+    gst_amt       = (total_pre * gst_pct / 100.0).round(2)
+  end
+  disc_amt  = discount > 0 ? (gross - total_pre).round(2) : 0
+  payable   = (total_pre + gst_amt).round(2)
 
 %>
 <tr data-row="<%= idx %>"
@@ -152,14 +164,15 @@
                   font-family:var(--mono);font-size:12.5px;outline:none;text-align:right' %>
   </td>
 
-  <%# ══ 4. Unit Rate (read-only, calculated) ══ %>
-  <td style="padding:14px 12px;text-align:right;font-family:var(--mono);
-             font-size:12.5px;color:var(--text-dim)">
-    <%= f.hidden_field :unit_rate, class: 'rate-input',
-          value: unit_rate > 0 ? unit_rate.round(4) : '' %>
-    <span class="rate-display">
-      <%= unit_rate > 0 ? number_with_precision(unit_rate, precision: 2) : '—' %>
-    </span>
+  <%# ══ 4. Unit Rate (editable — drives taxable & total) ══ %>
+  <td style="padding:14px 12px">
+    <%= f.number_field :unit_rate,
+          class: 'rate-input',
+          value: unit_rate > 0 ? unit_rate.round(4) : '',
+          placeholder: '0.00', min: 0, step: 'any',
+          style: 'width:90px;background:var(--bg);border:1px solid var(--border);
+                  border-radius:5px;padding:9px 10px;color:var(--text);
+                  font-family:var(--mono);font-size:12.5px;outline:none;text-align:right' %>
   </td>
 
   <%# ══ 5. Discount % ══ %>

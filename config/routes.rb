@@ -124,7 +124,7 @@ Rails.application.routes.draw do
     end
     resources :purchase_invoices do
       member     { post :confirm; patch :update_due_date }
-      collection { get :product_search }
+      collection { get :product_search; get :match_product }
       resources :supplier_payments, only: [:create, :destroy],
                                     controller: 'supplier_payments'
     end

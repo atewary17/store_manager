@@ -189,6 +189,30 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     render json: results
   end
 
+  # GET /purchasing/purchase_invoices/match_product
+  # Live supplier-aware auto-match — mirrors the digitise matcher exactly.
+  # The same Suppliers::Registry matcher used on the scan-review screen runs here
+  # so manual entry matches by AP material_code / Shalimar product_code+pack /
+  # Generic description, with identical criteria.
+  def match_product
+    supplier_hint = params[:supplier_hint].to_s.strip
+    meta = {
+      'material_code' => params[:material_code].to_s.strip,
+      'description'   => params[:description].to_s.strip,
+      'pack_size'     => params[:pack_size].to_s.strip,
+      'supplier_hint' => supplier_hint
+    }
+
+    profile = Suppliers::Registry.for(supplier_hint)
+    product = profile.matcher.find_product(meta, @organisation)
+
+    if product
+      render json: { matched: true, product: format_product(product, 'matched') }
+    else
+      render json: { matched: false }
+    end
+  end
+
   private
 
   def format_product(p, status)
@@ -200,6 +224,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       label:         label,
       description:   p.description,
       material_code: p.material_code,
+      product_code:  p.product_code,
       pack_code:     p.pack_code,
       uom:           p.base_uom&.short_name,
       gst_rate:      p.gst_rate.to_f,
