@@ -36,7 +36,7 @@
       </button>
     </div>
     <%= link_to export_inventory_stock_levels_path(format: :xlsx,
-                  **request.query_parameters.slice('category_id','brand_id','q','stock_status','sort')),
+                  **request.query_parameters.slice('category_id','brand_id','q','stock_status','sort','pack_size','product_type')),
               class: 'btn btn-secondary' do %>
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -107,6 +107,21 @@
           options_from_collection_for_select(@brands, :id, :name, params[:brand_id]),
           { include_blank: 'All Brands' },
           { class: 'form-control', style: 'width:150px', onchange: 'this.form.submit()' } %>
+
+    <% if @pack_sizes.any? %>
+      <%= f.select :pack_size,
+            [['All Pack Sizes', '']] + @pack_sizes.map { |s| [s, s] },
+            { selected: params[:pack_size] },
+            { class: 'form-control', style: 'width:140px', onchange: 'this.form.submit()' } %>
+    <% end %>
+
+    <% if @product_types.any? %>
+      <%= f.select :product_type,
+            [['All Types', '']] + @product_types,
+            { selected: params[:product_type] },
+            { class: 'form-control', style: 'width:150px', onchange: 'this.form.submit()' } %>
+    <% end %>
+
     <%= f.select :stock_status,
           [['All Stock',''],['In Stock','in_stock'],['Out of Stock','out_of_stock'],['Low Stock (≤5)','low_stock']],
           { selected: params[:stock_status] },
@@ -117,11 +132,32 @@
           { selected: params[:sort] || 'name' },
           { class: 'form-control', style: 'width:160px', onchange: 'this.form.submit()' } %>
     <% if params[:category_id].present? || params[:brand_id].present? ||
+          params[:pack_size].present? || params[:product_type].present? ||
           params[:stock_status].present? || params[:q].present? %>
       <%= link_to 'Clear', inventory_stock_levels_path(view: params[:view]), class: 'btn btn-secondary btn-sm' %>
     <% end %>
   <% end %>
 </div>
+
+<% if @org_filter_active %>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 16px;
+              margin-bottom:14px;background:rgba(79,142,247,0.06);
+              border:1px solid rgba(79,142,247,0.2);border-radius:8px;font-size:12px">
+    <div style="display:flex;align-items:center;gap:8px;color:var(--text-dim)">
+      <svg width="13" height="13" fill="none" stroke="var(--accent)" stroke-width="2" viewBox="0 0 24 24">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+      </svg>
+      <span>
+        Filtered to your <strong style="color:var(--text)">product profile</strong> —
+        <%= current_user.organisation.product_filter_brands.size %> brand<%= current_user.organisation.product_filter_brands.size == 1 ? '' : 's' %>,
+        <%= current_user.organisation.product_filter_categories.size %> categor<%= current_user.organisation.product_filter_categories.size == 1 ? 'y' : 'ies' %>
+      </span>
+    </div>
+    <span style="font-size:11px;color:var(--text-dim)">
+      Showing filter-scoped dropdowns · stock list is unfiltered
+    </span>
+  </div>
+<% end %>
 
 <% if @stock_locked %>
   <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;margin-bottom:16px;

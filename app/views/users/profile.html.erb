@@ -825,6 +825,88 @@
       </div>
     <% end %>
 
+    <%# ── ORG PRODUCT FILTER CARD ── %>
+    <% org_filter = current_user.organisation&.product_filter %>
+    <div class="form-card" style="max-width:none">
+      <div class="form-section">
+        <div style="margin:-24px -24px 18px;padding:11px 20px;
+                    background:rgba(79,142,247,0.07);border-bottom:1px solid rgba(79,142,247,0.2);
+                    border-radius:9px 9px 0 0;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12px;font-weight:800;color:var(--accent);text-transform:uppercase;
+                       letter-spacing:.1em;display:flex;align-items:center;gap:7px">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            Your Organisation's Product Profile
+          </span>
+          <% if org_filter %>
+            <span style="font-size:10px;font-weight:700;color:var(--success);
+                         background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
+                         border-radius:4px;padding:2px 8px">Active</span>
+          <% else %>
+            <span style="font-size:10px;font-weight:700;color:var(--warning);
+                         background:rgba(247,195,79,0.1);border:1px solid rgba(247,195,79,0.3);
+                         border-radius:4px;padding:2px 8px">Not Built</span>
+          <% end %>
+        </div>
+
+        <% if org_filter.blank? %>
+          <div style="font-size:12px;color:var(--text-dim);font-style:italic;padding:4px 0">
+            No product profile built yet for this organisation.
+            A super admin can generate it from System Processes → Product Filters.
+          </div>
+        <% else %>
+          <% [
+            ['Brands',        org_filter['brands']],
+            ['Categories',    org_filter['categories']],
+            ['Pack Sizes',    org_filter['pack_sizes']],
+            ['Product Types', org_filter['product_types']],
+            ['Suppliers',     org_filter['supplier_hints']],
+          ].each do |label, values| %>
+            <% next if values.blank? %>
+            <div style="margin-bottom:12px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                          color:var(--text-dim);margin-bottom:6px"><%= label %></div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">
+                <% values.each do |v| %>
+                  <span style="font-size:11px;background:var(--bg);border:1px solid var(--border);
+                               border-radius:4px;padding:2px 8px;color:var(--text)"><%= v %></span>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;
+                      padding-top:12px;border-top:1px solid var(--border);margin-top:4px">
+            <div style="font-size:11px;color:var(--text-dim)">
+              <strong style="color:var(--text)"><%= org_filter['product_count'] %></strong> products in profile
+            </div>
+            <div style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">
+              Updated <%= current_user.organisation.product_filter_last_built ? time_ago_in_words(current_user.organisation.product_filter_last_built) + ' ago' : '—' %>
+            </div>
+          </div>
+
+          <% if current_user.super_admin? %>
+            <details style="margin-top:12px">
+              <summary style="font-size:11px;color:var(--text-dim);cursor:pointer;
+                              list-style:none;display:flex;align-items:center;gap:5px">
+                <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                     class="details-chevron" style="transition:transform .2s">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                View raw JSON
+              </summary>
+              <pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                          padding:10px 12px;font-size:10px;font-family:var(--mono);color:var(--text);
+                          overflow-x:auto;white-space:pre-wrap;margin-top:8px"><%=
+                JSON.pretty_generate(org_filter) %></pre>
+            </details>
+          <% end %>
+        <% end %>
+
+      </div>
+    </div>
+
   </div><!-- .profile-aside -->
 
 </div><!-- .profile-layout -->

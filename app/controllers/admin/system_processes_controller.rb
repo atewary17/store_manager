@@ -35,6 +35,17 @@ class Admin::SystemProcessesController < Admin::BaseController
                                .count
     end
 
+    # ── Org product filters ───────────────────────────────────────
+    all_orgs = Organisation.active.includes(:products)
+    @filter_total_orgs   = all_orgs.count
+    @filter_built_count  = all_orgs.select { |o| o.product_filter.present? }.size
+    @filter_never_built  = @filter_total_orgs - @filter_built_count
+    @filter_last_run     = Rails.cache.read(BuildOrgProductFiltersJob::CACHE_KEY)
+
+    if @tab == 'product_filters'
+      @filter_orgs = all_orgs.order(:name)
+    end
+
     @jobs = case params[:filter]
             when 'queued'    then GoodJob::Job.where(finished_at: nil, performed_at: nil)
             when 'running'   then GoodJob::Job.where.not(performed_at: nil).where(finished_at: nil)
@@ -218,6 +229,24 @@ class Admin::SystemProcessesController < Admin::BaseController
   rescue ActiveRecord::RecordNotFound
     redirect_to admin_system_processes_path(tab: 'active_users'),
                 alert: 'User not found.'
+  end
+
+  # POST /admin/system_processes/rebuild_product_filters
+  def rebuild_product_filters
+    already_running = GoodJob::Job
+                        .where(job_class: 'BuildOrgProductFiltersJob')
+                        .where(finished_at: nil)
+                        .exists?
+
+    if already_running
+      redirect_to admin_system_processes_path(tab: 'product_filters'),
+                  alert: 'A filter rebuild is already running — wait for it to finish.'
+      return
+    end
+
+    BuildOrgProductFiltersJob.perform_later(triggered_by_user_id: current_user.id)
+    redirect_to admin_system_processes_path(tab: 'product_filters'),
+                notice: 'Filter rebuild queued — refresh in a moment to see results.'
   end
 
   # POST /admin/system_processes/trigger_price_list_sync

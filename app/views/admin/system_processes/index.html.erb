@@ -153,7 +153,16 @@
 
 <%# ═══ TAB BAR ═══════════════════════════════════════════════════════════════ %>
 <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px">
-  <% [['jobs', 'Background Jobs'], ['api', 'External API Calls'], ['stats', 'Breakdowns'], ['sync', 'Price List Sync'], ['sales_activity', 'Sales Activity'], ['activity', 'Activity Logs'], ['active_users', "Active Users#{@active_user_count > 0 ? " (#{@active_user_count})" : ''}"]].each do |t, lbl| %>
+  <% [
+       ['jobs',            'Background Jobs'],
+       ['api',             'External API Calls'],
+       ['stats',           'Breakdowns'],
+       ['sync',            'Price List Sync'],
+       ['sales_activity',  'Sales Activity'],
+       ['activity',        'Activity Logs'],
+       ['active_users',    @active_user_count > 0 ? "Active Users (#{@active_user_count})" : 'Active Users'],
+       ['product_filters', 'Product Filters'],
+     ].each do |t, lbl| %>
     <%= link_to tab_url.call(t),
           style: "padding:8px 18px;font-size:13px;font-weight:#{tab == t ? '600' : '400'};
                   color:#{tab == t ? 'var(--accent)' : 'var(--text-dim)'};text-decoration:none;
@@ -1545,20 +1554,15 @@
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
     <div>
-      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:3px">
-        Currently Signed-In Users
-      </div>
-      <div style="font-size:12px;color:var(--text-dim)">
-        Users with an active or recently active session · auto-refreshes every 30 s
-      </div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:3px">Currently Signed-In Users</div>
+      <div style="font-size:12px;color:var(--text-dim)">Sessions active in the last 60 minutes · auto-refreshes every 30 s</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">
-        Showing last 60 min · <%= @active_users.size %> session<%= @active_users.size == 1 ? '' : 's' %>
+        <%= @active_users&.size || 0 %> session<%= (@active_users&.size || 0) == 1 ? '' : 's' %>
       </span>
       <%= link_to admin_system_processes_path(tab: 'active_users'),
-            style: 'font-size:11px;font-weight:600;color:var(--accent);text-decoration:none;
-                    display:flex;align-items:center;gap:4px' do %>
+            style: 'font-size:11px;font-weight:600;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:4px' do %>
         <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -1568,80 +1572,56 @@
     </div>
   </div>
 
-  <% if @active_users.empty? %>
+  <% if @active_users.blank? %>
     <div style="text-align:center;padding:60px 20px;color:var(--text-dim)">
-      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
-           style="margin:0 auto 12px;display:block;opacity:.4">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
-      </svg>
-      <div style="font-size:14px;font-weight:500">No active sessions</div>
-      <div style="font-size:12px;margin-top:4px">No users have been active in the last 60 minutes.</div>
+      <div style="font-size:14px;font-weight:500">No active sessions in the last 60 minutes</div>
     </div>
-
   <% else %>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>User</th>
-            <th>Organisation</th>
-            <th>Role</th>
-            <th>Last Active</th>
-            <th>Status</th>
-            <th style="text-align:right">Action</th>
+            <th>User</th><th>Organisation</th><th>Role</th>
+            <th>Last Active</th><th>Status</th><th style="text-align:right">Action</th>
           </tr>
         </thead>
         <tbody>
           <% @active_users.each do |u| %>
             <%
-              idle        = u.last_activity_at.present? && u.last_activity_at <= 30.minutes.ago
-              status_col  = idle ? 'var(--warning)' : 'var(--success)'
-              status_bg   = idle ? 'rgba(247,195,79,0.1)' : 'rgba(74,222,128,0.1)'
-              status_bd   = idle ? 'rgba(247,195,79,0.3)' : 'rgba(74,222,128,0.3)'
-              status_lbl  = idle ? 'Idle' : 'Active'
-              is_me       = u.id == current_user.id
+              idle       = u.last_activity_at.present? && u.last_activity_at <= 30.minutes.ago
+              s_col      = idle ? 'var(--warning)' : 'var(--success)'
+              s_bg       = idle ? 'rgba(247,195,79,0.1)' : 'rgba(74,222,128,0.1)'
+              s_bd       = idle ? 'rgba(247,195,79,0.3)' : 'rgba(74,222,128,0.3)'
             %>
             <tr>
               <td>
                 <div style="font-weight:600;color:var(--text)"><%= u.full_name %></div>
                 <div style="font-size:11px;font-family:var(--mono);color:var(--text-dim)"><%= u.email %></div>
               </td>
-              <td style="color:var(--text-dim);font-size:12px">
-                <%= u.organisation&.name || '—' %>
-              </td>
-              <td>
-                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
-                             color:var(--text-dim)"><%= u.role.humanize %></span>
-              </td>
+              <td style="color:var(--text-dim);font-size:12px"><%= u.organisation&.name || '—' %></td>
+              <td><span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim)"><%= u.role.humanize %></span></td>
               <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+                <%= u.last_activity_at ? "#{time_ago_in_words(u.last_activity_at)} ago" : '—' %>
                 <% if u.last_activity_at %>
-                  <%= time_ago_in_words(u.last_activity_at) %> ago
-                  <div style="font-size:10px;color:var(--text-dim)">
-                    <%= u.last_activity_at.strftime('%d %b, %H:%M') %>
-                  </div>
-                <% else %>
-                  —
+                  <div style="font-size:10px"><%= u.last_activity_at.strftime('%d %b, %H:%M') %></div>
                 <% end %>
               </td>
               <td>
                 <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
-                             color:<%= status_col %>;background:<%= status_bg %>;
-                             border:1px solid <%= status_bd %>;border-radius:4px;padding:2px 8px">
-                  <%= status_lbl %>
+                             color:<%= s_col %>;background:<%= s_bg %>;border:1px solid <%= s_bd %>;
+                             border-radius:4px;padding:2px 8px">
+                  <%= idle ? 'Idle' : 'Active' %>
                 </span>
               </td>
               <td style="text-align:right">
-                <% if is_me %>
+                <% if u.id == current_user.id %>
                   <span style="font-size:11px;color:var(--text-dim);font-style:italic">You</span>
                 <% else %>
-                  <%= button_to admin_system_processes_force_logout_user_path,
-                        method: :post,
+                  <%= button_to admin_system_processes_force_logout_user_path, method: :post,
                         params: { user_id: u.id },
-                        data:   { confirm: "Force sign out #{u.email}?\n\nThey will be signed out on their next page load." },
+                        data: { confirm: "Force sign out #{u.email}? They will be signed out on their next page load." },
                         style: 'background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.3);
-                                 border-radius:5px;padding:4px 12px;font-size:11px;font-weight:600;
-                                 cursor:pointer;white-space:nowrap' do %>
+                                border-radius:5px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer' do %>
                     Force Logout
                   <% end %>
                 <% end %>
@@ -1653,10 +1633,135 @@
     </div>
   <% end %>
 
-  <%# Auto-refresh every 30 seconds while on this tab %>
   <meta http-equiv="refresh" content="30;url=<%= admin_system_processes_path(tab: 'active_users') %>">
 
 <% end %><%# /tab == active_users %>
+
+<%# ═══ PRODUCT FILTERS TAB ════════════════════════════════════════════════ %>
+<% if tab == 'product_filters' %>
+
+  <%# ── Header + Rebuild button ── %>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px">Org Product Filters</div>
+      <div style="font-size:12px;color:var(--text-dim)">
+        Each org's product profile is built from their inventory history and stored in their settings.
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <% if @filter_last_run %>
+        <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);text-align:right">
+          Last run: <%= time_ago_in_words(Time.parse(@filter_last_run[:run_at].to_s)) %> ago<br>
+          <span style="color:var(--success)">+<%= @filter_last_run[:new_filters] %> new</span>
+          &nbsp;·&nbsp;
+          <span style="color:var(--accent)"><%= @filter_last_run[:updated_filters] %> updated</span>
+          <% if @filter_last_run[:failed].to_i > 0 %>
+            &nbsp;·&nbsp;<span style="color:var(--danger)"><%= @filter_last_run[:failed] %> failed</span>
+          <% end %>
+          &nbsp;·&nbsp;<%= @filter_last_run[:duration_s] %>s
+        </div>
+      <% end %>
+      <%= button_to admin_system_processes_rebuild_product_filters_path, method: :post,
+            data: { confirm: "Rebuild product filters for ALL #{@filter_total_orgs} active orgs? This runs in the background." },
+            style: 'background:var(--accent);color:#fff;border:none;border-radius:6px;
+                    padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;
+                    display:flex;align-items:center;gap:6px;white-space:nowrap' do %>
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Rebuild All Filters
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Summary stats ── %>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+    <% [
+      ['Total Orgs',   @filter_total_orgs,  'var(--text)',    'var(--border)'],
+      ['With Filter',  @filter_built_count, 'var(--success)', 'rgba(74,222,128,0.25)'],
+      ['Never Built',  @filter_never_built, @filter_never_built > 0 ? 'var(--warning)' : 'var(--text-dim)', 'var(--border)'],
+    ].each do |label, val, col, bd| %>
+      <div style="background:var(--surface);border:1px solid <%= bd %>;border-radius:8px;padding:14px 16px">
+        <div style="font-size:24px;font-weight:700;color:<%= col %>"><%= val %></div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:2px"><%= label %></div>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Per-org table ── %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Organisation</th>
+          <th>Products</th>
+          <th>Brands</th>
+          <th>Categories</th>
+          <th>Pack Sizes</th>
+          <th>Last Built</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @filter_orgs.each do |org| %>
+          <% f = org.product_filter %>
+          <tr>
+            <td>
+              <div style="font-weight:600;color:var(--text)"><%= org.name %></div>
+              <div style="font-size:11px;color:var(--text-dim)"><%= org.subscription_plan&.capitalize %></div>
+            </td>
+            <td style="font-family:var(--mono);font-size:13px;color:var(--text)">
+              <%= f ? f['product_count'] : '—' %>
+            </td>
+            <td>
+              <% if f&.dig('brands').present? %>
+                <div style="font-size:11px;color:var(--text)"><%= f['brands'].size %> brand<%= f['brands'].size == 1 ? '' : 's' %></div>
+                <div style="font-size:10px;color:var(--text-dim)"><%= f['brands'].first(2).join(', ')%><%= f['brands'].size > 2 ? " +#{f['brands'].size - 2}" : '' %></div>
+              <% else %>
+                <span style="color:var(--text-dim)">—</span>
+              <% end %>
+            </td>
+            <td>
+              <% if f&.dig('categories').present? %>
+                <div style="font-size:11px;color:var(--text)"><%= f['categories'].size %></div>
+                <div style="font-size:10px;color:var(--text-dim)"><%= f['categories'].first(2).join(', ') %></div>
+              <% else %>
+                <span style="color:var(--text-dim)">—</span>
+              <% end %>
+            </td>
+            <td style="font-size:11px;color:var(--text-dim)">
+              <%= f&.dig('pack_sizes')&.size || '—' %>
+            </td>
+            <td style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">
+              <% if org.product_filter_last_built %>
+                <%= time_ago_in_words(org.product_filter_last_built) %> ago
+              <% else %>
+                <span style="color:var(--warning)">Never</span>
+              <% end %>
+            </td>
+            <td>
+              <% if f.present? %>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+                             color:var(--success);background:rgba(74,222,128,0.1);
+                             border:1px solid rgba(74,222,128,0.3);border-radius:4px;padding:2px 8px">
+                  Active
+                </span>
+              <% else %>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+                             color:var(--warning);background:rgba(247,195,79,0.1);
+                             border:1px solid rgba(247,195,79,0.3);border-radius:4px;padding:2px 8px">
+                  Not Built
+                </span>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+<% end %><%# /tab == product_filters %>
 
 <style>
   @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }

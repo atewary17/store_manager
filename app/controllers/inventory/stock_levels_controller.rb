@@ -4,6 +4,34 @@ class Inventory::StockLevelsController < Inventory::BaseController
 
   CARDS_PER_PAGE = 50
 
+  # PostgreSQL ~* (case-insensitive regex) patterns for product type matching.
+  # Keys match the slugs stored in org product_filter['product_types'].
+  PRODUCT_TYPE_PATTERNS = {
+    'primer'        => '\mprimers?\M',
+    'putty'         => '\mputty\M',
+    'tintable_base' => 'tint(able)?\s*base|\mTB\M',
+    'colourant'     => '\mcolou?rant\M',
+    'emulsion'      => '\memulsion\M',
+    'enamel'        => '\menamel\M',
+    'distemper'     => '\mdistemper\M',
+    'varnish'       => '\mvarnish\M',
+    'weathercoat'   => '\mweathercoat\M|\mweather.shield\M',
+    'wood_finish'   => '\mwood.(tech|finish|coat|stain)\M',
+  }.freeze
+
+  PRODUCT_TYPE_LABELS = {
+    'primer'        => 'Primer',
+    'putty'         => 'Putty',
+    'tintable_base' => 'Tintable Base',
+    'colourant'     => 'Colourant',
+    'emulsion'      => 'Emulsion',
+    'enamel'        => 'Enamel',
+    'distemper'     => 'Distemper',
+    'varnish'       => 'Varnish',
+    'weathercoat'   => 'Weathercoat / Shield',
+    'wood_finish'   => 'Wood Finish',
+  }.freeze
+
   # GET /inventory/stock_levels
   def index
     # Use a clean base scope (no joins/includes) for accurate aggregate counts.
@@ -11,10 +39,12 @@ class Inventory::StockLevelsController < Inventory::BaseController
     base_scope = StockLevel.for_org(@organisation.id)
 
     # ── Build filter scope (with joins only when needed) ──
-    filtered = base_scope
+    filtered    = base_scope
+    needs_joins = params[:category_id].present? || params[:brand_id].present? ||
+                  params[:q].present? || params[:pack_size].present? ||
+                  params[:product_type].present?
 
-    if params[:category_id].present? || params[:brand_id].present? || params[:q].present?
-      # LEFT JOIN brand — preserves pending products that may have no brand
+    if needs_joins
       filtered = filtered
         .joins('INNER JOIN products ON products.id = stock_levels.product_id')
         .joins('LEFT OUTER JOIN brands ON brands.id = products.brand_id')
@@ -31,15 +61,26 @@ class Inventory::StockLevelsController < Inventory::BaseController
       )
     end
 
+    # Pack size — exact match against metadata JSONB field
+    if params[:pack_size].present?
+      filtered = filtered.where(
+        "products.metadata->>'pack_size_desc' = ?", params[:pack_size]
+      )
+    end
+
+    # Product type — regex match against description
+    if params[:product_type].present?
+      pattern = PRODUCT_TYPE_PATTERNS[params[:product_type]]
+      filtered = filtered.where('products.description ~* ?', pattern) if pattern
+    end
+
     case params[:stock_status]
     when 'in_stock'     then filtered = filtered.in_stock
     when 'out_of_stock' then filtered = filtered.out_of_stock
     when 'low_stock'    then filtered = filtered.where('stock_levels.quantity > 0 AND stock_levels.quantity <= 5')
     end
 
-    # ── Stats — use plain unscoped counts directly on the org's stock_levels ──
-    # filtered may have joins that cause duplicate rows; for stats we always
-    # go back to the clean base_scope and apply only stock_status filtering.
+    # ── Stats ──
     stats_scope = base_scope
     case params[:stock_status]
     when 'in_stock'     then stats_scope = stats_scope.in_stock
@@ -47,9 +88,8 @@ class Inventory::StockLevelsController < Inventory::BaseController
     when 'low_stock'    then stats_scope = stats_scope.where('stock_levels.quantity > 0 AND stock_levels.quantity <= 5')
     end
 
-    # If category/brand/search filters are active, restrict stats to matching product_ids
-    if params[:category_id].present? || params[:brand_id].present? || params[:q].present?
-      matching_product_ids = filtered.joins(:product).pluck('stock_levels.product_id').uniq
+    if needs_joins
+      matching_product_ids = filtered.pluck(Arel.sql('DISTINCT stock_levels.product_id'))
       stats_scope = stats_scope.where(product_id: matching_product_ids)
     end
 
@@ -107,8 +147,25 @@ class Inventory::StockLevelsController < Inventory::BaseController
       .includes(product: [:brand, :product_category, :base_uom])
       .order(page_ids.any? ? Arel.sql("CASE stock_levels.id #{id_order} END") : 'stock_levels.id')
 
-    @categories   = ProductCategory.active.ordered
-    @brands       = Brand.active.ordered
+    # Scope filter dropdowns to org's product profile when a filter is active.
+    # Pack sizes and product types are always org-specific (queried live as fallback).
+    @org_filter_active = @organisation.product_filter_active?
+    pf = @organisation.product_filter
+
+    if @org_filter_active
+      @categories    = ProductCategory.active.ordered.where(name: @organisation.product_filter_categories)
+      @brands        = Brand.active.ordered.where(name: @organisation.product_filter_brands)
+      @pack_sizes    = pf['pack_sizes'].presence || org_pack_sizes
+      raw_types      = pf['product_types'].presence || org_product_types_from_stock
+    else
+      @categories    = ProductCategory.active.ordered
+      @brands        = Brand.active.ordered
+      @pack_sizes    = org_pack_sizes
+      raw_types      = org_product_types_from_stock
+    end
+
+    @product_types = raw_types.map { |k| [PRODUCT_TYPE_LABELS[k] || k.humanize, k] }.sort_by(&:first)
+
     @stock_locked = @organisation.stock_updates_locked?
 
     # Last ledger entry date per product (for display on cards)
@@ -140,7 +197,7 @@ class Inventory::StockLevelsController < Inventory::BaseController
   def export
     require 'axlsx'
 
-    # In-stock only — qty > 0, with all needed associations
+    # Honour the same filters as the dashboard view
     levels = StockLevel
       .for_org(@organisation.id)
       .in_stock
@@ -149,7 +206,18 @@ class Inventory::StockLevelsController < Inventory::BaseController
       .joins('LEFT OUTER JOIN product_categories ON product_categories.id = products.product_category_id')
       .joins('LEFT OUTER JOIN uoms ON uoms.id = products.base_uom_id')
       .includes(product: [:brand, :product_category, :base_uom])
-      .order(Arel.sql("COALESCE(brands.name, 'zzz') ASC, products.description ASC"))
+
+    levels = levels.where(products: { product_category_id: params[:category_id] }) if params[:category_id].present?
+    levels = levels.where(products: { brand_id: params[:brand_id] })               if params[:brand_id].present?
+    if params[:pack_size].present?
+      levels = levels.where("products.metadata->>'pack_size_desc' = ?", params[:pack_size])
+    end
+    if params[:product_type].present?
+      pattern = PRODUCT_TYPE_PATTERNS[params[:product_type]]
+      levels = levels.where('products.description ~* ?', pattern) if pattern
+    end
+
+    levels = levels.order(Arel.sql("COALESCE(brands.name, 'zzz') ASC, products.description ASC"))
 
     package = Axlsx::Package.new
     wb      = package.workbook
@@ -284,6 +352,38 @@ class Inventory::StockLevelsController < Inventory::BaseController
 
   rescue => e
     render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  private
+
+  # Live fallbacks — both query from stock_levels so the options match exactly
+  # what is visible on the stock dashboard for this org.
+
+  def stocked_product_ids
+    StockLevel.where(organisation_id: @organisation.id).select(:product_id)
+  end
+
+  def org_pack_sizes
+    Product
+      .where(id: stocked_product_ids)
+      .where("metadata->>'pack_size_desc' IS NOT NULL")
+      .where("metadata->>'pack_size_desc' != ''")
+      .pluck(Arel.sql("DISTINCT metadata->>'pack_size_desc'"))
+      .compact.sort
+  rescue
+    []
+  end
+
+  def org_product_types_from_stock
+    descriptions = Product
+                     .where(id: stocked_product_ids)
+                     .pluck(:description)
+
+    PRODUCT_TYPE_PATTERNS.filter_map do |type, pattern|
+      type if descriptions.any? { |d| d.to_s.match?(/#{pattern}/i) }
+    end.sort
+  rescue
+    []
   end
 
 end

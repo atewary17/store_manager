@@ -36,8 +36,9 @@ Rails.application.routes.draw do
     end
     get  'system_processes',                to: 'system_processes#index',           as: :system_processes
     post 'system_processes/send_test_email',        to: 'system_processes#send_test_email',        as: :system_processes_send_test_email
-    post 'system_processes/trigger_price_list_sync', to: 'system_processes#trigger_price_list_sync', as: :system_processes_trigger_price_list_sync
-    post 'system_processes/force_logout_user',       to: 'system_processes#force_logout_user',       as: :system_processes_force_logout_user
+    post 'system_processes/trigger_price_list_sync',  to: 'system_processes#trigger_price_list_sync',  as: :system_processes_trigger_price_list_sync
+    post 'system_processes/force_logout_user',         to: 'system_processes#force_logout_user',         as: :system_processes_force_logout_user
+    post 'system_processes/rebuild_product_filters',   to: 'system_processes#rebuild_product_filters',   as: :system_processes_rebuild_product_filters
   end
 
   authenticate :user, ->(u) { u.super_admin? } do
