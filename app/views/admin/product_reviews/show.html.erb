@@ -70,14 +70,23 @@
   <div>
 
     <%# PRODUCT DETAILS — editable ──────────────────────────────── %>
-    <div class="form-card" style="margin-bottom:14px">
+    <div class="form-card" style="margin-bottom:14px;border-left:3px solid #60a5fa;max-width:none">
       <div class="form-section">
-        <div class="form-section-title" style="display:flex;align-items:center;justify-content:space-between">
-          <span>Product Details</span>
+        <div style="margin:-24px -24px 20px;padding:11px 20px;
+                    background:rgba(96,165,250,0.07);border-bottom:1px solid rgba(96,165,250,0.25);
+                    border-radius:9px 9px 0 0;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12px;font-weight:800;color:#60a5fa;text-transform:uppercase;
+                       letter-spacing:.1em;display:flex;align-items:center;gap:7px">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Product Details
+          </span>
           <a href="https://www.google.com/search?q=<%= CGI.escape(@product.description.to_s) %>"
              target="_blank" rel="noopener"
-             style="font-size:11px;font-weight:400;color:var(--accent);text-decoration:none;
-                    text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:4px">
+             style="font-size:11px;font-weight:500;color:#60a5fa;text-decoration:none;
+                    display:flex;align-items:center;gap:4px;opacity:.8">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
@@ -100,11 +109,29 @@
                             font-family:inherit;box-sizing:border-box' %>
             </div>
 
-            <%# Material Code %>
+            <%# Material Code (AP / unique-per-SKU suppliers) %>
             <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;
                           letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">Material Code</div>
               <%= f.text_field :material_code, value: @product.material_code,
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:12px;color:var(--text);
+                            font-family:var(--mono);box-sizing:border-box' %>
+            </div>
+
+            <%# Product Code (Shalimar family code — shared across pack sizes) %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                            letter-spacing:.07em;color:var(--text-dim)">Product Code</div>
+                <% if @product.product_code.present? && @product.material_code.blank? %>
+                  <span style="font-size:9px;font-weight:700;color:var(--warning);
+                               background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
+                               border-radius:3px;padding:1px 5px">Shalimar family code</span>
+                <% end %>
+              </div>
+              <%= f.text_field :product_code, value: @product.product_code,
+                    placeholder: 'e.g. 12601744',
                     style: 'width:100%;background:var(--surface);border:1px solid var(--border);
                             border-radius:5px;padding:6px 8px;font-size:12px;color:var(--text);
                             font-family:var(--mono);box-sizing:border-box' %>
@@ -209,13 +236,22 @@
                      :failed
                    end
     %>
-    <div class="form-card" style="margin-bottom:14px">
+    <div class="form-card" style="margin-bottom:14px;border-left:3px solid #c084fc;max-width:none">
       <div class="form-section">
 
         <%# ── Header row: title + status badge + timing ── %>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="margin:-24px -24px 18px;padding:11px 20px;
+                    background:rgba(192,132,252,0.07);border-bottom:1px solid rgba(192,132,252,0.25);
+                    border-radius:9px 9px 0 0;display:flex;align-items:center;justify-content:space-between">
           <div style="display:flex;align-items:center;gap:8px">
-            <span class="form-section-title" style="margin-bottom:0">AI Enrichment (Groq)</span>
+            <span style="font-size:12px;font-weight:800;color:#c084fc;text-transform:uppercase;
+                         letter-spacing:.1em;display:flex;align-items:center;gap:7px">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/>
+                <path d="M12 8v4l3 3"/>
+              </svg>
+              AI Enrichment (Groq)
+            </span>
             <% if ai_status == :success %>
               <% conf_color = confidence >= 0.75 ? 'var(--success)' : confidence >= 0.5 ? 'var(--warning)' : 'var(--danger)' %>
               <span style="font-size:10px;font-weight:700;color:<%= conf_color %>;
@@ -249,7 +285,7 @@
               <% end %>
             </div>
           <% end %>
-        </div>
+        </div><%# end header strip %>
 
         <% if ai_status == :pending %>
           <div style="font-size:12px;color:var(--text-dim);font-style:italic;padding:4px 0">
@@ -381,9 +417,23 @@
     </div>
 
     <%# LINKED PURCHASE INVOICES ────────────────────────────────── %>
-    <div class="form-card" style="margin-bottom:14px">
+    <div class="form-card" style="margin-bottom:14px;border-left:3px solid #fb923c;max-width:none">
       <div class="form-section">
-        <div class="form-section-title">Linked Purchase Invoices</div>
+        <div style="margin:-24px -24px 18px;padding:11px 20px;
+                    background:rgba(251,146,60,0.07);border-bottom:1px solid rgba(251,146,60,0.25);
+                    border-radius:9px 9px 0 0">
+          <span style="font-size:12px;font-weight:800;color:#fb923c;text-transform:uppercase;
+                       letter-spacing:.1em;display:flex;align-items:center;gap:7px">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            Linked Purchase Invoices
+            <span style="font-size:10px;font-weight:500;color:#fb923c;opacity:.7;text-transform:none;letter-spacing:0">
+              (<%= @pi_items.map(&:purchase_invoice_id).uniq.size %>)
+            </span>
+          </span>
+        </div>
         <% if @pi_items.any? %>
           <% @pi_items.group_by(&:purchase_invoice).each do |pi, items| %>
             <div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:8px">
@@ -419,13 +469,22 @@
 
     <%# DIGITISE IMPORT PREVIEW ─────────────────────────────────── %>
     <% if @digitise_import %>
-      <div class="form-card">
+      <div class="form-card" style="max-width:none;border-left:3px solid #34d399">
         <div class="form-section">
-          <div class="form-section-title">
-            Scanned Invoice Preview
+          <div style="margin:-24px -24px 18px;padding:11px 20px;
+                      background:rgba(52,211,153,0.07);border-bottom:1px solid rgba(52,211,153,0.25);
+                      border-radius:9px 9px 0 0;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;font-weight:800;color:#34d399;text-transform:uppercase;
+                         letter-spacing:.1em;display:flex;align-items:center;gap:7px">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Scanned Invoice Preview
+            </span>
             <%= link_to 'Open →', purchasing_digitise_path(@digitise_import),
-                  style: 'font-size:11px;font-weight:400;color:var(--accent);margin-left:8px;
-                          text-decoration:none;text-transform:none;letter-spacing:0' %>
+                  style: 'font-size:11px;font-weight:600;color:#34d399;text-decoration:none;opacity:.8' %>
           </div>
           <% if @digitise_import.preview_image.present? %>
             <img src="data:image/jpeg;base64,<%= @digitise_import.preview_image %>"
@@ -446,20 +505,345 @@
 
   </div><%# end left column %>
 
-  <%# ── RIGHT COLUMN: SIMILARITY MATCHES ───────────────────────────────── %>
+  <%# ── RIGHT COLUMN ───────────────────────────────────────────────────── %>
   <div>
-    <div class="form-card">
+
+    <%# ══ PRICE LIST INTELLIGENCE CARD ════════════════════════════════════ %>
+    <% if @suggestion %>
+      <%
+        sg         = @suggestion
+        conf       = sg[:confidence]
+        glow_rgb   = conf == :high ? '74,222,128' : conf == :medium ? '247,195,79' : '239,68,68'
+        glow_hex   = conf == :high ? 'var(--success)' : conf == :medium ? 'var(--warning)' : 'var(--danger)'
+        conf_label = conf == :high ? 'All 3 resolved' : conf == :medium ? '2 of 3 resolved' : conf == :low ? '1 of 3 resolved' : 'No match'
+
+        pl_found        = sg[:product_lines].any?
+        first_pl        = sg[:product_lines].first
+        brand_name      = sg[:brand][:found] ? sg[:brand][:value] : (@product.brand&.name&.downcase != 'others' ? @product.brand&.name : nil)
+        shade_val       = sg[:shade][:value].to_s
+        pack_desc       = sg[:pack][:found] ? sg[:pack][:desc] : nil
+
+        # Build probable name from first product line (JS updates on chip click)
+        def probable_name_for(brand, product_line, shade, pack)
+          [brand, product_line, shade.presence, pack].compact_blank.join(' — ')
+        end
+        initial_probable = probable_name_for(brand_name, first_pl, shade_val, pack_desc)
+      %>
+      <div style="border:1px solid rgba(<%= glow_rgb %>,0.45);border-left:3px solid <%= glow_hex %>;
+                  border-radius:10px;background:var(--surface);margin-bottom:14px;overflow:hidden">
+
+        <%# ── Header ─────────────────────────────────────────────── %>
+        <div style="padding:12px 16px;background:rgba(<%= glow_rgb %>,0.06);
+                    border-bottom:1px solid rgba(<%= glow_rgb %>,0.2);
+                    display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;
+                         letter-spacing:.1em;color:<%= glow_hex %>">◆ Price List Intelligence</span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+                         background:rgba(<%= glow_rgb %>,0.15);color:<%= glow_hex %>;
+                         border-radius:3px;padding:2px 6px">AP</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--text-dim)">
+              <%= sg[:confidence].to_s.upcase %> · <%= conf_label %>
+            </span>
+          </div>
+          <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim);
+                       background:var(--bg);border:1px solid var(--border);
+                       border-radius:4px;padding:3px 8px;letter-spacing:.05em">
+            <%= sg[:material_code][0..3] %>&thinsp;<%= sg[:material_code][4..7] %>&thinsp;<%= sg[:material_code][8..10] %>
+          </span>
+        </div>
+
+        <div style="padding:14px 16px">
+
+          <%# ── PROD CODE row with multi-line chips ────────────────── %>
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                           color:var(--text-dim);min-width:76px;padding-top:3px">PROD CODE</span>
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                           color:var(--text);background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 8px;white-space:nowrap">
+                <%= sg[:prod_code] %>
+              </span>
+              <span style="color:var(--text-dim);font-size:11px;padding-top:2px">→</span>
+              <% if pl_found %>
+                <div style="flex:1">
+                  <% if sg[:product_lines].size == 1 %>
+                    <span style="font-size:13px;font-weight:500;color:var(--text)"><%= first_pl %></span>
+                  <% else %>
+                    <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px">
+                      <%= sg[:product_lines].size %> product lines found — select one:
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:5px" id="pl-chips">
+                      <% sg[:product_lines].each_with_index do |pl, i| %>
+                        <button type="button" class="pl-chip"
+                                data-pl="<%= pl %>"
+                                onclick="selectProductLine(this)"
+                                style="font-size:11px;padding:4px 10px;border-radius:20px;cursor:pointer;
+                                       border:1px solid <%= i == 0 ? glow_hex : 'var(--border)' %>;
+                                       background:<%= i == 0 ? "rgba(#{glow_rgb},0.12)" : 'var(--bg)' %>;
+                                       color:<%= i == 0 ? glow_hex : 'var(--text-dim)' %>;
+                                       font-weight:<%= i == 0 ? '600' : '400' %>;transition:all .15s">
+                          <%= pl %>
+                        </button>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+                <span style="font-size:9px;font-weight:700;color:var(--success);
+                             background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap;align-self:flex-start">
+                  ✓ <%= sg[:product_lines].size %> found
+                </span>
+              <% else %>
+                <span style="font-size:12px;color:var(--text-dim);font-style:italic;flex:1">Not in price list</span>
+                <span style="font-size:9px;font-weight:700;color:var(--text-dim);
+                             background:var(--bg);border:1px solid var(--border);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">— Missing</span>
+              <% end %>
+            </div>
+          </div>
+
+          <%# ── SHADE CODE row ─────────────────────────────────────── %>
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                           color:var(--text-dim);min-width:76px;padding-top:3px">SHADE CODE</span>
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                           color:var(--text);background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 8px;white-space:nowrap">
+                <%= sg[:shade_code] %>
+              </span>
+              <span style="color:var(--text-dim);font-size:11px;padding-top:2px">→</span>
+              <% if sg[:shade][:found] %>
+                <div style="flex:1">
+                  <% if sg[:shade][:candidates].size <= 1 %>
+                    <span style="font-size:13px;font-weight:500;color:var(--text)"><%= sg[:shade][:value] %></span>
+                  <% else %>
+                    <div style="font-size:9px;color:var(--text-dim);margin-bottom:5px">
+                      Multiple shades — select one:
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:5px" id="shade-chips">
+                      <% sg[:shade][:candidates].each_with_index do |cand, i| %>
+                        <button type="button" class="shade-chip"
+                                data-shade="<%= cand %>"
+                                onclick="selectShade(this)"
+                                style="font-size:11px;padding:4px 10px;border-radius:20px;cursor:pointer;
+                                       border:1px solid <%= i == 0 ? glow_hex : 'var(--border)' %>;
+                                       background:<%= i == 0 ? "rgba(#{glow_rgb},0.12)" : 'var(--bg)' %>;
+                                       color:<%= i == 0 ? glow_hex : 'var(--text-dim)' %>;
+                                       font-weight:<%= i == 0 ? '600' : '400' %>;transition:all .15s">
+                          <%= cand %>
+                        </button>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+                <span style="font-size:9px;font-weight:700;color:var(--success);
+                             background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap;align-self:flex-start">✓ Found</span>
+              <% else %>
+                <span style="font-size:12px;color:var(--text-dim);font-style:italic;flex:1">Not in price list</span>
+                <span style="font-size:9px;font-weight:700;color:var(--text-dim);
+                             background:var(--bg);border:1px solid var(--border);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">— Missing</span>
+              <% end %>
+            </div>
+          </div>
+
+          <%# ── PACK CODE row ──────────────────────────────────────── %>
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                           color:var(--text-dim);min-width:76px">PACK CODE</span>
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                           color:var(--text);background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 8px">
+                <%= sg[:pack_code] %>
+              </span>
+              <span style="color:var(--text-dim);font-size:11px">→</span>
+              <% if sg[:pack][:found] %>
+                <span style="font-size:13px;font-weight:500;color:var(--text);flex:1">
+                  <%= sg[:pack][:desc] %>
+                  <% if sg[:pack][:is_tinting_base] %>
+                    <span style="font-size:9px;margin-left:5px;color:var(--warning);
+                                 background:rgba(247,195,79,0.1);border:1px solid rgba(247,195,79,0.3);
+                                 border-radius:3px;padding:1px 5px">Tinting Base</span>
+                  <% end %>
+                </span>
+                <span style="font-size:9px;font-weight:700;color:var(--success);
+                             background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">✓ Found</span>
+              <% else %>
+                <span style="font-size:12px;color:var(--text-dim);font-style:italic;flex:1">Not in AP pack codes</span>
+                <span style="font-size:9px;font-weight:700;color:var(--text-dim);
+                             background:var(--bg);border:1px solid var(--border);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">— Missing</span>
+              <% end %>
+            </div>
+          </div>
+
+          <%# ── BRAND row ───────────────────────────────────────────── %>
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                           color:var(--text-dim);min-width:76px">BRAND</span>
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                           color:var(--text);background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 8px">from PL</span>
+              <span style="color:var(--text-dim);font-size:11px">→</span>
+              <% if sg[:brand][:found] %>
+                <span style="font-size:13px;font-weight:500;color:var(--text);flex:1"><%= sg[:brand][:value] %></span>
+                <span style="font-size:9px;font-weight:700;color:var(--success);
+                             background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">✓ Found</span>
+              <% else %>
+                <span style="font-size:12px;color:var(--text-dim);font-style:italic;flex:1">Not in price list</span>
+                <span style="font-size:9px;font-weight:700;color:var(--text-dim);
+                             background:var(--bg);border:1px solid var(--border);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">— Missing</span>
+              <% end %>
+            </div>
+          </div>
+
+          <%# ── CATEGORY row ────────────────────────────────────────── %>
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+                           color:var(--text-dim);min-width:76px">CATEGORY</span>
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                           color:var(--text);background:var(--bg);border:1px solid var(--border);
+                           border-radius:4px;padding:2px 8px">inferred</span>
+              <span style="color:var(--text-dim);font-size:11px">→</span>
+              <% if sg[:category_hint][:found] %>
+                <span style="font-size:13px;font-weight:500;color:var(--text);flex:1"><%= sg[:category_hint][:value] %></span>
+                <span style="font-size:9px;font-weight:700;color:var(--warning);
+                             background:rgba(247,195,79,0.1);border:1px solid rgba(247,195,79,0.3);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">~ Suggested</span>
+              <% else %>
+                <span style="font-size:12px;color:var(--text-dim);font-style:italic;flex:1">Could not infer</span>
+                <span style="font-size:9px;font-weight:700;color:var(--text-dim);
+                             background:var(--bg);border:1px solid var(--border);
+                             border-radius:3px;padding:2px 7px;white-space:nowrap">— Missing</span>
+              <% end %>
+            </div>
+          </div>
+
+          <%# ── Probable name + apply ──────────────────────────────── %>
+          <div style="margin-top:14px;padding:12px 14px;
+                      background:rgba(<%= glow_rgb %>,0.05);
+                      border:1px solid rgba(<%= glow_rgb %>,0.2);border-radius:8px">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+                        color:<%= glow_hex %>;margin-bottom:6px">Probable Product Name</div>
+            <div id="probable-name"
+                 style="font-size:14px;font-weight:600;color:var(--text);line-height:1.5;min-height:1.5em">
+              <%= initial_probable.presence || '—' %>
+            </div>
+            <% if sg[:dealer_price].present? %>
+              <div style="margin-top:5px;font-size:11px;color:var(--text-dim)">
+                Dealer price:
+                <strong style="color:var(--text);font-family:var(--mono)">
+                  ₹&nbsp;<%= number_with_precision(sg[:dealer_price], precision: 2, delimiter: ',') %>
+                </strong>
+                <% if sg[:pack][:found] %>
+                  · <%= sg[:pack][:desc] %>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+
+          <%# Apply form %>
+          <%= form_with url: apply_suggestion_admin_product_review_path(@product), method: :post,
+                id: 'suggestion-form', style: 'margin-top:12px' do |f| %>
+            <input type="hidden" id="field-description"    name="suggested_description" value="<%= j(initial_probable) %>">
+            <input type="hidden" id="field-product-line"   name="product_line_desc"     value="<%= j(first_pl.to_s) %>">
+            <input type="hidden" id="field-shade"          name="shade_name"            value="<%= j(shade_val) %>">
+            <%= hidden_field_tag :pack_size_desc,    sg[:pack][:desc] %>
+            <%= hidden_field_tag :pack_size_litres,  sg[:pack][:litres] %>
+            <%= hidden_field_tag :dealer_price,      sg[:dealer_price] %>
+            <%= hidden_field_tag :brand_id,          sg[:brand][:brand_id] %>
+            <%= hidden_field_tag :category_name,     sg[:category_hint][:value] %>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <%= f.submit 'Apply to this product →',
+                    style: "background:#{glow_hex};color:#0f172a;border:none;border-radius:6px;
+                            padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;
+                            letter-spacing:.03em;transition:opacity .15s",
+                    onmouseover: 'this.style.opacity=0.85',
+                    onmouseout:  'this.style.opacity=1' %>
+              <span style="font-size:10px;color:var(--text-dim)">
+                Product stays <strong>under review</strong> — approve separately
+              </span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <script>
+        (function() {
+          var GLOW    = '<%= glow_hex %>';
+          var RGB     = '<%= glow_rgb %>';
+          var brand   = '<%= j(brand_name.to_s) %>';
+          var shade   = '<%= j(shade_val) %>';
+          var pack    = '<%= j(pack_desc.to_s) %>';
+          var pl      = '<%= j(first_pl.to_s) %>';
+
+          function buildName(b, p, s, k) {
+            return [b, p, s, k].filter(Boolean).join(' — ');
+          }
+
+          function syncProbableName() {
+            var name = buildName(brand, pl, shade, pack);
+            document.getElementById('probable-name').textContent = name || '—';
+            document.getElementById('field-description').value  = name;
+            document.getElementById('field-product-line').value = pl;
+            document.getElementById('field-shade').value        = shade;
+          }
+
+          function activateChip(btn, group) {
+            document.querySelectorAll('.' + group).forEach(function(c) {
+              c.style.border     = '1px solid var(--border)';
+              c.style.background = 'var(--bg)';
+              c.style.color      = 'var(--text-dim)';
+              c.style.fontWeight = '400';
+            });
+            btn.style.border     = '1px solid ' + GLOW;
+            btn.style.background = 'rgba(' + RGB + ',0.12)';
+            btn.style.color      = GLOW;
+            btn.style.fontWeight = '600';
+          }
+
+          window.selectProductLine = function(btn) {
+            activateChip(btn, 'pl-chip');
+            pl = btn.getAttribute('data-pl');
+            syncProbableName();
+          };
+
+          window.selectShade = function(btn) {
+            activateChip(btn, 'shade-chip');
+            shade = btn.getAttribute('data-shade');
+            syncProbableName();
+          };
+        })();
+      </script>
+    <% end %>
+
+    <%# ══ SIMILAR PRODUCTS ══════════════════════════════════════════════════ %>
+    <div class="form-card" style="max-width:none;border-left:3px solid #818cf8">
       <div class="form-section">
-        <div class="form-section-title" style="display:flex;align-items:center;justify-content:space-between">
-          <span>
+        <div style="margin:-24px -24px 18px;padding:11px 20px;
+                    background:rgba(129,140,248,0.07);border-bottom:1px solid rgba(129,140,248,0.25);
+                    border-radius:9px 9px 0 0;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12px;font-weight:800;color:#818cf8;text-transform:uppercase;
+                       letter-spacing:.1em;display:flex;align-items:center;gap:7px">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
             Similar Products in Catalogue
-            <span style="color:var(--text-dim);font-weight:400;font-size:11px;margin-left:6px">
+            <span style="font-size:10px;font-weight:500;color:#818cf8;opacity:.7;text-transform:none;letter-spacing:0">
               (<%= @matches.size %> found)
             </span>
           </span>
-          <span style="font-size:10px;color:var(--text-dim)">
-            Select one to merge →
-          </span>
+          <span style="font-size:10px;color:var(--text-dim)">Select one to merge →</span>
         </div>
 
         <% if @matches.empty? %>

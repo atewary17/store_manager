@@ -121,6 +121,11 @@ class GroqInvoiceParser
     base      = successful.first[:data]
     all_items = successful.flat_map { |r| r[:data]['items'] || [] }
 
+    # Merge header totals across ALL pages. On multi-page invoices the line items
+    # are on page 1 but the GST/total summary is often on the LAST page. Without
+    # this, page-1's zero totals would mask the real figures from page 2+.
+    base['header'] = merge_headers(successful.map { |r| r[:data]['header'] }.compact)
+
     # Resolve unit_rate from rate_per_pack where needed
     all_items.each do |item|
       qty = item['quantity'].to_f
@@ -167,6 +172,34 @@ class GroqInvoiceParser
       raw_response: successful.map { |r| r[:raw_response] }.join("\n---page---\n"),
       error:        nil
     }
+  end
+
+  # Combine headers from every page into one. Starts from page 1's header (which
+  # carries supplier/invoice identity) and fills numeric total fields with the
+  # largest non-zero value seen on any page — so summary figures on a later page
+  # are not lost. Text fields take the first non-blank value across pages.
+  def merge_headers(headers)
+    return {} if headers.empty?
+    merged = headers.first.dup
+
+    numeric_totals = %w[
+      total_cgst total_sgst total_igst total_amount total_taxable_amount
+      cash_discount_amount cash_discount_percent
+    ]
+    numeric_totals.each do |field|
+      best = headers.map { |h| h[field].to_f }.max
+      merged[field] = best if best.to_f > merged[field].to_f
+    end
+
+    text_fields = %w[amount_in_words invoice_number invoice_date delivery_number
+                     place_of_supply po_reference]
+    text_fields.each do |field|
+      next if merged[field].present?
+      found = headers.map { |h| h[field] }.find(&:present?)
+      merged[field] = found if found
+    end
+
+    merged
   end
 
   # ── HTTP helpers ───────────────────────────────────────────────────────────

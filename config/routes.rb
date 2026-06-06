@@ -32,6 +32,7 @@ Rails.application.routes.draw do
         post :approve
         post :reject
         post :merge
+        post :apply_suggestion
       end
     end
     get  'system_processes',                to: 'system_processes#index',           as: :system_processes
