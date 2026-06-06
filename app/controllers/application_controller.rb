@@ -1,6 +1,9 @@
 class ApplicationController < ActionController::Base
   layout :set_layout
 
+  before_action :validate_session_token
+  before_action :touch_last_activity
+
   rescue_from CanCan::AccessDenied do |exception|
     redirect_to dashboard_path, alert: 'Access denied. You do not have permission to access this page.'
   end
@@ -31,6 +34,49 @@ class ApplicationController < ActionController::Base
 
   def set_layout
     devise_controller? ? 'devise' : 'application'
+  end
+
+  # Compares the browser session token against the DB. Mismatch means someone
+  # signed in on another device and invalidated this session.
+  def validate_session_token
+    return unless user_signed_in?
+    return if devise_controller?
+
+    stored = session[:session_token]
+
+    if stored.blank?
+      # Legacy session (pre-feature deploy) — only reject if DB has a token,
+      # meaning a newer session exists elsewhere.
+      if current_user.session_token.present?
+        sign_out(current_user)
+        redirect_to new_user_session_path,
+                    alert: 'Please sign in again to continue.'
+      end
+      return
+    end
+
+    unless stored == current_user.session_token
+      sign_out(current_user)
+      redirect_to new_user_session_path,
+                  alert: 'You were signed in from another device. Please log in again.'
+    end
+  end
+
+  # Throttled heartbeat — writes last_activity_at at most once every 2 minutes.
+  def touch_last_activity
+    return unless user_signed_in?
+    return if devise_controller?
+
+    # Backfill token for sessions that existed before this feature was deployed.
+    if session[:session_token].blank? && current_user.session_token.blank?
+      token = current_user.generate_session_token!
+      session[:session_token] = token
+    end
+
+    return if current_user.last_activity_at.present? &&
+              current_user.last_activity_at > 2.minutes.ago
+
+    current_user.touch_activity!
   end
 
   def after_sign_in_path_for(resource)

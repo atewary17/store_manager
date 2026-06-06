@@ -4,7 +4,10 @@ Rails.application.routes.draw do
   get  '/status',              to: 'status#index',        as: :status
   post '/status/authenticate', to: 'status#authenticate', as: :status_authenticate
 
-  devise_for :users
+  devise_for :users, controllers: { sessions: 'users/sessions' }
+  devise_scope :user do
+    post '/users/force_login', to: 'users/sessions#force_login', as: :force_login_user_session
+  end
 
   # User profile — any logged-in user
   get   '/profile',           to: 'users#profile',           as: :profile
@@ -34,6 +37,7 @@ Rails.application.routes.draw do
     get  'system_processes',                to: 'system_processes#index',           as: :system_processes
     post 'system_processes/send_test_email',        to: 'system_processes#send_test_email',        as: :system_processes_send_test_email
     post 'system_processes/trigger_price_list_sync', to: 'system_processes#trigger_price_list_sync', as: :system_processes_trigger_price_list_sync
+    post 'system_processes/force_logout_user',       to: 'system_processes#force_logout_user',       as: :system_processes_force_logout_user
   end
 
   authenticate :user, ->(u) { u.super_admin? } do

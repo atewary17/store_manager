@@ -153,7 +153,7 @@
 
 <%# ═══ TAB BAR ═══════════════════════════════════════════════════════════════ %>
 <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px">
-  <% [['jobs', 'Background Jobs'], ['api', 'External API Calls'], ['stats', 'Breakdowns'], ['sync', 'Price List Sync'], ['sales_activity', 'Sales Activity'], ['activity', 'Activity Logs']].each do |t, lbl| %>
+  <% [['jobs', 'Background Jobs'], ['api', 'External API Calls'], ['stats', 'Breakdowns'], ['sync', 'Price List Sync'], ['sales_activity', 'Sales Activity'], ['activity', 'Activity Logs'], ['active_users', "Active Users#{@active_user_count > 0 ? " (#{@active_user_count})" : ''}"]].each do |t, lbl| %>
     <%= link_to tab_url.call(t),
           style: "padding:8px 18px;font-size:13px;font-weight:#{tab == t ? '600' : '400'};
                   color:#{tab == t ? 'var(--accent)' : 'var(--text-dim)'};text-decoration:none;
@@ -1539,6 +1539,124 @@
   <% end %><%# /activity_logs present %>
 
 <% end %><%# /tab == activity %>
+
+<%# ═══ ACTIVE USERS TAB ══════════════════════════════════════════════════ %>
+<% if tab == 'active_users' %>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+    <div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:3px">
+        Currently Signed-In Users
+      </div>
+      <div style="font-size:12px;color:var(--text-dim)">
+        Users with an active or recently active session · auto-refreshes every 30 s
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:11px;font-family:var(--mono);color:var(--text-dim)">
+        Showing last 60 min · <%= @active_users.size %> session<%= @active_users.size == 1 ? '' : 's' %>
+      </span>
+      <%= link_to admin_system_processes_path(tab: 'active_users'),
+            style: 'font-size:11px;font-weight:600;color:var(--accent);text-decoration:none;
+                    display:flex;align-items:center;gap:4px' do %>
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Refresh
+      <% end %>
+    </div>
+  </div>
+
+  <% if @active_users.empty? %>
+    <div style="text-align:center;padding:60px 20px;color:var(--text-dim)">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
+           style="margin:0 auto 12px;display:block;opacity:.4">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <div style="font-size:14px;font-weight:500">No active sessions</div>
+      <div style="font-size:12px;margin-top:4px">No users have been active in the last 60 minutes.</div>
+    </div>
+
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Organisation</th>
+            <th>Role</th>
+            <th>Last Active</th>
+            <th>Status</th>
+            <th style="text-align:right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @active_users.each do |u| %>
+            <%
+              idle        = u.last_activity_at.present? && u.last_activity_at <= 30.minutes.ago
+              status_col  = idle ? 'var(--warning)' : 'var(--success)'
+              status_bg   = idle ? 'rgba(247,195,79,0.1)' : 'rgba(74,222,128,0.1)'
+              status_bd   = idle ? 'rgba(247,195,79,0.3)' : 'rgba(74,222,128,0.3)'
+              status_lbl  = idle ? 'Idle' : 'Active'
+              is_me       = u.id == current_user.id
+            %>
+            <tr>
+              <td>
+                <div style="font-weight:600;color:var(--text)"><%= u.full_name %></div>
+                <div style="font-size:11px;font-family:var(--mono);color:var(--text-dim)"><%= u.email %></div>
+              </td>
+              <td style="color:var(--text-dim);font-size:12px">
+                <%= u.organisation&.name || '—' %>
+              </td>
+              <td>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+                             color:var(--text-dim)"><%= u.role.humanize %></span>
+              </td>
+              <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">
+                <% if u.last_activity_at %>
+                  <%= time_ago_in_words(u.last_activity_at) %> ago
+                  <div style="font-size:10px;color:var(--text-dim)">
+                    <%= u.last_activity_at.strftime('%d %b, %H:%M') %>
+                  </div>
+                <% else %>
+                  —
+                <% end %>
+              </td>
+              <td>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+                             color:<%= status_col %>;background:<%= status_bg %>;
+                             border:1px solid <%= status_bd %>;border-radius:4px;padding:2px 8px">
+                  <%= status_lbl %>
+                </span>
+              </td>
+              <td style="text-align:right">
+                <% if is_me %>
+                  <span style="font-size:11px;color:var(--text-dim);font-style:italic">You</span>
+                <% else %>
+                  <%= button_to admin_system_processes_force_logout_user_path,
+                        method: :post,
+                        params: { user_id: u.id },
+                        data:   { confirm: "Force sign out #{u.email}?\n\nThey will be signed out on their next page load." },
+                        style: 'background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.3);
+                                 border-radius:5px;padding:4px 12px;font-size:11px;font-weight:600;
+                                 cursor:pointer;white-space:nowrap' do %>
+                    Force Logout
+                  <% end %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <%# Auto-refresh every 30 seconds while on this tab %>
+  <meta http-equiv="refresh" content="30;url=<%= admin_system_processes_path(tab: 'active_users') %>">
+
+<% end %><%# /tab == active_users %>
 
 <style>
   @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }

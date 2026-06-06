@@ -1,0 +1,132 @@
+<%# Idle session elsewhere — user can choose to force-login and kick the other session. %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Already Signed In — MyStore Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <%= csrf_meta_tags %>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0c1123; --navy2: #111829; --navy3: #192038;
+      --blue: #4f8ef7; --blue2: #2563eb;
+      --amber: #f59e0b; --teal: #34d98b;
+      --text: #dde3f4; --muted: #6b7799; --dimmer: #3d4a6a;
+      --border: rgba(79,142,247,0.12); --border2: rgba(79,142,247,0.22);
+      --glow: rgba(79,142,247,0.18);
+      --font: 'Inter', sans-serif; --mono: 'IBM Plex Mono', monospace;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font); background: var(--navy); color: var(--text);
+      display: flex; min-height: 100vh; align-items: center; justify-content: center;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        linear-gradient(rgba(79,142,247,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,0.035) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .card {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 440px; padding: 40px;
+      background: var(--navy2); border: 1px solid rgba(245,158,11,0.3);
+      border-top: 3px solid var(--amber); border-radius: 14px;
+      box-shadow: 0 0 60px rgba(245,158,11,0.07);
+      animation: fadeUp 0.5s ease both;
+    }
+    .icon-wrap {
+      width: 52px; height: 52px; border-radius: 12px;
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px; color: var(--amber);
+    }
+    .eyebrow {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--amber); margin-bottom: 10px;
+    }
+    h1 { font-size: 22px; font-weight: 700; letter-spacing: -.03em; margin-bottom: 8px; }
+    .sub { font-size: 13px; color: var(--muted); line-height: 1.65; margin-bottom: 22px; }
+    .info-box {
+      background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;
+    }
+    .info-row { display: flex; gap: 8px; font-size: 12px; margin-bottom: 6px; color: var(--text); }
+    .info-row:last-child { margin-bottom: 0; }
+    .info-label { font-family: var(--mono); color: var(--muted); min-width: 90px; }
+    .warning-text {
+      font-size: 11px; color: var(--amber); margin-bottom: 24px;
+      display: flex; align-items: flex-start; gap: 7px; line-height: 1.6;
+    }
+    .warning-text svg { flex-shrink: 0; margin-top: 1px; }
+    .btn-force {
+      display: block; width: 100%; padding: 13px;
+      background: var(--amber); color: #0c1123; border: none;
+      border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: background .15s, box-shadow .15s; margin-bottom: 10px;
+      box-shadow: 0 4px 20px rgba(245,158,11,0.25);
+    }
+    .btn-force:hover { background: #d97706; box-shadow: 0 4px 28px rgba(245,158,11,0.4); }
+    .btn-cancel {
+      display: block; width: 100%; padding: 12px;
+      background: transparent; color: var(--muted); border: 1px solid var(--border2);
+      border-radius: 8px; font-size: 13px; font-weight: 500; text-align: center;
+      text-decoration: none; cursor: pointer; transition: border-color .15s, color .15s;
+    }
+    .btn-cancel:hover { border-color: var(--blue); color: var(--text); }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-wrap">
+      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+    </div>
+
+    <div class="eyebrow">Idle Session Detected</div>
+    <h1>You're Signed In Elsewhere</h1>
+    <p class="sub">
+      This account has an idle session on another device or browser.
+      You can sign in here and that session will be automatically signed out.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Last active</span>
+        <span><%= @idle_since ? "#{time_ago_in_words(@idle_since)} ago" : 'Unknown' %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span style="color:var(--amber)">Idle (no activity for &gt; 30 min)</span>
+      </div>
+    </div>
+
+    <div class="warning-text">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      Clicking <strong style="color:var(--text)">Sign In Here</strong> will immediately sign out the other session.
+      Any unsaved work on that device will be lost.
+    </div>
+
+    <%= form_with url: force_login_user_session_path, method: :post do |f| %>
+      <%= f.submit 'Sign In Here → (Force Login)', class: 'btn-force' %>
+    <% end %>
+
+    <a href="<%= new_user_session_path %>" class="btn-cancel">Cancel — Go back</a>
+  </div>
+</body>
+</html>
