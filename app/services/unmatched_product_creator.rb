@@ -29,9 +29,16 @@ class UnmatchedProductCreator
 
     description = build_description
 
+    # Shalimar's "material code" from the invoice is a product-family code shared
+    # across all pack sizes of a variant — it must NOT go into material_code
+    # (which has a unique index) but into product_code (non-unique, per-family).
+    shalimar = @meta['supplier_hint'].to_s.include?('shalimar')
+    invoice_code = presence(@meta['material_code'])
+
     product = Product.create!(
       description:      description,
-      material_code:    presence(@meta['material_code']),
+      material_code:    shalimar ? nil         : invoice_code,
+      product_code:     shalimar ? invoice_code : nil,
       hsn_code:         presence(@meta['hsn_code']),
       gst_rate:         gst_rate,
       brand:            brand,

@@ -193,7 +193,7 @@ class Admin::ProductReviewsController < Admin::BaseController
 
   def product_params
     params.require(:product).permit(
-      :description, :material_code, :brand_id,
+      :description, :material_code, :product_code, :brand_id,
       :product_category_id, :base_uom_id, :hsn_code, :gst_rate
     )
   end

@@ -152,9 +152,14 @@ class Purchasing::DigitiseController < Purchasing::BaseController
       # Page groups used to render "Page N" separators in the view
       @item_pages    = review_imports.each_with_index.map { |imp, i| { page: i + 1, items: imp.parsed_items } }
 
-      # Session-level page stats — each uploaded image = 1 DigitiseImport with pages_scanned=1,
-      # so we must aggregate across the session rather than reading from @import alone.
-      @session_pages_scanned = review_imports.size
+      # Session-level page stats. Two upload shapes must both work:
+      #   • Separate images  → one DigitiseImport per image, each pages_scanned=1
+      #   • One multi-page PDF → a single DigitiseImport whose parser meta recorded
+      #     pages_scanned=N (N pages rendered from the PDF and sent to the AI)
+      # Summing ai_pages_scanned (floored at 1 per import) handles both: separate
+      # images give the same count as before, while a multi-page PDF now reports N
+      # instead of 1. Floor-at-1 guards old rows with a nil pages_scanned column.
+      @session_pages_scanned = review_imports.sum { |i| [i.ai_pages_scanned, 1].max }
       @session_page_count    = [review_imports.map(&:ai_page_count).max.to_i,
                                 @session_pages_scanned].max
       # Grand total: use the session import that reported the highest total_amount
@@ -367,7 +372,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
   # Confirmed invoices cannot be appended to — only drafts.
   #
   def append_items_to_invoice(invoice, import)
-    items            = import.parsed_items
+    items            = import.parsed_items.reject { |i| i['_excluded'].to_s == '1' }
     supplier_profile = Suppliers::Registry.for(import.parsed_supplier['name'])
 
     duplicates = invoice.duplicate_items(items)
@@ -391,6 +396,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
       effective_unit = item['unit'].presence
       line_disc_pct  = item['discount_percent'].to_f
       line_disc_amt  = item['discount_amount'].to_f
+      edited_gst     = item['gst_percent'].to_f
 
       invoice.purchase_invoice_items.create!(
         product:      nil,
@@ -412,6 +418,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
           'discount_percent' => line_disc_pct,
           'discount_amount'  => line_disc_amt,
           'taxable_amount'   => item['taxable_amount'].to_f,
+          'gst_rate'         => edited_gst > 0 ? edited_gst : nil,
           'cgst_percent'     => item['cgst_percent'].to_f,
           'cgst_amount'      => item['cgst_amount'].to_f,
           'sgst_percent'     => item['sgst_percent'].to_f,
@@ -430,7 +437,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
   def build_invoice_from_import(import)
     hdr              = import.parsed_header
     sup_data         = import.parsed_supplier
-    items            = import.parsed_items
+    items            = import.parsed_items.reject { |i| i['_excluded'].to_s == '1' }
     supplier_profile = Suppliers::Registry.for(sup_data['name'])
 
     supplier = find_or_create_supplier(sup_data)
@@ -475,6 +482,10 @@ class Purchasing::DigitiseController < Purchasing::BaseController
       effective_unit = item['unit'].presence
       line_disc_pct  = item['discount_percent'].to_f
       line_disc_amt  = item['discount_amount'].to_f
+      # Edited GST % from the review form (combined rate). Stored as gst_rate so
+      # PurchaseInvoice#confirm! picks it up for unmatched items. For Shalimar this
+      # carries the catalogue rate surfaced in the review screen.
+      edited_gst     = item['gst_percent'].to_f
 
       invoice.purchase_invoice_items.build(
         product:      nil,
@@ -496,6 +507,7 @@ class Purchasing::DigitiseController < Purchasing::BaseController
           'discount_percent' => line_disc_pct,
           'discount_amount'  => line_disc_amt,
           'taxable_amount'   => item['taxable_amount'].to_f,
+          'gst_rate'         => edited_gst > 0 ? edited_gst : nil,
           'cgst_percent'     => item['cgst_percent'].to_f,
           'cgst_amount'      => item['cgst_amount'].to_f,
           'sgst_percent'     => item['sgst_percent'].to_f,

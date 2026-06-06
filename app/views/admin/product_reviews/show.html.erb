@@ -109,11 +109,29 @@
                             font-family:inherit;box-sizing:border-box' %>
             </div>
 
-            <%# Material Code %>
+            <%# Material Code (AP / unique-per-SKU suppliers) %>
             <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;
                           letter-spacing:.07em;color:var(--text-dim);margin-bottom:6px">Material Code</div>
               <%= f.text_field :material_code, value: @product.material_code,
+                    style: 'width:100%;background:var(--surface);border:1px solid var(--border);
+                            border-radius:5px;padding:6px 8px;font-size:12px;color:var(--text);
+                            font-family:var(--mono);box-sizing:border-box' %>
+            </div>
+
+            <%# Product Code (Shalimar family code — shared across pack sizes) %>
+            <div style="background:var(--bg);border-radius:6px;padding:10px 12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;
+                            letter-spacing:.07em;color:var(--text-dim)">Product Code</div>
+                <% if @product.product_code.present? && @product.material_code.blank? %>
+                  <span style="font-size:9px;font-weight:700;color:var(--warning);
+                               background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
+                               border-radius:3px;padding:1px 5px">Shalimar family code</span>
+                <% end %>
+              </div>
+              <%= f.text_field :product_code, value: @product.product_code,
+                    placeholder: 'e.g. 12601744',
                     style: 'width:100%;background:var(--surface);border:1px solid var(--border);
                             border-radius:5px;padding:6px 8px;font-size:12px;color:var(--text);
                             font-family:var(--mono);box-sizing:border-box' %>
