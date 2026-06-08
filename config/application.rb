@@ -39,6 +39,11 @@ module StoreManager
     # are never written to the database or visible in System Processes.
     config.active_job.queue_adapter = :good_job
 
+    # ── Locales (for the in-app help manual; UI strings stay English for now) ──
+    config.i18n.available_locales = [:en, :bn, :hi]
+    config.i18n.default_locale    = :en
+    config.i18n.fallbacks         = [:en]   # missing bn/hi content falls back to en
+
     # ─────────────────────────────────────────────────────────
     # Then your existing module StoreManager / class Application continues
   end

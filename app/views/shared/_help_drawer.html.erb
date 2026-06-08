@@ -1,0 +1,187 @@
+<%# app/views/shared/_help_drawer.html.erb
+    Lazy-loaded contextual help drawer. Opened by the ? icon in the topbar.
+    Fetches /help?key=<current page>&locale=<chosen> on demand. %>
+
+<style>
+  #help-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    opacity: 0; visibility: hidden; transition: opacity .2s ease; z-index: 10000;
+  }
+  #help-backdrop.open { opacity: 1; visibility: visible; }
+  #help-drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 440px; max-width: 92vw;
+    background: var(--surface); border-left: 1px solid var(--border);
+    box-shadow: -8px 0 30px rgba(0,0,0,0.25);
+    transform: translateX(100%); transition: transform .22s ease; z-index: 10001;
+    display: flex; flex-direction: column;
+  }
+  #help-drawer.open { transform: translateX(0); }
+  .help-head {
+    display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .help-head-title { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; }
+  .help-locale-switch { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+  .help-locale-btn {
+    border: none; background: transparent; color: var(--text-dim); cursor: pointer;
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 4px; font-family: var(--mono);
+  }
+  .help-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 22px; line-height: 1; padding: 2px 6px; }
+  #help-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+
+  /* Rendered Markdown styling */
+  #help-body h1 { font-size: 17px; font-weight: 700; color: var(--text); margin: 0 0 12px; }
+  #help-body h2 { font-size: 14px; font-weight: 700; color: var(--text); margin: 18px 0 8px; }
+  #help-body h3 { font-size: 12.5px; font-weight: 700; color: var(--text-dim); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+  #help-body p  { font-size: 13px; line-height: 1.65; color: var(--text); margin: 0 0 10px; }
+  #help-body ul, #help-body ol { margin: 0 0 12px; padding-left: 20px; }
+  #help-body li { font-size: 13px; line-height: 1.6; color: var(--text); margin-bottom: 5px; }
+  #help-body strong { color: var(--text); font-weight: 700; }
+  #help-body blockquote {
+    margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--accent);
+    background: var(--bg); border-radius: 0 6px 6px 0; font-family: var(--mono); font-size: 12.5px; color: var(--text-dim);
+  }
+  #help-body code { font-family: var(--mono); font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+  #help-body a { color: var(--accent); text-decoration: none; }
+</style>
+
+<div id="help-backdrop" onclick="closeHelp()"></div>
+<div id="help-drawer" role="dialog" aria-label="Help" aria-modal="true">
+  <div class="help-head">
+    <span class="help-head-title">Help</span>
+    <div class="help-locale-switch">
+      <button type="button" class="help-locale-btn" data-locale="en" onclick="setHelpLocale('en')">EN</button>
+      <button type="button" class="help-locale-btn" data-locale="bn" onclick="setHelpLocale('bn')">বাং</button>
+      <button type="button" class="help-locale-btn" data-locale="hi" onclick="setHelpLocale('hi')">हि</button>
+    </div>
+    <button type="button" class="help-close" onclick="closeHelp()" aria-label="Close help">&times;</button>
+  </div>
+  <%# "Take a tour" CTA — shown only when the current page has a tour defined %>
+  <div id="help-tour-row" style="display:none;padding:12px 18px;border-bottom:1px solid var(--border)">
+    <button type="button" onclick="startHelpTour()"
+            style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+                   background:var(--accent);color:#fff;border:none;border-radius:8px;
+                   padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+      <span id="help-tour-label">Take a guided tour</span>
+    </button>
+  </div>
+  <div id="help-body"></div>
+</div>
+
+<script>
+(function() {
+  var STORE = 'help_locale';
+  function getLocale() { return localStorage.getItem(STORE) || 'en'; }
+  function setLocale(l) { localStorage.setItem(STORE, l); }
+  var _cache = {};
+
+  function syncLocaleButtons() {
+    var cur = getLocale();
+    document.querySelectorAll('.help-locale-btn').forEach(function(b) {
+      var on = b.getAttribute('data-locale') === cur;
+      b.style.background = on ? 'var(--accent)' : 'transparent';
+      b.style.color      = on ? '#fff' : 'var(--text-dim)';
+    });
+    var lbl = document.getElementById('help-tour-label');
+    if (lbl) {
+      lbl.textContent = (cur === 'bn') ? 'গাইডেড ট্যুর নিন'
+                      : (cur === 'hi') ? 'गाइडेड टूर देखें'
+                      : 'Take a guided tour';
+    }
+  }
+
+  function currentKey() {
+    var btn = document.getElementById('help-trigger');
+    return btn ? btn.getAttribute('data-help-key') : '_fallback';
+  }
+
+  // ── Guided tours (driver.js) — keyed by page, with EN/BN step text ──────────
+  var HELP_TOURS = {
+    'purchasing/digitise/new': {
+      en: [
+        { element: '.sup-badge-bar', popover: { title: 'Step 1 — Choose supplier', description: 'Click here to pick Asian Paints, Shalimar Paints, or Others.' } },
+        { element: '#drop-zone',     popover: { title: 'Step 2 — Add the invoice', description: 'Drop a photo or PDF here, or click to choose. Several pages are fine.' } },
+        { element: '#submit-btn',    popover: { title: 'Step 3 — Upload', description: 'Click Upload. The app reads the bill in the background.' } }
+      ],
+      bn: [
+        { element: '.sup-badge-bar', popover: { title: 'ধাপ ১ — সরবরাহকারী বেছে নিন', description: 'Asian Paints, Shalimar Paints বা Others বেছে নিতে এখানে ক্লিক করুন।' } },
+        { element: '#drop-zone',     popover: { title: 'ধাপ ২ — বিল যোগ করুন', description: 'এখানে ছবি বা PDF দিন, অথবা ক্লিক করে বেছে নিন। একাধিক পৃষ্ঠা চলবে।' } },
+        { element: '#submit-btn',    popover: { title: 'ধাপ ৩ — আপলোড করুন', description: 'Upload-এ ক্লিক করুন। অ্যাপ পেছনে বিলটি পড়বে।' } }
+      ],
+      hi: [
+        { element: '.sup-badge-bar', popover: { title: 'चरण 1 — सप्लायर चुनें', description: 'Asian Paints, Shalimar Paints या Others चुनने के लिए यहाँ दबाएँ।' } },
+        { element: '#drop-zone',     popover: { title: 'चरण 2 — बिल जोड़ें', description: 'यहाँ फ़ोटो या PDF दें, या दबाकर चुनें। कई पन्ने भी चलेंगे।' } },
+        { element: '#submit-btn',    popover: { title: 'चरण 3 — अपलोड करें', description: 'Upload दबाएँ। ऐप ख़ुद बिल पढ़ लेगा।' } }
+      ]
+    }
+  };
+
+  function hasTour(key) { return !!HELP_TOURS[key]; }
+
+  // Lazy-load the vendored driver.js + CSS the first time a tour runs.
+  function ensureDriver(cb) {
+    if (window.driver && window.driver.js) return cb();
+    var css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = '/vendor/driver/driver.css';
+    document.head.appendChild(css);
+    var s = document.createElement('script');
+    s.src = '/vendor/driver/driver.js.iife.js';
+    s.onload = cb;
+    s.onerror = function() { alert('Could not load the tour.'); };
+    document.head.appendChild(s);
+  }
+
+  window.startHelpTour = function() {
+    var key = currentKey();
+    var tour = HELP_TOURS[key];
+    if (!tour) return;
+    var steps = tour[getLocale()] || tour.en;
+    closeHelp();
+    ensureDriver(function() {
+      var d = window.driver.js.driver({
+        showProgress: true, allowClose: true,
+        nextBtnText: 'Next', prevBtnText: 'Back', doneBtnText: 'Done',
+        steps: steps
+      });
+      d.drive();
+    });
+  };
+
+  function loadHelp(key, locale) {
+    var body = document.getElementById('help-body');
+    var ck = key + '|' + locale;
+    if (_cache[ck]) { body.innerHTML = _cache[ck]; body.scrollTop = 0; return; }
+    body.innerHTML = '<div style="color:var(--text-dim);padding:20px;font-size:13px">Loading…</div>';
+    fetch('/help?key=' + encodeURIComponent(key) + '&locale=' + encodeURIComponent(locale),
+          { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r) { return r.text(); })
+      .then(function(html) { _cache[ck] = html; body.innerHTML = html; body.scrollTop = 0; })
+      .catch(function() {
+        body.innerHTML = '<div style="color:var(--danger);padding:20px;font-size:13px">Could not load help. Please try again.</div>';
+      });
+  }
+
+  window.openHelp = function() {
+    document.getElementById('help-drawer').classList.add('open');
+    document.getElementById('help-backdrop').classList.add('open');
+    syncLocaleButtons();
+    // Show "Take a tour" only if this page has a tour
+    document.getElementById('help-tour-row').style.display = hasTour(currentKey()) ? 'block' : 'none';
+    loadHelp(currentKey(), getLocale());
+  };
+  window.closeHelp = function() {
+    document.getElementById('help-drawer').classList.remove('open');
+    document.getElementById('help-backdrop').classList.remove('open');
+  };
+  window.setHelpLocale = function(l) {
+    setLocale(l); syncLocaleButtons(); loadHelp(currentKey(), l);
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('help-drawer').classList.contains('open')) closeHelp();
+  });
+})();
+</script>

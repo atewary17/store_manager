@@ -1281,8 +1281,8 @@
       <div class="breadcrumb">
         <%= yield :breadcrumb %>
       </div>
-      <%# ── Command palette trigger ── %>
-      <div style="margin-left:auto">
+      <%# ── Command palette trigger + Help ── %>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
         <button id="cmd-trigger"
                 onclick="openPalette()"
                 style="display:flex;align-items:center;gap:10px;padding:7px 14px;
@@ -1307,6 +1307,17 @@
                         color:var(--accent);font-weight:600">K</kbd>
           </span>
         </button>
+        <%# ── Help (?) — opens contextual help for the current page ── %>
+        <button id="help-trigger" type="button"
+                data-help-key="<%= help_page_key %>"
+                onclick="openHelp()"
+                title="Help for this page"
+                aria-label="Help for this page"
+                style="display:flex;align-items:center;justify-content:center;
+                       width:34px;height:34px;background:var(--surface);
+                       border:1px solid var(--accent-dim);border-radius:8px;cursor:pointer;
+                       color:var(--accent);font-size:16px;font-weight:700;flex-shrink:0;
+                       box-shadow:0 0 0 1px var(--accent-dim),0 2px 8px rgba(79,142,247,0.08)">?</button>
       </div>
     </div>
 
@@ -1775,5 +1786,8 @@
   // ══ END COMMAND PALETTE ══════════════════════════════════════
 
 </script>
+
+<%# ── Contextual help drawer (lazy-loaded) ── %>
+<%= render 'shared/help_drawer' %>
 </body>
 </html>
