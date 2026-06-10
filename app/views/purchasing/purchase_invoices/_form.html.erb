@@ -722,8 +722,9 @@
 
     filtered.forEach(function(p) {
       var metaParts = [];
-      if (p.material_code) metaParts.push('M: ' + p.material_code);
-      if (p.pack_code)     metaParts.push('Pack: ' + p.pack_code);
+      if (p.material_code)  metaParts.push('M: ' + p.material_code);
+      if (p.pack_size)      metaParts.push(p.pack_size);        // readable size, e.g. "1 Litre"
+      else if (p.pack_code) metaParts.push('Pack: ' + p.pack_code);
 
       var el = document.createElement('div');
       el.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)';

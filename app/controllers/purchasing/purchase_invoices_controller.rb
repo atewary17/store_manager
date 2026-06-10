@@ -141,13 +141,23 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       notice: new_date ? 'Due date updated.' : 'Due date cleared.'
   end
 
+  # Columns the product autocomplete searches. Each typed word must appear in at
+  # least one of these (description, codes, or the readable pack size), so e.g.
+  # "white 1 litre" matches a product named "...White..." with pack size "1 Litre".
+  PRODUCT_SEARCH_COLUMNS = [
+    'LOWER(products.description)',
+    'LOWER(products.material_code)',
+    'LOWER(products.product_code)',
+    'LOWER(products.pack_code)',
+    "LOWER(products.metadata->>'pack_size_desc')"
+  ].freeze
+
   # TODO Step 7 — sales filter will be tightened to catalogue_status: approved
   # GET /purchasing/purchase_invoices/product_search
   def product_search
     q = params[:q].to_s.strip
     return render json: [] if q.length < 2
 
-    q_like        = "%#{q.downcase}%"
     supplier_hint = params[:supplier_hint].to_s.strip
 
     # Scope to the supplier's brand when a hint is provided — keeps autocomplete relevant.
@@ -160,14 +170,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
 
     active_base = Product.for_org(@organisation).where(active: true).includes(:brand, :base_uom)
     active_base = active_base.where(brand: brand_filter) if brand_filter
-
-    active_products = active_base.where(
-      'LOWER(products.description) LIKE :q
-       OR LOWER(products.material_code) LIKE :q
-       OR LOWER(products.product_code)  LIKE :q
-       OR LOWER(products.pack_code)     LIKE :q',
-      q: q_like
-    ).limit(10)
+    active_products = token_search(active_base, q).limit(10)
 
     # AI-enriched pending products (same brand scope if applicable)
     pending_base = Product
@@ -177,11 +180,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       .where("products.metadata->>'source' = 'ai_enrichment'")
       .includes(:brand, :base_uom)
     pending_base = pending_base.where(brand: brand_filter) if brand_filter
-
-    pending_products = pending_base.where(
-      'LOWER(products.description) LIKE :q OR LOWER(products.material_code) LIKE :q',
-      q: q_like
-    ).limit(5)
+    pending_products = token_search(pending_base, q).limit(5)
 
     results = active_products.map  { |p| format_product(p, 'matched') } +
               pending_products.map { |p| format_product(p, 'pending') }
@@ -215,6 +214,19 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
 
   private
 
+  # Token-split search: split the query on whitespace; every token must match at
+  # least one of PRODUCT_SEARCH_COLUMNS (AND across tokens, OR across columns).
+  # This makes multi-word "name + size" searches work, e.g. "white 1 litre".
+  def token_search(scope, query)
+    ors = PRODUCT_SEARCH_COLUMNS.map { |c| "#{c} LIKE ?" }.join(' OR ')
+    query.downcase.split(/\s+/).reject(&:blank?).each do |token|
+      like  = "%#{token}%"
+      binds = Array.new(PRODUCT_SEARCH_COLUMNS.size, like)
+      scope = scope.where(ors, *binds)
+    end
+    scope
+  end
+
   def format_product(p, status)
     half_gst = (p.gst_rate.to_f / 2).round(2)
     label    = [p.brand&.name, p.pack_code, p.description].compact_blank.join(' — ')
@@ -226,6 +238,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       material_code: p.material_code,
       product_code:  p.product_code,
       pack_code:     p.pack_code,
+      pack_size:     p.metadata['pack_size_desc'],
       uom:           p.base_uom&.short_name,
       gst_rate:      p.gst_rate.to_f,
       cgst:          half_gst,
