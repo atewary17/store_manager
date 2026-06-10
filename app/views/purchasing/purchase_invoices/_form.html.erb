@@ -23,7 +23,7 @@
          style="background:var(--surface);border:1px solid var(--border);
                 border-radius:12px;padding:24px;margin-bottom:20px">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">
-        What type of invoice is this?
+        What type of bill is this?
       </div>
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:18px">
         Select the supplier type — this determines how products are matched and searched.
@@ -32,7 +32,7 @@
         <% [
           ['asian_paints',    'Asian Paints',    'Material code + description matching', '#ef4444', 'AP'],
           ['shalimar_paints', 'Shalimar Paints', 'Code + description matching',          '#f97316', 'SP'],
-          ['',                'Others / Tally',  'Description matching',                  '#6b7280', '○'],
+          ['',                'Others',          'Description matching',                  '#6b7280', '○'],
         ].each do |hint, label, sublabel, col, icon| %>
           <div class="supplier-type-card"
                data-hint="<%= hint %>"
@@ -63,11 +63,11 @@
        style="<%= is_new ? 'display:none' : '' %>">
 
   <%# ══════════════════════════════════════════════════════
-      SECTION 1 — Supplier & Invoice Details
+      SECTION 1 — Supplier & Bill Details
   ══════════════════════════════════════════════════════ %>
   <div class="form-card" style="max-width:100%;margin-bottom:20px">
     <div class="form-section">
-      <div class="form-section-title">Supplier & Invoice Details</div>
+      <div class="form-section-title">Supplier & Bill Details</div>
 
       <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
 
@@ -105,14 +105,14 @@
         </div>
 
         <div class="form-group">
-          <%= f.label :invoice_number, "Invoice Number" %>
+          <%= f.label :invoice_number, "Bill Number" %>
           <%= f.text_field :invoice_number, placeholder: 'e.g. WB2401437256',
                 style: 'font-family:var(--mono)', class: 'form-control' %>
-          <div class="form-hint">As printed on the supplier invoice — optional</div>
+          <div class="form-hint">As printed on the supplier bill — optional</div>
         </div>
 
         <div class="form-group">
-          <%= f.label :invoice_date, "Invoice Date" %>
+          <%= f.label :invoice_date, "Bill Date" %>
           <%= f.date_field :invoice_date, class: 'form-control' %>
         </div>
       </div>
@@ -229,7 +229,7 @@
     <div style="padding:14px 20px;border-bottom:1px solid var(--border);
                 display:flex;align-items:center;justify-content:space-between">
       <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
-                  text-transform:uppercase;color:var(--text-dim)">Invoice Items</div>
+                  text-transform:uppercase;color:var(--text-dim)">Bill Items</div>
       <button type="button" onclick="addItemRow()"
               style="background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);
                      border-radius:5px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--mono)">
@@ -288,7 +288,7 @@
       <%# Stated invoice total (from the printed invoice) — reconciliation target %>
       <div style="text-align:right">
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.08em;
-                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Invoice Total (printed)</div>
+                    text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">Bill Total (printed)</div>
         <input type="number" id="stated-invoice-total"
                name="purchase_invoice[metadata][stated_invoice_total]"
                value="<%= invoice.metadata['stated_invoice_total'] %>"
@@ -314,7 +314,7 @@
               border-radius:10px;padding:14px 20px;margin-bottom:16px;
               display:none">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-                color:var(--text-dim);margin-bottom:10px">Invoice Summary</div>
+                color:var(--text-dim);margin-bottom:10px">Bill Summary</div>
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px">
       <div id="review-matched"
            style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--success)">
@@ -338,7 +338,7 @@
   </div>
 
   <div style="display:flex;gap:12px;align-items:center">
-    <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Invoice',
+    <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Bill',
           id: 'invoice-submit-btn',
           class: 'btn btn-primary' %>
     <%= link_to 'Cancel',
@@ -371,17 +371,9 @@
         <input type="hidden" class="material-code-hidden"
                name="purchase_invoice[purchase_invoice_items_attributes][INDEX][metadata][material_code]" value="">
         <input type="text" class="product-search-input"
-               placeholder="Search by name, code…" autocomplete="off"
+               placeholder="Search product by name…" autocomplete="off"
                style="width:100%;background:var(--bg);border:1px solid var(--border);
                       border-radius:5px;padding:6px 9px;color:var(--text);font-size:12.5px;outline:none">
-        <div class="material-code-wrap" style="display:none;margin-top:5px">
-          <input type="text" class="material-code-input" autocomplete="off"
-                 placeholder="Material code"
-                 oninput="syncMaterialCode(this)"
-                 style="width:100%;background:var(--bg);border:1px solid var(--border);
-                        border-radius:4px;padding:5px 9px;color:var(--text);
-                        font-family:var(--mono);font-size:11px;outline:none">
-        </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
           <div class="product-meta-line"
                style="font-family:var(--mono);font-size:10px;color:var(--text-dim);min-height:13px"></div>
@@ -683,8 +675,13 @@
       // Keep raw description in sync so unmatched items save their name
       var rawDescField = wrap.querySelector('.raw-desc-field');
       if (rawDescField) rawDescField.value = this.value.trim();
+      // Typed value is just a name now — a real code is only stored when a
+      // catalogue product is matched (applyMatchToRow). Clear stale code.
+      var mcHidden = wrap.querySelector('.material-code-hidden');
+      if (mcHidden) mcHidden.value = '';
       updateRowMatchBadge(row, false, this.value.trim());
       updateReviewPanel();
+      scheduleAutoMatch(row);    // live AP/Shalimar code match from this one field
       clearTimeout(timer);
       var q = this.value.trim();
       if (q.length < 2) { dropdown.style.display = 'none'; return; }
@@ -794,19 +791,10 @@
   };
 
   // ══════════════════════════════════════════════════════════════
-  //  MATERIAL CODE SYNC
-  // ══════════════════════════════════════════════════════════════
-  window.syncMaterialCode = function(input) {
-    var row = input.closest('tr');
-    if (!row) return;
-    var hf = row.querySelector('.material-code-hidden');
-    if (hf) hf.value = input.value.trim().toUpperCase();
-    scheduleAutoMatch(row);
-  };
-
-  // ══════════════════════════════════════════════════════════════
   //  LIVE AUTO-MATCH — same supplier matchers as the digitise screen
   //  AP: material_code · Shalimar: product_code(+pack) · Generic: description
+  //  One field now: its value is sent as BOTH code and description, and the
+  //  matcher picks whichever applies for the supplier.
   // ══════════════════════════════════════════════════════════════
   var _matchTimers = {};
   function scheduleAutoMatch(row) {
@@ -818,15 +806,13 @@
   function tryAutoMatch(row) {
     var hint   = document.getElementById('supplier-hint-field') ?
                  document.getElementById('supplier-hint-field').value : '';
-    var codeEl = row.querySelector('.material-code-input');
     var srchEl = row.querySelector('.product-search-input');
-    var code   = codeEl ? codeEl.value.trim() : '';
-    var desc   = srchEl ? srchEl.value.trim() : '';
-    if (code.length < 2 && desc.length < 2) return;
+    var val    = srchEl ? srchEl.value.trim() : '';
+    if (val.length < 2) return;
 
     var qs = 'supplier_hint=' + encodeURIComponent(hint) +
-             '&material_code=' + encodeURIComponent(code) +
-             '&description='   + encodeURIComponent(desc);
+             '&material_code=' + encodeURIComponent(val) +
+             '&description='   + encodeURIComponent(val);
     fetch('/purchasing/purchase_invoices/match_product?' + qs,
           { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function(r) { return r.json(); })
@@ -854,6 +840,10 @@
 
     var rawDesc = row.querySelector('.raw-desc-field');
     if (rawDesc) rawDesc.value = '';   // matched → not an unmatched new product
+
+    // Store the catalogue product's real code (AP material_code / Shalimar product_code)
+    var mcHidden = row.querySelector('.material-code-hidden');
+    if (mcHidden) mcHidden.value = p.material_code || p.product_code || '';
 
     var meta = row.querySelector('.product-meta-line');
     if (meta) {
@@ -908,13 +898,12 @@
   };
 
   function applySupplierUiToRow(row, hint) {
-    var showCode = hint === 'asian_paints' || hint === 'shalimar_paints';
-    var codeWrap = row.querySelector('.material-code-wrap');
-    if (codeWrap) codeWrap.style.display = showCode ? '' : 'none';
-    // Update placeholder hint text
-    var codeInput = row.querySelector('.material-code-input');
-    if (codeInput && hint === 'asian_paints')    codeInput.placeholder = 'e.g. 67162022240';
-    if (codeInput && hint === 'shalimar_paints') codeInput.placeholder = 'e.g. 12601744/...';
+    // Single field: just adjust its placeholder to hint that a code also works.
+    var srch = row.querySelector('.product-search-input');
+    if (!srch) return;
+    if (hint === 'asian_paints')         srch.placeholder = 'Material code or product name…';
+    else if (hint === 'shalimar_paints') srch.placeholder = 'Product code or product name…';
+    else                                 srch.placeholder = 'Search product by name…';
   }
 
   // ══════════════════════════════════════════════════════════════

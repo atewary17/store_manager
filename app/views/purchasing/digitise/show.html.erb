@@ -27,7 +27,7 @@
         </div>
       <% else %>
         <div id="status-label" style="font-size:17px;font-weight:600;color:var(--text);margin-bottom:6px">
-          AI is reading your invoice…
+          AI is reading your bill…
         </div>
       <% end %>
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">
@@ -185,9 +185,9 @@
 <% elsif @import.status == 'confirmed' %>
   <div style="max-width:520px;text-align:center;padding:48px 0">
     <div style="font-size:32px;margin-bottom:12px">✓</div>
-    <div style="font-size:16px;font-weight:600;color:var(--success);margin-bottom:8px">Invoice saved successfully</div>
+    <div style="font-size:16px;font-weight:600;color:var(--success);margin-bottom:8px">Bill saved successfully</div>
     <div style="font-size:13px;color:var(--text-dim);margin-bottom:24px">
-      This scan was saved as Purchase Invoice
+      This scan was saved as Purchase Bill
       <strong style="color:var(--text)"><%= @import.purchase_invoice&.display_number %></strong>
     </div>
     <%= link_to 'View Invoice', purchasing_purchase_invoice_path(@import.purchase_invoice_id), class: 'btn btn-primary' %>
@@ -258,7 +258,7 @@
     # always per-line mode regardless of what the parser put in per-line GST fields.
     gst_mode = :per_line if @supplier_profile&.column_set == :pack_based
 
-    # Summary-mode: derive the GST rate from the invoice header and apply it to rc_total
+    # Summary-mode: derive the GST rate from the bill header and apply it to rc_total
     # before comparing with ex_total so the reconciliation check is meaningful.
     summary_gst_rate  = (ex_taxable > 0 && ex_gst > 0) ? (ex_gst / ex_taxable * 100).round(2) : 0
     rc_total_with_gst = (gst_mode == :summary && summary_gst_rate > 0) ?
@@ -481,7 +481,7 @@
       ═══════════════════════════════════════════════════════════ %>
       <div class="preview-panel" onclick="lbOpen()" title="Click to enlarge">
         <div class="preview-panel-header">
-          Uploaded Invoice
+          Uploaded Bill
           <span style="color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0;
                        font-size:10px;margin-left:6px"><%= @import.file_name %></span>
         </div>
@@ -489,7 +489,7 @@
 
           <% if @import.preview_image.present? %>
             <img src="data:image/jpeg;base64,<%= @import.preview_image %>"
-                 alt="Invoice page 1 preview"
+                 alt="Bill page 1 preview"
                  style="width:100%;border-radius:6px;border:1px solid var(--border);
                         display:block;margin-bottom:8px">
             <% if @import.ai_page_count > 1 %>
@@ -501,7 +501,7 @@
           <% elsif @import.image? %>
             <% safe_mime = @import.file_content_type.in?(%w[image/jpeg image/jpg image/png image/webp]) ? @import.file_content_type : 'image/jpeg' %>
             <img src="data:<%= safe_mime %>;base64,<%= @import.file_data %>"
-                 alt="Invoice preview"
+                 alt="Bill preview"
                  style="width:100%;border-radius:6px;border:1px solid var(--border);display:block">
 
           <% else %>
@@ -580,17 +580,17 @@
         <%# ── INVOICE HEADER CARD ── %>
         <div class="form-card" style="margin-bottom:14px">
           <div class="form-section">
-            <div class="form-section-title">Invoice Details</div>
+            <div class="form-section-title">Bill Details</div>
             <%# Row 1: invoice number + date %>
             <div class="form-row" style="grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
               <div class="form-group" style="margin-bottom:0">
-                <label>Invoice Number</label>
+                <label>Bill Number</label>
                 <input type="text" name="parsed_data[header][invoice_number]"
                        value="<%= hdr['invoice_number'] %>"
                        class="form-control" style="font-family:var(--mono)">
               </div>
               <div class="form-group" style="margin-bottom:0">
-                <label>Invoice Date</label>
+                <label>Bill Date</label>
                 <input type="date" name="parsed_data[header][invoice_date]"
                        value="<%= hdr['invoice_date'] %>" class="form-control">
               </div>
@@ -641,7 +641,7 @@
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
             <div>
               <div style="font-size:13px;font-weight:700;color:var(--text)">
-                Invoice <%= summary[:invoice_number] %>
+                Bill <%= summary[:invoice_number] %>
               </div>
               <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
                 <%= summary[:supplier_name] %>
@@ -736,7 +736,7 @@
                         border-radius:6px;padding:10px 12px;font-size:12px;margin-bottom:10px">
               <strong style="color:var(--danger)">Duplicate items detected</strong>
               <div style="color:var(--text-dim);margin-top:4px">
-                The following items already exist in invoice <%= @existing_invoice.display_number %>
+                The following items already exist in bill <%= @existing_invoice.display_number %>
                 and will be skipped:
                 <ul style="margin:6px 0 0 16px;padding:0">
                   <% @duplicates.each do |d| %>
@@ -757,7 +757,7 @@
               <%# Header row with overall status %>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                 <span style="font-size:10px;font-weight:700;color:var(--text-dim);
-                             text-transform:uppercase;letter-spacing:.07em">Invoice Reconciliation</span>
+                             text-transform:uppercase;letter-spacing:.07em">Bill Reconciliation</span>
                 <span id="rec-banner" style="font-size:11px;font-weight:700;
                              color:<%= rec_has_err ? 'var(--danger)' : rec_all_ok ? 'var(--success)' : 'var(--warning)' %>">
                   <%= rec_has_err ? '✗ Issues found — check highlighted items' :
@@ -772,7 +772,7 @@
                           border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:4px;margin-bottom:2px">
                 <span>Component</span>
                 <span style="text-align:right;font-family:var(--mono)">From Items</span>
-                <span style="text-align:right;font-family:var(--mono)">From Invoice</span>
+                <span style="text-align:right;font-family:var(--mono)">From Bill</span>
                 <span></span>
               </div>
 
@@ -1308,11 +1308,11 @@
               </div>
               <% if total_mismatch %>
                 <div style="font-size:10px;margin-top:3px;color:var(--warning);font-family:var(--mono)">
-                  ⚠ Invoice says: Rs. <%= number_with_precision(extracted_grand_total, precision: 2, delimiter: ',') %>
+                  ⚠ Bill says: Rs. <%= number_with_precision(extracted_grand_total, precision: 2, delimiter: ',') %>
                 </div>
               <% elsif extracted_grand_total > 0 && extracted_grand_total != computed_grand_total %>
                 <div style="font-size:10px;margin-top:3px;color:var(--text-dim);font-family:var(--mono)">
-                  Invoice: Rs. <%= number_with_precision(extracted_grand_total, precision: 2, delimiter: ',') %>
+                  Bill: Rs. <%= number_with_precision(extracted_grand_total, precision: 2, delimiter: ',') %>
                 </div>
               <% end %>
             </div>
@@ -1339,11 +1339,11 @@
         <%# Submit bar %>
         <div style="display:flex;gap:12px;align-items:center;padding:20px 0">
           <button type="submit" class="btn btn-primary" id="save-btn-bottom">
-            <%= append_mode ? 'Append Items to Invoice →' : 'Save as Draft Invoice →' %>
+            <%= append_mode ? 'Append Items to Bill →' : 'Save as Draft Bill →' %>
           </button>
           <%= link_to 'Cancel', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
           <span style="font-size:12px;color:var(--text-dim)">
-            <%= append_mode ? 'New items will be appended to the existing draft invoice.' : 'Saved as draft. Confirm from the invoice detail page to update stock.' %>
+            <%= append_mode ? 'New items will be appended to the existing draft bill.' : 'Saved as draft. Confirm from the bill detail page to update stock.' %>
           </span>
         </div>
 

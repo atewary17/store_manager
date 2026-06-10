@@ -1,21 +1,21 @@
 <%# app/views/purchasing/digitise/index.html.erb %>
-<% content_for :title, "Digitise Invoices" %>
+<% content_for :title, "Digitise Bills" %>
 <% content_for :breadcrumb do %>
   <span style="color:var(--text-dim)">Purchasing</span>
   <span class="breadcrumb-sep">/</span>
-  <span class="breadcrumb-current">Scan Invoice</span>
+  <span class="breadcrumb-current">Scan Bill</span>
 <% end %>
 
 <div class="page-header">
   <div>
-    <div class="page-title">AI Invoice Digitisation</div>
-    <div class="page-subtitle">Upload a scanned purchase invoice — AI extracts all data automatically</div>
+    <div class="page-title">AI Bill Digitisation</div>
+    <div class="page-subtitle">Upload a scanned purchase bill — AI extracts all data automatically</div>
   </div>
   <%= link_to new_purchasing_digitise_path, class: 'btn btn-primary' do %>
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
     </svg>
-    Scan New Invoice
+    Scan New Bill
   <% end %>
 </div>
 
@@ -129,7 +129,7 @@
         <tr>
           <th>File</th>
           <th>Supplier (detected)</th>
-          <th>Invoice No.</th>
+          <th>Bill No.</th>
           <th>Date</th>
           <th>Status</th>
           <% if current_user.super_admin? %>
@@ -226,7 +226,7 @@
             <td>
               <%= link_to 'Open', purchasing_digitise_path(imp), class: 'btn btn-secondary btn-sm' %>
               <% if imp.purchase_invoice_id.present? %>
-                <%= link_to 'Invoice →', purchasing_purchase_invoice_path(imp.purchase_invoice_id),
+                <%= link_to 'Bill →', purchasing_purchase_invoice_path(imp.purchase_invoice_id),
                       class: 'btn btn-secondary btn-sm', style: 'color:var(--success)' %>
               <% end %>
             </td>
@@ -242,7 +242,7 @@
         <polyline points="14 2 14 8 20 8"/>
         <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
       </svg>
-      <p>No invoices digitised yet.</p>
+      <p>No bills digitised yet.</p>
       <div style="margin-top:16px">
         <%= link_to 'Scan your first invoice', new_purchasing_digitise_path, class: 'btn btn-primary' %>
       </div>

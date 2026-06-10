@@ -89,7 +89,7 @@
 
   <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
     <span style="color:<%= display_uom && display_uom != '—' ? 'var(--success)' : 'var(--text-dim)' %>"
-          title="<%= display_uom && display_uom != '—' ? 'From product table' : 'From invoice' %>">
+          title="<%= display_uom && display_uom != '—' ? 'From product table' : 'From bill' %>">
       <%= display_uom %>
     </span>
     <input type="hidden" name="parsed_data[items][<%= idx %>][unit]" value="<%= display_uom %>">
@@ -148,7 +148,7 @@
            style="text-align:center;font-family:var(--mono);width:50px;font-size:11px;
                   <%= from_catalogue ? 'color:var(--warning);border-color:rgba(245,158,11,0.45)' : '' %>"
            step="0.01" min="0" max="100" placeholder="—"
-           title="<%= from_catalogue ? 'From product catalogue' : 'From invoice' %>"
+           title="<%= from_catalogue ? 'From product catalogue' : 'From bill' %>"
            oninput="<%= pack_based ? "autoComputePack(#{idx})" : "revalidateRow(#{idx})" %>">
     <% if from_catalogue %>
       <div style="font-size:8px;color:var(--warning);font-family:var(--mono);margin-top:1px">catalogue</div>
@@ -190,7 +190,7 @@
       <button type="button"
               class="exclude-btn"
               onclick="excludeItem(<%= idx %>)"
-              title="Remove this item from the invoice"
+              title="Remove this item from the bill"
               style="background:none;border:none;cursor:pointer;padding:2px 4px;
                      color:var(--text-dim);font-size:15px;line-height:1;border-radius:3px;
                      transition:color .15s">×</button>

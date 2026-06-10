@@ -52,7 +52,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
 
     if @invoice.save
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        notice: 'Invoice saved as draft.'
+        notice: 'Bill saved as draft.'
     else
       load_form_data
       render :new, status: :unprocessable_entity
@@ -62,7 +62,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   # GET /purchasing/purchase_invoices/:id/edit
   def edit
     redirect_to purchasing_purchase_invoice_path(@invoice),
-      alert: 'Confirmed invoices cannot be edited.' if @invoice.confirmed?
+      alert: 'Confirmed bills cannot be edited.' if @invoice.confirmed?
     # Do NOT build blank rows on edit — existing items are already loaded.
     # User clicks "+ Add Row" button to add more items.
     load_form_data
@@ -72,12 +72,12 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def update
     if @invoice.confirmed?
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        alert: 'Confirmed invoices cannot be edited.' and return
+        alert: 'Confirmed bills cannot be edited.' and return
     end
 
     if @invoice.update(invoice_params)
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        notice: 'Invoice updated.'
+        notice: 'Bill updated.'
     else
       load_form_data
       render :edit, status: :unprocessable_entity
@@ -88,10 +88,10 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def destroy
     if @invoice.confirmed?
       redirect_to purchasing_purchase_invoices_path,
-        alert: 'Confirmed invoices cannot be deleted.' and return
+        alert: 'Confirmed bills cannot be deleted.' and return
     end
     @invoice.destroy
-    redirect_to purchasing_purchase_invoices_path, notice: 'Draft invoice deleted.'
+    redirect_to purchasing_purchase_invoices_path, notice: 'Draft bill deleted.'
   end
 
   # POST /purchasing/purchase_invoices/:id/confirm
@@ -121,7 +121,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
         Rails.logger.warn("[ActivityLog] purchase confirm #{@invoice.id}: #{e.message}")
       end
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        notice: "Invoice confirmed. Stock updated for #{@invoice.purchase_invoice_items.matched.count} product(s)."
+        notice: "Bill confirmed. Stock updated for #{@invoice.purchase_invoice_items.matched.count} product(s)."
     else
       redirect_to purchasing_purchase_invoice_path(@invoice),
         alert: "Could not confirm: #{@invoice.errors.full_messages.join(', ')}"
@@ -132,7 +132,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def update_due_date
     if @invoice.fully_paid?
       return redirect_to purchasing_purchase_invoice_path(@invoice),
-        alert: 'Invoice is fully paid — due date cannot be changed.'
+        alert: 'Bill is fully paid — due date cannot be changed.'
     end
 
     new_date = params.dig(:purchase_invoice, :payment_due_date).presence

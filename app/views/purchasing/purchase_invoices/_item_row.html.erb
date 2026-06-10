@@ -80,10 +80,21 @@
              name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][material_code]"
              value="<%= item.metadata['material_code'] %>">
 
+      <%# Single product field — search by name OR code (placeholder set per
+          supplier by applySupplierUiToRow). The product_search autocomplete
+          already matches on name, material_code, product_code and pack_code. %>
+      <%
+        hint_val = item.metadata['supplier_hint'].to_s
+        ph = case hint_val
+             when 'asian_paints'    then 'Material code or product name…'
+             when 'shalimar_paints' then 'Product code or product name…'
+             else                        'Search product by name…'
+             end
+      %>
       <div style="display:flex;align-items:center;gap:6px">
         <input type="text"
                class="product-search-input"
-               placeholder="Search by name, code…"
+               placeholder="<%= ph %>"
                autocomplete="off"
                value="<%= item.product ? [item.product.brand&.name, item.product.pack_code, item.product.description].compact_blank.join(' — ') : (item.metadata['raw_description'].presence || '') %>"
                style="flex:1;background:var(--bg);border:1px solid var(--border);
@@ -96,25 +107,6 @@
                        background:rgba(52,217,139,0.15);display:flex;align-items:center;
                        justify-content:center;font-size:12px;color:var(--success)">✓</span>
         <% end %>
-      </div>
-
-      <%# Material code field — shown for AP/Shalimar via applySupplierUiToRow() %>
-      <%
-        hint_val     = item.metadata['supplier_hint'].to_s
-        show_mc_field = hint_val == 'asian_paints' || hint_val == 'shalimar_paints'
-        mc_placeholder = hint_val == 'asian_paints' ? 'e.g. 67162022240' : 'e.g. 12601744/...'
-      %>
-      <div class="material-code-wrap"
-           style="margin-top:5px;<%= show_mc_field ? '' : 'display:none' %>">
-        <input type="text"
-               class="material-code-input"
-               placeholder="<%= mc_placeholder %>"
-               autocomplete="off"
-               value="<%= item.metadata['material_code'] %>"
-               oninput="syncMaterialCode(this)"
-               style="width:100%;background:var(--bg);border:1px solid var(--border);
-                      border-radius:4px;padding:5px 9px;color:var(--text);
-                      font-family:var(--mono);font-size:11px;outline:none">
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
