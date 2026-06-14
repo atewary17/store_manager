@@ -103,20 +103,24 @@ document.addEventListener("DOMContentLoaded", function() {
 
   var bar = initChart('chart-outflow-daily');
   if (bar) {
-    bar.setOption(Object.assign({}, EC_DARK, {
-      title: { text: 'Daily outflow', left: 'left', top: 8 },
-      tooltip: Object.assign({}, EC_DARK.tooltip, {
-        trigger: 'axis',
-        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
-      }),
-      xAxis: Object.assign({}, EC_DARK.xAxis, {
-        type: 'category', data: labels,
-        axisLabel: { color: EC_COLORS.textDim, fontSize: 10, rotate: labels.length > 14 ? 30 : 0 }
-      }),
-      yAxis: Object.assign({}, EC_DARK.yAxis, {
-        axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
-      }),
-      series: [{
+    var outAxes = function() {
+      return {
+        title: { text: 'Daily outflow', left: 'left', top: 8 },
+        tooltip: Object.assign({}, EC_DARK.tooltip, {
+          trigger: 'axis',
+          formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+        }),
+        xAxis: Object.assign({}, EC_DARK.xAxis, {
+          type: 'category', data: labels, boundaryGap: true,
+          axisLabel: { color: EC_COLORS.textDim, fontSize: 10, rotate: labels.length > 14 ? 30 : 0 }
+        }),
+        yAxis: Object.assign({}, EC_DARK.yAxis, {
+          axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
+        })
+      };
+    };
+    var outBar = function() {
+      return Object.assign({}, EC_DARK, outAxes(), { series: [{
         type: 'bar', data: data, name: 'Paid', barMaxWidth: 40,
         itemStyle: {
           borderRadius: [4,4,0,0],
@@ -126,8 +130,15 @@ document.addEventListener("DOMContentLoaded", function() {
         label: { show: data.length <= 10, position: 'top',
                  formatter: function(p) { return inr(p.value); },
                  color: EC_COLORS.textDim, fontSize: 10 }
-      }]
-    }));
+      }] });
+    };
+    var outPulse = function() {
+      var o = Object.assign({}, EC_DARK, outAxes(), { series: [pulseSeries(data, 'Paid', 'v')] });
+      o.xAxis = Object.assign({}, o.xAxis, { boundaryGap: false });
+      return o;
+    };
+    addPulseToggle(bar, { id: 'chart-outflow-daily', storageKey: 'cashOutflowMode',
+                          bar: outBar, pulse: outPulse });
   }
 
   var modeLabels = <%= raw @mode_labels.to_json %>;

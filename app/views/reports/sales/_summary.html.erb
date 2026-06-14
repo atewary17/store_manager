@@ -35,6 +35,28 @@
 <%# Chart %>
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
             padding:20px;margin-bottom:24px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <span style="font-size:13px;font-weight:500;color:var(--text)">Revenue over period</span>
+    <%# Bar / Pulse toggle %>
+    <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <button type="button" class="chart-mode-btn" data-mode="bar"
+              style="border:0;cursor:pointer;padding:5px 12px;font-size:12px;font-family:var(--mono);
+                     background:transparent;color:var(--text-dim);display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M18 20V10M12 20V4M6 20V14"/></svg>
+        Bars
+      </button>
+      <button type="button" class="chart-mode-btn" data-mode="pulse"
+              style="border:0;cursor:pointer;padding:5px 12px;font-size:12px;font-family:var(--mono);
+                     background:transparent;color:var(--text-dim);border-left:1px solid var(--border);
+                     display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"
+             viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12h4l2-6 4 12 2-7 2 1h6"/></svg>
+        Pulse
+      </button>
+    </div>
+  </div>
   <div id="chart-summary" style="height:280px"></div>
 </div>
 
@@ -108,25 +130,32 @@ document.addEventListener("DOMContentLoaded", function() {
   if (!chart) return;
   var labels = <%= raw @chart_labels.to_json %>;
   var data   = <%= raw @chart_data.to_json %>;
-  chart.setOption(Object.assign({}, EC_DARK, {
-    title: { text: 'Revenue over period', left: 'left', top: 8 },
-    tooltip: Object.assign({}, EC_DARK.tooltip, {
-      trigger: 'axis',
-      formatter: function(p) {
-        return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value);
-      }
-    }),
-    xAxis: Object.assign({}, EC_DARK.xAxis, {
-      type: 'category', data: labels,
-      axisLabel: { color: EC_COLORS.textDim, fontSize: 11, rotate: labels.length > 10 ? 30 : 0 }
-    }),
-    yAxis: Object.assign({}, EC_DARK.yAxis, {
-      type: 'value',
-      axisLabel: { formatter: function(v){ return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
-    }),
-    series: [{
-      type: 'bar', data: data, name: 'Revenue',
-      barMaxWidth: 48,
+  var KEY    = 'salesSummaryChartMode';
+
+  // Axes / tooltip shared by both views
+  function commonOption(mode) {
+    return Object.assign({}, EC_DARK, {
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis',
+        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+      }),
+      xAxis: Object.assign({}, EC_DARK.xAxis, {
+        type: 'category', data: labels,
+        boundaryGap: mode === 'bar',   // bars need gaps; the pulse line sits on the edges
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 11, rotate: labels.length > 10 ? 30 : 0 }
+      }),
+      yAxis: Object.assign({}, EC_DARK.yAxis, {
+        type: 'value',
+        axisLabel: { formatter: function(v){ return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
+      })
+    });
+  }
+
+  // Bar view
+  function barOption() {
+    var o = commonOption('bar');
+    o.series = [{
+      type: 'bar', data: data, name: 'Revenue', barMaxWidth: 48,
       itemStyle: {
         borderRadius: [4,4,0,0],
         color: new echarts.graphic.LinearGradient(0,0,0,1,
@@ -134,12 +163,49 @@ document.addEventListener("DOMContentLoaded", function() {
       },
       emphasis: { itemStyle: { color: '#6aadfb' } },
       label: {
-        show: data.length <= 12,
-        position: 'top',
+        show: data.length <= 12, position: 'top',
         formatter: function(p){ return inr(p.value); },
         color: EC_COLORS.textDim, fontSize: 10
       }
-    }]
-  }));
+    }];
+    return o;
+  }
+
+  // Pulse view — glowing heartbeat-style area line
+  function pulseOption() {
+    var o = commonOption('pulse');
+    o.series = [{
+      type: 'line', data: data, name: 'Revenue',
+      smooth: true, showSymbol: false, symbol: 'circle', symbolSize: 7,
+      lineStyle: { width: 3, color: '#34d98b', cap: 'round',
+                   shadowBlur: 12, shadowColor: 'rgba(52,217,139,0.6)' },
+      itemStyle: { color: '#34d98b', borderColor: EC_COLORS.surface, borderWidth: 2 },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0,0,0,1,
+          [{offset:0, color:'rgba(52,217,139,0.35)'},{offset:1, color:'rgba(52,217,139,0.01)'}])
+      },
+      emphasis: { focus: 'series' }
+    }];
+    return o;
+  }
+
+  function render(mode) {
+    try { localStorage.setItem(KEY, mode); } catch (e) {}
+    chart.setOption(mode === 'pulse' ? pulseOption() : barOption(), true);
+    document.querySelectorAll('.chart-mode-btn').forEach(function(b) {
+      var on = b.getAttribute('data-mode') === mode;
+      b.style.background = on ? 'var(--accent-dim)' : 'transparent';
+      b.style.color      = on ? 'var(--accent)'     : 'var(--text-dim)';
+    });
+  }
+
+  document.querySelectorAll('.chart-mode-btn').forEach(function(b) {
+    b.addEventListener('click', function() { render(b.getAttribute('data-mode')); });
+  });
+
+  var saved = 'bar';
+  try { saved = localStorage.getItem(KEY) || 'bar'; } catch (e) {}
+  render(saved);
+  window.addEventListener('resize', function() { chart.resize(); });
 });
 </script>

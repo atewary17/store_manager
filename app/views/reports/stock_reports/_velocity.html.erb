@@ -85,26 +85,30 @@ document.addEventListener("DOMContentLoaded", function() {
   var slowLabels = <%= raw @slow_labels.to_json %>;
   var slowData   = <%= raw @slow_data.to_json %>;
 
-  function hBar(id, title, labels, data, color) {
+  function hBar(id, title, labels, data, color, storageKey) {
     var chart = initChart(id);
     if (!chart || !labels.length) return;
-    chart.setOption(Object.assign({}, EC_DARK, {
-      title: { text: title, left: 'left', top: 8 },
-      grid: { containLabel: true, left: 120, right: 24, top: 48, bottom: 16 },
-      tooltip: Object.assign({}, EC_DARK.tooltip, {
-        trigger: 'axis',
-        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + p[0].value + ' units'; }
-      }),
-      xAxis: Object.assign({}, EC_DARK.xAxis, {
-        type: 'value',
-        axisLabel: { color: EC_COLORS.textDim, fontSize: 10 }
-      }),
-      yAxis: Object.assign({}, EC_DARK.yAxis, {
-        type: 'category', data: labels,
-        axisLabel: { color: EC_COLORS.textDim, fontSize: 10, width: 110, overflow: 'truncate' },
-        splitLine: { show: false }
-      }),
-      series: [{
+    var axes = function() {
+      return {
+        title: { text: title, left: 'left', top: 8 },
+        grid: { containLabel: true, left: 120, right: 24, top: 48, bottom: 16 },
+        tooltip: Object.assign({}, EC_DARK.tooltip, {
+          trigger: 'axis',
+          formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + p[0].value + ' units'; }
+        }),
+        xAxis: Object.assign({}, EC_DARK.xAxis, {
+          type: 'value',
+          axisLabel: { color: EC_COLORS.textDim, fontSize: 10 }
+        }),
+        yAxis: Object.assign({}, EC_DARK.yAxis, {
+          type: 'category', data: labels,
+          axisLabel: { color: EC_COLORS.textDim, fontSize: 10, width: 110, overflow: 'truncate' },
+          splitLine: { show: false }
+        })
+      };
+    };
+    var barO = function() {
+      return Object.assign({}, EC_DARK, axes(), { series: [{
         type: 'bar', data: data, name: 'Qty', barMaxWidth: 28,
         itemStyle: {
           borderRadius: [0,4,4,0],
@@ -112,11 +116,15 @@ document.addEventListener("DOMContentLoaded", function() {
             [{offset:0,color:color},{offset:1,color:color+'44'}])
         },
         label: { show: true, position: 'right', color: EC_COLORS.textDim, fontSize: 10 }
-      }]
-    }));
+      }] });
+    };
+    var pulseO = function() {
+      return Object.assign({}, EC_DARK, axes(), { series: [pulseSeries(data, 'Qty', 'h')] });
+    };
+    addPulseToggle(chart, { id: id, storageKey: storageKey, bar: barO, pulse: pulseO });
   }
 
-  hBar('chart-velocity-fast', 'Top 10 fast-moving products', fastLabels, fastData, '#34d98b');
-  hBar('chart-velocity-slow', 'Bottom 10 slow-moving products', slowLabels, slowData, '#f7614f');
+  hBar('chart-velocity-fast', 'Top 10 fast-moving products', fastLabels, fastData, '#34d98b', 'stockVelocityFastMode');
+  hBar('chart-velocity-slow', 'Bottom 10 slow-moving products', slowLabels, slowData, '#f7614f', 'stockVelocitySlowMode');
 });
 </script>

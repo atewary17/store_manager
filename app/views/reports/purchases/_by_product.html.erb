@@ -92,28 +92,39 @@ document.addEventListener("DOMContentLoaded", function() {
     new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#f7c34f'},{offset:1,color:'#7a5c0a'}]),
     new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#f7614f'},{offset:1,color:'#7a1a0a'}])
   ];
-  chart.setOption(Object.assign({}, EC_DARK, {
-    title: { text: 'Top 5 products by cost', left: 'left', top: 8 },
-    tooltip: Object.assign({}, EC_DARK.tooltip, {
-      trigger: 'axis', axisPointer: { type: 'shadow' },
-      formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
-    }),
-    xAxis: Object.assign({}, EC_DARK.xAxis, {
-      type: 'category', data: labels,
-      axisLabel: { color: EC_COLORS.textDim, fontSize: 10,
-                   formatter: function(v) { return v.length > 16 ? v.slice(0,16)+'…' : v; } }
-    }),
-    yAxis: Object.assign({}, EC_DARK.yAxis, {
-      axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
-    }),
-    series: [{
+  function axes() {
+    return {
+      title: { text: 'Top 5 products by cost', left: 'left', top: 8 },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+      }),
+      xAxis: Object.assign({}, EC_DARK.xAxis, {
+        type: 'category', data: labels, boundaryGap: true,
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 10,
+                     formatter: function(v) { return v.length > 16 ? v.slice(0,16)+'…' : v; } }
+      }),
+      yAxis: Object.assign({}, EC_DARK.yAxis, {
+        axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
+      })
+    };
+  }
+  function barOpt() {
+    return Object.assign({}, EC_DARK, axes(), { series: [{
       type: 'bar', data: data, name: 'Cost', barMaxWidth: 56,
       itemStyle: { borderRadius: [4,4,0,0],
                    color: function(p) { return palette[p.dataIndex % palette.length]; } },
       label: { show: true, position: 'top',
                formatter: function(p) { return inr(p.value); },
                color: EC_COLORS.text, fontSize: 11 }
-    }]
-  }));
+    }] });
+  }
+  function pulseOpt() {
+    var o = Object.assign({}, EC_DARK, axes(), { series: [pulseSeries(data, 'Cost', 'v')] });
+    o.xAxis = Object.assign({}, o.xAxis, { boundaryGap: false });
+    return o;
+  }
+  addPulseToggle(chart, { id: 'chart-purchase-by-product', storageKey: 'purchByProductMode',
+                          bar: barOpt, pulse: pulseOpt });
 });
 </script>

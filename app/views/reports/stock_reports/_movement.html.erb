@@ -98,22 +98,26 @@ document.addEventListener("DOMContentLoaded", function() {
   var bar = initChart('chart-movement-daily');
   if (!bar) return;
 
-  bar.setOption(Object.assign({}, EC_DARK, {
-    title: { text: 'Daily net stock movement', left: 'left', top: 8 },
-    tooltip: Object.assign({}, EC_DARK.tooltip, {
-      trigger: 'axis',
-      formatter: function(p) {
-        return '<b>' + p[0].name + '</b><br/>' + (p[0].value >= 0 ? '+' : '') + p[0].value;
-      }
-    }),
-    xAxis: Object.assign({}, EC_DARK.xAxis, {
-      type: 'category', data: labels,
-      axisLabel: { color: EC_COLORS.textDim, fontSize: 10, rotate: labels.length > 14 ? 30 : 0 }
-    }),
-    yAxis: Object.assign({}, EC_DARK.yAxis, {
-      axisLabel: { color: EC_COLORS.textDim, fontSize: 10 }
-    }),
-    series: [{
+  function axes() {
+    return {
+      title: { text: 'Daily net stock movement', left: 'left', top: 8 },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis',
+        formatter: function(p) {
+          return '<b>' + p[0].name + '</b><br/>' + (p[0].value >= 0 ? '+' : '') + p[0].value;
+        }
+      }),
+      xAxis: Object.assign({}, EC_DARK.xAxis, {
+        type: 'category', data: labels, boundaryGap: true,
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 10, rotate: labels.length > 14 ? 30 : 0 }
+      }),
+      yAxis: Object.assign({}, EC_DARK.yAxis, {
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 10 }
+      })
+    };
+  }
+  function barOpt() {
+    return Object.assign({}, EC_DARK, axes(), { series: [{
       type: 'bar', data: data, name: 'Net Qty', barMaxWidth: 40,
       itemStyle: {
         borderRadius: [4,4,0,0],
@@ -121,7 +125,14 @@ document.addEventListener("DOMContentLoaded", function() {
           return params.value >= 0 ? 'rgba(52,217,139,0.8)' : 'rgba(247,97,79,0.8)';
         }
       }
-    }]
-  }));
+    }] });
+  }
+  function pulseOpt() {
+    var o = Object.assign({}, EC_DARK, axes(), { series: [pulseSeries(data, 'Net Qty', 'v')] });
+    o.xAxis = Object.assign({}, o.xAxis, { boundaryGap: false });
+    return o;
+  }
+  addPulseToggle(bar, { id: 'chart-movement-daily', storageKey: 'stockMovementMode',
+                        bar: barOpt, pulse: pulseOpt });
 });
 </script>

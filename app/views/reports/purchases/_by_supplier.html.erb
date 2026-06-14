@@ -91,29 +91,39 @@ document.addEventListener("DOMContentLoaded", function() {
   var labels  = <%= raw @chart_labels.to_json %>;
   var data    = <%= raw @chart_data.to_json %>;
   var palette = ['#9b7cf7','#4f8ef7','#34d98b','#f7c34f','#f7614f'];
-  chart.setOption(Object.assign({}, EC_DARK, {
-    title: { text: 'Top 5 suppliers by spend', left: 'left', top: 8 },
-    grid: { left: 140, right: 80, top: 48, bottom: 16, containLabel: false },
-    tooltip: Object.assign({}, EC_DARK.tooltip, {
-      trigger: 'axis', axisPointer: { type: 'shadow' },
-      formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
-    }),
-    xAxis: { type: 'value',
-             axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 },
-             splitLine: { lineStyle: { color: EC_COLORS.border, type: 'dashed' } } },
-    yAxis: { type: 'category', data: labels.slice().reverse(),
-             axisLabel: { color: EC_COLORS.text, fontSize: 12,
-                          formatter: function(v) { return v.length > 18 ? v.slice(0,18)+'…' : v; } },
-             axisLine: { show: false }, axisTick: { show: false } },
-    series: [{
-      type: 'bar', data: data.slice().reverse(), name: 'Spend',
-      barMaxWidth: 32,
+  var revL = labels.slice().reverse();
+  var revD = data.slice().reverse();
+  function axes() {
+    return {
+      title: { text: 'Top 5 suppliers by spend', left: 'left', top: 8 },
+      grid: { left: 140, right: 80, top: 48, bottom: 16, containLabel: false },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+      }),
+      xAxis: { type: 'value',
+               axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 },
+               splitLine: { lineStyle: { color: EC_COLORS.border, type: 'dashed' } } },
+      yAxis: { type: 'category', data: revL,
+               axisLabel: { color: EC_COLORS.text, fontSize: 12,
+                            formatter: function(v) { return v.length > 18 ? v.slice(0,18)+'…' : v; } },
+               axisLine: { show: false }, axisTick: { show: false } }
+    };
+  }
+  function barOpt() {
+    return Object.assign({}, EC_DARK, axes(), { series: [{
+      type: 'bar', data: revD, name: 'Spend', barMaxWidth: 32,
       itemStyle: { borderRadius: [0,4,4,0],
                    color: function(p) { return palette[p.dataIndex % palette.length]; } },
       label: { show: true, position: 'right',
                formatter: function(p) { return inr(p.value); },
                color: EC_COLORS.text, fontSize: 11 }
-    }]
-  }));
+    }] });
+  }
+  function pulseOpt() {
+    return Object.assign({}, EC_DARK, axes(), { series: [pulseSeries(revD, 'Spend', 'h')] });
+  }
+  addPulseToggle(chart, { id: 'chart-by-supplier', storageKey: 'purchBySupplierMode',
+                          bar: barOpt, pulse: pulseOpt });
 });
 </script>
