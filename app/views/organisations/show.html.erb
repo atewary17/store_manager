@@ -238,6 +238,27 @@
               </div>
             </div>
           </label>
+          <%
+            _fy_sy = Date.today.month >= 4 ? Date.today.year : Date.today.year - 1
+            fy2 = (_fy_sy % 100).to_s.rjust(2, '0')
+            fy4 = fy2 + ((_fy_sy + 1) % 100).to_s.rjust(2, '0')
+          %>
+          <label class="fmt-pill <%= inv_format == 'prefix_fy2_serial' ? 'active' : '' %>">
+            <input type="radio" name="inv_format" value="prefix_fy2_serial"
+                   <%= 'checked' if inv_format == 'prefix_fy2_serial' %>>
+            <div>
+              <div class="fmt-pill-title">Prefix + FY (2-digit) + Serial</div>
+              <div class="fmt-pill-eg">e.g. IPH&#8209;<%= fy2 %>&#8209;00001</div>
+            </div>
+          </label>
+          <label class="fmt-pill <%= inv_format == 'prefix_fy4_serial' ? 'active' : '' %>">
+            <input type="radio" name="inv_format" value="prefix_fy4_serial"
+                   <%= 'checked' if inv_format == 'prefix_fy4_serial' %>>
+            <div>
+              <div class="fmt-pill-title">Prefix + FY (4-digit) + Serial</div>
+              <div class="fmt-pill-eg">e.g. IPH&#8209;<%= fy4 %>&#8209;00001</div>
+            </div>
+          </label>
           <label class="fmt-pill <%= inv_format == 'prefix_serial' ? 'active' : '' %>">
             <input type="radio" name="inv_format" value="prefix_serial"
                    <%= 'checked' if inv_format == 'prefix_serial' %>>
@@ -563,10 +584,17 @@
     const fmt     = document.querySelector('.fmt-pill input[type=radio]:checked')?.value || 'serial_only';
     const serial  = String(start).padStart(5, '0');
     const today   = '<%= Date.today.strftime('%d%m%y') %>';
+    <% _sy = Date.today.month >= 4 ? Date.today.year : Date.today.year - 1 %>
+    const fy2     = '<%= (_sy % 100).to_s.rjust(2, '0') %>';
+    const fy4     = '<%= (_sy % 100).to_s.rjust(2, '0') + ((_sy + 1) % 100).to_s.rjust(2, '0') %>';
     let   preview = '';
 
     if (fmt === 'prefix_date_serial') {
       preview = prefix ? `${prefix}-${today}-${serial}` : `${today}-${serial}`;
+    } else if (fmt === 'prefix_fy2_serial') {
+      preview = prefix ? `${prefix}-${fy2}-${serial}` : `${fy2}-${serial}`;
+    } else if (fmt === 'prefix_fy4_serial') {
+      preview = prefix ? `${prefix}-${fy4}-${serial}` : `${fy4}-${serial}`;
     } else if (fmt === 'prefix_serial') {
       preview = prefix ? `${prefix}-${serial}` : serial;
     } else {

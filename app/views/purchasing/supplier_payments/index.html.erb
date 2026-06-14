@@ -42,44 +42,43 @@
 </div>
 
 <%# ── Filters ── %>
-<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px">
+<%= form_with url: purchasing_supplier_payments_path, method: :get, local: true,
+      html: { id: 'sp-filter-form',
+              style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px' } do |f| %>
   <div style="position:relative;flex:1;min-width:180px;max-width:260px">
     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
-         viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
+         viewBox="0 0 24 24" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);
          color:var(--text-dim);pointer-events:none">
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
-    <input type="text" id="sp-search" value="<%= params[:q] %>"
+    <input type="text" id="sp-search" name="q" value="<%= params[:q] %>"
            placeholder="Payment no. or reference..."
-           style="width:100%;padding:8px 12px 8px 30px;background:var(--surface);
-                  border:1px solid var(--border);border-radius:6px;color:var(--text);
-                  font-size:13px;outline:none;box-sizing:border-box">
+           class="form-control" style="padding-left:32px">
   </div>
 
-  <%= form_with url: purchasing_supplier_payments_path, method: :get, local: true,
-        id: 'sp-filter-form', style: 'display:contents' do |f| %>
-    <input type="hidden" name="q" id="sp-q-hidden" value="<%= params[:q] %>">
-    <%= f.select :supplier_id,
-          options_from_collection_for_select(@suppliers, :id, :name, params[:supplier_id]),
-          { include_blank: 'All Suppliers' },
-          { class: 'form-control', style: 'width:180px', onchange: 'this.form.submit()' } %>
-    <%= f.select :payment_mode,
-          @payment_modes.map { |m| [m.humanize, m] },
-          { include_blank: 'All Modes' },
-          { class: 'form-control', style: 'width:150px', onchange: 'this.form.submit()' } %>
-    <div style="display:flex;align-items:center;gap:6px">
-      <input type="date" name="from_date" value="<%= params[:from_date] %>"
-             class="form-control" style="width:140px" onchange="this.form.submit()">
-      <span style="color:var(--text-dim);font-size:12px">to</span>
-      <input type="date" name="to_date" value="<%= params[:to_date] %>"
-             class="form-control" style="width:140px" onchange="this.form.submit()">
-    </div>
-    <% if params[:supplier_id].present? || params[:payment_mode].present? ||
-          params[:from_date].present? || params[:to_date].present? || params[:q].present? %>
-      <%= link_to 'Clear', purchasing_supplier_payments_path, class: 'btn btn-secondary btn-sm' %>
-    <% end %>
+  <%= f.select :supplier_id,
+        options_from_collection_for_select(@suppliers, :id, :name, params[:supplier_id]),
+        { include_blank: 'All Suppliers' },
+        { class: 'form-control', style: 'width:180px', onchange: 'this.form.submit()' } %>
+
+  <%= f.select :payment_mode,
+        @payment_modes.map { |m| [m.humanize, m] },
+        { include_blank: 'All Modes' },
+        { class: 'form-control', style: 'width:150px', onchange: 'this.form.submit()' } %>
+
+  <div style="display:flex;align-items:center;gap:6px">
+    <input type="date" name="from_date" value="<%= params[:from_date] %>"
+           class="form-control" style="width:140px" onchange="this.form.submit()">
+    <span style="color:var(--text-dim);font-size:12px">to</span>
+    <input type="date" name="to_date" value="<%= params[:to_date] %>"
+           class="form-control" style="width:140px" onchange="this.form.submit()">
+  </div>
+
+  <% if params[:supplier_id].present? || params[:payment_mode].present? ||
+        params[:from_date].present? || params[:to_date].present? || params[:q].present? %>
+    <%= link_to 'Clear', purchasing_supplier_payments_path, class: 'btn btn-secondary btn-sm' %>
   <% end %>
-</div>
+<% end %>
 
 <% if @selected_supplier %>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;color:var(--text-dim)">
@@ -202,12 +201,11 @@
 <script>
   (function() {
     var inp = document.getElementById('sp-search');
-    var hidden = document.getElementById('sp-q-hidden');
     if (!inp) return;
     var t;
     inp.addEventListener('input', function() {
       clearTimeout(t);
-      t = setTimeout(function() { hidden.value = inp.value; document.getElementById('sp-filter-form').submit(); }, 400);
+      t = setTimeout(function() { document.getElementById('sp-filter-form').submit(); }, 400);
     });
   })();
 </script>

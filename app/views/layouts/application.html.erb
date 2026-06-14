@@ -1238,13 +1238,6 @@
           <div class="user-name"><%= current_user.full_name %></div>
           <div class="user-role" style="display:flex;align-items:center;gap:5px">
             <%= current_user.role.humanize %>
-            <% ai_pref = current_user.preferences&.dig('ai_provider').presence %>
-            <% provider = ai_pref || ENV['INVOICE_AI_PROVIDER'] || 'gemini' %>
-            <span style="font-size:9px;padding:0px 4px;border-radius:2px;
-                         background:var(--accent-dim);color:var(--accent);
-                         font-family:var(--mono);font-weight:600">
-              <%= provider.upcase %>
-            </span>
           </div>
         </div>
         <svg width="11" height="11" fill="none" stroke="currentColor"

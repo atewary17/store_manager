@@ -5,7 +5,7 @@ module Suppliers
       def display_name;   'Asian Paints Limited'; end
       def icon_initials;  'AP'; end
       def icon_colour;    '#ef4444'; end
-      def tagline;        'Optimised column mapping'; end
+      def tagline;        'Tailored for Asian Paints bills'; end
       def column_set;     :standard; end
       def display_order;  1; end
       def aliases;        ['asian paints', 'ap']; end
