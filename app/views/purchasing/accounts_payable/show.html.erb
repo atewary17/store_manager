@@ -27,7 +27,7 @@
 <%# Summary cards %>
 <div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
   <div class="stat-card">
-    <div class="stat-label">Total Invoiced</div>
+    <div class="stat-label">Total Billed</div>
     <div class="stat-value" style="font-size:18px">
       ₹ <%= number_with_delimiter(@total_invoiced) %>
     </div>
@@ -60,7 +60,7 @@
     <table>
       <thead>
         <tr>
-          <th>Invoice #</th>
+          <th>Bill #</th>
           <th>Date</th>
           <th>Due Date</th>
           <th style="text-align:right">Total (₹)</th>

@@ -1,11 +1,11 @@
 <%# app/views/purchasing/digitise/new.html.erb %>
-<% content_for :title, "Scan Invoice" %>
+<% content_for :title, "Scan Bill" %>
 <% content_for :breadcrumb do %>
   <span style="color:var(--text-dim)">Purchasing</span>
   <span class="breadcrumb-sep">/</span>
   <%= link_to 'Digitise', purchasing_digitise_index_path, style: "color:var(--text-dim)" %>
   <span class="breadcrumb-sep">/</span>
-  <span class="breadcrumb-current">Scan Invoice</span>
+  <span class="breadcrumb-current">Scan Bill</span>
 <% end %>
 
 <style>
@@ -346,7 +346,7 @@
 
 <div class="page-header">
   <div>
-    <div class="page-title">Scan a Purchase Invoice</div>
+    <div class="page-title">Scan a Purchase Bill</div>
     <div class="page-subtitle">Upload a PDF or one/more photos — AI extracts all data in ~15 seconds</div>
   </div>
   <%= link_to '← All Scans', purchasing_digitise_index_path, class: 'btn btn-secondary' %>
@@ -398,7 +398,7 @@
     <div>
       <div class="form-card" style="margin-bottom:16px">
         <div class="form-section">
-          <div class="form-section-title">Upload Invoice</div>
+          <div class="form-section-title">Upload Bill</div>
 
           <%# Drop zone %>
           <div id="drop-zone"
@@ -421,7 +421,7 @@
               PDF · JPG · PNG · WEBP — up to 10 MB each
             </div>
             <div style="font-size:11px;color:var(--accent);font-weight:500">
-              Select multiple images for multi-page invoices
+              Select multiple images for multi-page bills
             </div>
             <div id="file-chosen" style="margin-top:14px;display:none"></div>
           </div>
@@ -482,9 +482,9 @@
           <div style="display:flex;flex-direction:column;gap:14px">
             <% [
               ['1', 'Select supplier', 'Pick your supplier above for a tailored extraction prompt.', 'var(--accent)'],
-              ['2', 'Upload invoice',  'Drop a PDF or photo — multi-page and multi-image both work.', 'var(--warning)'],
+              ['2', 'Upload bill',  'Drop a PDF or photo — multi-page and multi-image both work.', 'var(--warning)'],
               ['3', 'AI reads it',     'Groq Llama 4 Scout vision extracts every line item from the image.', 'var(--success)'],
-              ['4', 'Review & save',   'Check values, fix errors, then save as a draft purchase invoice.', 'var(--text-dim)'],
+              ['4', 'Review & save',   'Check values, fix errors, then save as a draft purchase bill.', 'var(--text-dim)'],
             ].each do |num, title, desc, colour| %>
               <div style="display:flex;gap:12px;align-items:flex-start">
                 <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.05);
@@ -504,7 +504,7 @@
 
     <%# RIGHT — scanner animation panel %>
     <div class="scanner-panel">
-      <div class="scanner-panel-title">AI Invoice Scanner</div>
+      <div class="scanner-panel-title">AI Bill Scanner</div>
 
       <div class="scanner-wrap">
         <div class="scanner-body">
@@ -546,7 +546,7 @@
         </div>
       </div>
 
-      <div class="scan-status">Scanning invoice…</div>
+      <div class="scan-status">Scanning bill…</div>
 
       <div class="scanner-tags" style="margin-top:16px">
         <span class="scanner-tag"

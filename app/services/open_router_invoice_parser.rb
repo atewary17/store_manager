@@ -108,8 +108,8 @@ class OpenRouterInvoiceParser
   private
 
   def prompt
-    # Reuse exact same prompt as Groq parser for consistent output
-    GroqInvoiceParser::PROMPT
+    # Generic invoice-scan prompt (same one Groq uses when no supplier is known).
+    InvoiceScan::PromptLoader.for_supplier(nil)
   end
 
   def error_result(msg)

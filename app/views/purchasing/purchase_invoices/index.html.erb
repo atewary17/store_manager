@@ -1,14 +1,14 @@
 <%# app/views/purchasing/purchase_invoices/index.html.erb %>
-<% content_for :title, "Purchase Invoices" %>
+<% content_for :title, "Purchase Bills" %>
 <% content_for :breadcrumb do %>
   <span style="color:var(--text-dim)">Purchasing</span>
   <span class="breadcrumb-sep">/</span>
-  <span class="breadcrumb-current">Invoices</span>
+  <span class="breadcrumb-current">Bills</span>
 <% end %>
 
 <div class="page-header">
   <div>
-    <div class="page-title">Purchase Invoices</div>
+    <div class="page-title">Purchase Bills</div>
     <div class="page-subtitle"><%= @organisation.name %></div>
   </div>
   <div class="actions">
@@ -16,7 +16,7 @@
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
-      New Invoice
+      New Bill
     <% end %>
   </div>
 </div>
@@ -48,9 +48,9 @@
     <table>
       <thead>
         <tr>
-          <th>Invoice #</th>
+          <th>Bill #</th>
           <th>Supplier</th>
-          <th>Invoice Date</th>
+          <th>Bill Date</th>
           <th>Delivery Date</th>
           <th style="text-align:right">Total (₹)</th>
           <th>Items</th>
@@ -106,7 +106,7 @@
                         method: :delete,
                         class: 'btn btn-danger btn-sm',
                         form: { style: 'margin:0;display:inline' },
-                        data: { turbo_confirm: 'Delete this draft invoice?' } %>
+                        data: { turbo_confirm: 'Delete this draft bill?' } %>
                 <% end %>
               </div>
             </td>
@@ -116,7 +116,7 @@
     </table>
   <% else %>
     <div class="empty-state">
-      <p>No purchase invoices yet.</p>
+      <p>No purchase bills yet.</p>
       <div style="margin-top:16px">
         <%= link_to 'Create First Invoice', new_purchasing_purchase_invoice_path,
               class: 'btn btn-primary' %>
