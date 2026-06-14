@@ -8,6 +8,44 @@
   <span class="breadcrumb-current"><%= @customer.name %></span>
 <% end %>
 
+<style>
+  /* ── Dark outline around table containers ── */
+  .ledger-wrap { border: 2px solid #000; box-shadow: 0 2px 14px rgba(0,0,0,0.28); }
+
+  /* ── Ledger gridded table ── */
+  .ledger-table { width: 100%; border-collapse: collapse; }
+  .ledger-table thead th { background: var(--bg); }
+  .ledger-table th,
+  .ledger-table td { border: 1px solid var(--border); }
+  .ledger-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+  .ledger-table tbody tr:hover { background: rgba(79,142,247,0.05); }
+
+  /* ── Section header bar ── */
+  .ledger-section-head {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg);
+  }
+  .ledger-section-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim); font-weight: 600;
+  }
+
+  /* ── Payment timeline cards ── */
+  .pay-list { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; }
+  .pay-entry {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 14px 16px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--bg);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .pay-entry:hover { border-color: rgba(52,217,139,0.45); box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
+  .pay-dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--success);
+    flex-shrink: 0; margin-top: 6px; box-shadow: 0 0 0 4px rgba(52,217,139,0.12);
+  }
+</style>
+
 <div class="page-header">
   <div>
     <div class="page-title"><%= @customer.name %></div>
@@ -49,16 +87,12 @@
 </div>
 
 <%# ── Invoices table ── %>
-<div class="table-wrap" style="margin-bottom:28px">
-  <div style="padding:14px 20px;border-bottom:1px solid var(--border);
-              display:flex;justify-content:space-between;align-items:center">
-    <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
-                 text-transform:uppercase;color:var(--text-dim)">
-      Invoices (<%= @invoices.size %>)
-    </span>
+<div class="table-wrap ledger-wrap" style="margin-bottom:28px">
+  <div class="ledger-section-head">
+    <span class="ledger-section-title">Invoices (<%= @invoices.size %>)</span>
   </div>
   <% if @invoices.any? %>
-    <table>
+    <table class="ledger-table">
       <thead>
         <tr>
           <th>Invoice #</th>
@@ -114,22 +148,16 @@
 </div>
 
 <%# ── Payment timeline ── %>
-<div class="table-wrap">
-  <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
-    <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;
-                 text-transform:uppercase;color:var(--text-dim)">
-      Payment Timeline (<%= @payments.size %>)
-    </span>
+<div class="table-wrap ledger-wrap">
+  <div class="ledger-section-head">
+    <span class="ledger-section-title">Payment Timeline (<%= @payments.size %>)</span>
   </div>
   <% if @payments.any? %>
-    <div style="padding:8px 0">
+    <div class="pay-list">
       <% @payments.each do |pmt| %>
-        <div style="display:flex;align-items:flex-start;gap:16px;padding:12px 20px;
-                    border-bottom:1px solid var(--border)">
+        <div class="pay-entry">
           <%# Timeline dot %>
-          <div style="flex-shrink:0;margin-top:3px">
-            <div style="width:8px;height:8px;border-radius:50%;background:var(--success);margin:4px 0"></div>
-          </div>
+          <div class="pay-dot"></div>
           <div style="flex:1">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
               <div>

@@ -78,7 +78,9 @@ class Organisation < ApplicationRecord
   # Uses SELECT FOR UPDATE on this org's row so two simultaneous confirms on
   # the SAME org cannot draw the same counter. Different orgs lock different
   # rows, so they are completely independent.
-  INVOICE_FORMATS = %w[prefix_date_serial prefix_serial serial_only].freeze
+  INVOICE_FORMATS = %w[
+    prefix_date_serial prefix_fy2_serial prefix_fy4_serial prefix_serial serial_only
+  ].freeze
 
   def next_invoice_number!
     with_lock do
@@ -124,16 +126,31 @@ class Organisation < ApplicationRecord
     serial  = counter.to_s.rjust(5, '0')
     prefix  = settings['invoice_number_prefix'].to_s.strip.upcase
     fmt     = settings['invoice_number_format'].presence || 'serial_only'
+    fy2, fy4 = financial_year_parts
 
     case fmt
     when 'prefix_date_serial'
       date = Date.today.strftime('%d%m%y')
-      prefix.present? ? "#{prefix}-#{date}-#{serial}" : "#{date}-#{serial}"
+      [prefix.presence, date, serial].compact.join('-')
+    when 'prefix_fy2_serial'   # e.g. INV-26-00001
+      [prefix.presence, fy2, serial].compact.join('-')
+    when 'prefix_fy4_serial'   # e.g. INV-2627-00001
+      [prefix.presence, fy4, serial].compact.join('-')
     when 'prefix_serial'
       prefix.present? ? "#{prefix}-#{serial}" : serial
     else
       serial
     end
+  end
+
+  # Indian financial year (1 Apr – 31 Mar) parts for the given date.
+  #   June 2026  → ["26", "2627"]      Feb 2027 → ["26", "2627"]
+  # Returns [fy2, fy4]: 2-digit start year, and 2-digit start+end years.
+  def financial_year_parts(date = Date.today)
+    start_year = date.month >= 4 ? date.year : date.year - 1
+    fy2 = (start_year % 100).to_s.rjust(2, '0')
+    fy4 = fy2 + ((start_year + 1) % 100).to_s.rjust(2, '0')
+    [fy2, fy4]
   end
 
   # Keep the :gstin column (added by migration 20260326000002) in sync with

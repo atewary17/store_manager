@@ -932,6 +932,19 @@
           var m = q(tr,'.shade-meta');
           if (m) m.textContent = [s.brand, s.colour_family].filter(Boolean).join(' . ');
         });
+
+      // User-driven shade: as the user types, keep their value as the shade name
+      // and drop any previous catalogue link. If they pick from the dropdown,
+      // onPick (above) overwrites these with the system shade's details.
+      var shadeInput = shadeWrap.querySelector('.shade-search-input');
+      if (shadeInput) shadeInput.addEventListener('input', function () {
+        q(tr,'.shade-id-input').value      = '';                 // not a catalogue match
+        q(tr,'.shade-name-input').value    = this.value.trim();  // keep typed shade
+        q(tr,'.shade-code-input').value    = '';
+        q(tr,'.colour-family-input').value = '';
+        var m = q(tr,'.shade-meta');
+        if (m) m.textContent = '';
+      });
     }
     var baseWrap = tr.querySelector('.base-ac-wrap');
     if (baseWrap) {

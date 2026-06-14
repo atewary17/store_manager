@@ -115,8 +115,15 @@ class SalesInvoiceItem < ApplicationRecord
     end
   end
 
+  # A paint line is valid if it is EITHER linked to a catalogue shade OR carries
+  # a user-typed shade (name/code). This makes the shade field user-driven: the
+  # system populates details when it knows the shade, otherwise the typed value
+  # is kept. Only a truly empty shade is rejected.
   def paint_item_has_shade
-    errors.add(:shade_catalogue, 'must be selected for paint items') if shade_catalogue_id.blank?
+    has_catalogue = shade_catalogue_id.present?
+    has_typed     = metadata['shade_name'].to_s.strip.present? ||
+                    metadata['shade_code'].to_s.strip.present?
+    errors.add(:base, 'Enter a shade for paint items') unless has_catalogue || has_typed
   end
 
   def product_item_has_product

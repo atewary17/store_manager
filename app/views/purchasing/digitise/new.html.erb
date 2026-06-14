@@ -483,7 +483,7 @@
             <% [
               ['1', 'Select supplier', 'Pick your supplier above for a tailored extraction prompt.', 'var(--accent)'],
               ['2', 'Upload bill',  'Drop a PDF or photo — multi-page and multi-image both work.', 'var(--warning)'],
-              ['3', 'AI reads it',     'Groq Llama 4 Scout vision extracts every line item from the image.', 'var(--success)'],
+              ['3', 'AI reads it',     'AI vision extracts every line item from the image.', 'var(--success)'],
               ['4', 'Review & save',   'Check values, fix errors, then save as a draft purchase bill.', 'var(--text-dim)'],
             ].each do |num, title, desc, colour| %>
               <div style="display:flex;gap:12px;align-items:flex-start">
@@ -559,7 +559,7 @@
         </span>
         <span class="scanner-tag"
               style="background:rgba(247,195,79,0.1);color:var(--warning);border:1px solid rgba(247,195,79,0.25)">
-          Groq LLM
+          AI
         </span>
       </div>
 
