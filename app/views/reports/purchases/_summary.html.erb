@@ -105,20 +105,24 @@ document.addEventListener("DOMContentLoaded", function() {
   if (!chart) return;
   var labels = <%= raw @chart_labels.to_json %>;
   var data   = <%= raw @chart_data.to_json %>;
-  chart.setOption(Object.assign({}, EC_DARK, {
-    title: { text: 'Spend over period', left: 'left', top: 8 },
-    tooltip: Object.assign({}, EC_DARK.tooltip, {
-      trigger: 'axis',
-      formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
-    }),
-    xAxis: Object.assign({}, EC_DARK.xAxis, {
-      type: 'category', data: labels,
-      axisLabel: { color: EC_COLORS.textDim, fontSize: 11, rotate: labels.length > 10 ? 30 : 0 }
-    }),
-    yAxis: Object.assign({}, EC_DARK.yAxis, {
-      axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
-    }),
-    series: [{
+  function axes() {
+    return {
+      title: { text: 'Spend over period', left: 'left', top: 8 },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis',
+        formatter: function(p) { return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+      }),
+      xAxis: Object.assign({}, EC_DARK.xAxis, {
+        type: 'category', data: labels, boundaryGap: true,
+        axisLabel: { color: EC_COLORS.textDim, fontSize: 11, rotate: labels.length > 10 ? 30 : 0 }
+      }),
+      yAxis: Object.assign({}, EC_DARK.yAxis, {
+        axisLabel: { formatter: function(v) { return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 }
+      })
+    };
+  }
+  function barOpt() {
+    return Object.assign({}, EC_DARK, axes(), { series: [{
       type: 'bar', data: data, name: 'Spend', barMaxWidth: 48,
       itemStyle: {
         borderRadius: [4,4,0,0],
@@ -131,7 +135,14 @@ document.addEventListener("DOMContentLoaded", function() {
         formatter: function(p) { return inr(p.value); },
         color: EC_COLORS.textDim, fontSize: 10
       }
-    }]
-  }));
+    }] });
+  }
+  function pulseOpt() {
+    var o = Object.assign({}, EC_DARK, axes(), { series: [pulseSeries(data, 'Spend', 'v')] });
+    o.xAxis = Object.assign({}, o.xAxis, { boundaryGap: false });
+    return o;
+  }
+  addPulseToggle(chart, { id: 'chart-purchase-summary', storageKey: 'purchSummaryMode',
+                          bar: barOpt, pulse: pulseOpt });
 });
 </script>

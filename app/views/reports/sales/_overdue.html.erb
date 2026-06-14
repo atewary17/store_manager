@@ -129,27 +129,36 @@ document.addEventListener("DOMContentLoaded", function() {
     new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#f7614f'},{offset:1,color:'#7a1a0a'}]),
     new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:'#d63031'},{offset:1,color:'#5c0a0a'}])
   ];
-  chart.setOption(Object.assign({}, EC_DARK, {
-    title: { text: 'Outstanding by ageing bucket', left: 'left', top: 8 },
-    grid: { left: 90, right: 80, top: 48, bottom: 16, containLabel: false },
-    tooltip: Object.assign({}, EC_DARK.tooltip, {
-      trigger: 'axis', axisPointer: { type: 'shadow' },
-      formatter: function(p){ return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
-    }),
-    xAxis: { type: 'value',
-             axisLabel: { formatter: function(v){ return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 },
-             splitLine: { lineStyle: { color: EC_COLORS.border, type: 'dashed' } } },
-    yAxis: { type: 'category', data: labels,
-             axisLabel: { color: EC_COLORS.text, fontSize: 12 },
-             axisLine: { show: false }, axisTick: { show: false } },
-    series: [{
+  function axes() {
+    return {
+      title: { text: 'Outstanding by ageing bucket', left: 'left', top: 8 },
+      grid: { left: 90, right: 80, top: 48, bottom: 16, containLabel: false },
+      tooltip: Object.assign({}, EC_DARK.tooltip, {
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: function(p){ return '<b>' + p[0].name + '</b><br/>' + inr(p[0].value); }
+      }),
+      xAxis: { type: 'value',
+               axisLabel: { formatter: function(v){ return inr(v); }, color: EC_COLORS.textDim, fontSize: 10 },
+               splitLine: { lineStyle: { color: EC_COLORS.border, type: 'dashed' } } },
+      yAxis: { type: 'category', data: labels,
+               axisLabel: { color: EC_COLORS.text, fontSize: 12 },
+               axisLine: { show: false }, axisTick: { show: false } }
+    };
+  }
+  function barOpt() {
+    return Object.assign({}, EC_DARK, axes(), { series: [{
       type: 'bar', data: data, name: 'Outstanding', barMaxWidth: 32,
       itemStyle: { borderRadius: [0,4,4,0],
                    color: function(p){ return palette[p.dataIndex % palette.length]; } },
       label: { show: true, position: 'right',
                formatter: function(p){ return p.value > 0 ? inr(p.value) : ''; },
                color: EC_COLORS.text, fontSize: 11 }
-    }]
-  }));
+    }] });
+  }
+  function pulseOpt() {
+    return Object.assign({}, EC_DARK, axes(), { series: [pulseSeries(data, 'Outstanding', 'h')] });
+  }
+  addPulseToggle(chart, { id: 'chart-overdue', storageKey: 'salesOverdueMode',
+                          bar: barOpt, pulse: pulseOpt });
 });
 </script>

@@ -1,0 +1,66 @@
+<%# Shared Bar/Pulse toggle helpers for ECharts report charts. %>
+<%# Requires window.initChart, EC_DARK, EC_COLORS (defined in each report index head). %>
+<script>
+(function () {
+  // A glowing heartbeat-style line+area series to drop in place of a bar series.
+  // orient 'v' = category on x (area fills downward); 'h' = category on y (area fills left).
+  window.pulseSeries = function (data, name, orient) {
+    var grad = (orient === 'h')
+      ? new echarts.graphic.LinearGradient(1, 0, 0, 0,
+          [{ offset: 0, color: 'rgba(52,217,139,0.30)' }, { offset: 1, color: 'rgba(52,217,139,0.01)' }])
+      : new echarts.graphic.LinearGradient(0, 0, 0, 1,
+          [{ offset: 0, color: 'rgba(52,217,139,0.35)' }, { offset: 1, color: 'rgba(52,217,139,0.01)' }]);
+    return {
+      type: 'line', data: data, name: name || '',
+      smooth: true, showSymbol: false, symbol: 'circle', symbolSize: 7,
+      lineStyle: { width: 3, color: '#34d98b', cap: 'round',
+                   shadowBlur: 12, shadowColor: 'rgba(52,217,139,0.6)' },
+      itemStyle: { color: '#34d98b', borderColor: (window.EC_COLORS && EC_COLORS.surface) || '#181c27', borderWidth: 2 },
+      areaStyle: { color: grad },
+      emphasis: { focus: 'series' }
+    };
+  };
+
+  // Wire a Bars/Pulse toggle onto an existing chart instance.
+  // opts: { id, storageKey, bar: fn->option, pulse: fn->option }
+  window.addPulseToggle = function (chart, opts) {
+    var dom = document.getElementById(opts.id);
+    if (!chart || !dom) return;
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:8px';
+    wrap.innerHTML =
+      '<div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+        '<button type="button" data-m="bar" style="border:0;cursor:pointer;padding:5px 12px;font-size:12px;' +
+          'font-family:var(--mono);background:transparent;color:var(--text-dim);display:flex;align-items:center;gap:5px">' +
+          '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">' +
+          '<path d="M18 20V10M12 20V4M6 20V14"/></svg>Bars</button>' +
+        '<button type="button" data-m="pulse" style="border:0;cursor:pointer;padding:5px 12px;font-size:12px;' +
+          'font-family:var(--mono);background:transparent;color:var(--text-dim);border-left:1px solid var(--border);' +
+          'display:flex;align-items:center;gap:5px">' +
+          '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+          'stroke-linejoin="round" viewBox="0 0 24 24"><path d="M2 12h4l2-6 4 12 2-7 2 1h6"/></svg>Pulse</button>' +
+      '</div>';
+    dom.parentNode.insertBefore(wrap, dom);
+
+    var KEY = opts.storageKey;
+    function paint(m) {
+      chart.setOption(m === 'pulse' ? opts.pulse() : opts.bar(), true);
+      wrap.querySelectorAll('button').forEach(function (b) {
+        var on = b.getAttribute('data-m') === m;
+        b.style.background = on ? 'var(--accent-dim)' : 'transparent';
+        b.style.color      = on ? 'var(--accent)'     : 'var(--text-dim)';
+      });
+      try { localStorage.setItem(KEY, m); } catch (e) {}
+    }
+    wrap.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () { paint(b.getAttribute('data-m')); });
+    });
+
+    var saved = 'bar';
+    try { saved = localStorage.getItem(KEY) || 'bar'; } catch (e) {}
+    paint(saved);
+    window.addEventListener('resize', function () { chart.resize(); });
+  };
+})();
+</script>
