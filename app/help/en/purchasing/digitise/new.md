@@ -1,38 +1,44 @@
 # Scan a Supplier Bill
 
-Take a photo of a supplier's bill (or use a PDF) and the app reads it for you.
-Just follow these steps.
+Take a photo of a supplier's bill (or use a PDF) and the app reads it for you —
+no typing. Just follow these steps.
 
-## Step 1 — Start a new scan
-Click the **New Scan Invoice** button (top-right of the Scan page).
-
-## Step 2 — Choose the supplier
-Pick who the bill is from:
+## Step 1 — Choose the supplier
+At the top you'll see a **Supplier** box. Click it (it says *Click to change
+supplier*) and pick who the bill is from:
 
 - **Asian Paints**
 - **Shalimar Paints**
-- **Others** (for Tally bills or any other supplier)
+- **Others** — for any other supplier
 
-> This helps the app match the products on the bill correctly.
+> Picking the right supplier helps the app match the products on the bill correctly.
 
-## Step 3 — Add the bill
-Click to choose a file, and pick:
+## Step 2 — Add the bill
+In the **Upload Invoice** box, either:
 
-- a **photo** of the bill, **or**
+- **drag and drop** your file onto the box, **or**
+- **click** the box (*Drop files here or click to browse*) to choose a file.
+
+You can use:
+
+- a **photo** of the bill (JPG, PNG, or WEBP), **or**
 - a **PDF**, **or**
-- **more than one photo** if the bill has several pages.
+- **several photos at once** if the bill has more than one page.
 
-## Step 4 — Upload
-Click **Upload**. That's it — the app reads the bill on its own,
-so you can carry on with other work.
+> Allowed files: PDF, JPG, PNG, WEBP — up to **10 MB** each.
 
-## Step 5 — Wait for "Review"
-Go back to the **Scan page**. When the bill shows **Review**, it is ready.
-Click it to check the details and save.
+## Step 3 — Scan
+Once your file is added, the **Scan with AI** button turns on. Click it.
+That's all — the app reads the bill on its own, so you can carry on with other work.
+
+## Step 4 — Wait for "Review"
+Go back to the **Scan Bills** page. When your bill shows **Review**, it's ready.
+Click it to check the details and save it as a purchase bill.
 
 ---
 
-### Tips for a clear photo
-- Take the photo in good light — no shadow or shine.
-- Make sure the **whole** bill is in the photo, including the **total** at the bottom.
-- If the bill has 2 pages, add **both** — the total is usually on the last page.
+### Tips for a clear scan
+- Take the photo in **good light** — avoid shadows and shine.
+- Make sure the **whole** bill is in the frame, including the **total** at the bottom.
+- If the bill has more than one page, add **every page** — the total is usually on the last one.
+- A single clear **PDF** usually reads best of all.

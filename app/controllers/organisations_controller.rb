@@ -47,7 +47,14 @@ class OrganisationsController < ApplicationController
       tinting_prompt_action
     ]
 
-    updates = params.require(:settings).permit(*allowed_keys).to_h.stringify_keys
+    updates = params.require(:settings).permit(*allowed_keys, help_locales: []).to_h.stringify_keys
+
+    # Help languages — array param. Keep only supported codes, always include
+    # English, and store in canonical order. Empty/absent → English-only.
+    if updates.key?('help_locales')
+      requested = Array(updates['help_locales']).map { |c| c.to_s.downcase } + ['en']
+      updates['help_locales'] = Organisation::SUPPORTED_HELP_LOCALES & requested.uniq
+    end
 
     # Coerce boolean string values sent by the JS fetch layer
     %w[tinting_prompt_enabled].each do |bool_key|

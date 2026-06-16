@@ -21,13 +21,14 @@ class HelpController < ApplicationController
     k.presence || '_fallback'
   end
 
-  # Whitelisted directly (not via I18n.available_locales) so a not-yet-restarted
-  # server or i18n config quirk can't silently swallow a valid language. The
-  # content loader still falls back to English when a file is missing.
-  SUPPORTED_LOCALES = %w[en bn hi].freeze
-
+  # Clamp the requested locale to the languages THIS org has enabled (English
+  # always; extras set by a System Admin on the Organisation settings page).
+  # Defense in depth — a hand-crafted ?locale=bn on a non-Bengali org still
+  # returns English. The content loader also falls back to English when a file
+  # is missing.
   def resolve_locale(raw)
-    l = raw.to_s.downcase
-    SUPPORTED_LOCALES.include?(l) ? l.to_sym : :en
+    l       = raw.to_s.downcase
+    allowed = current_user&.organisation&.help_locales.presence || %w[en]
+    allowed.include?(l) ? l.to_sym : :en
   end
 end

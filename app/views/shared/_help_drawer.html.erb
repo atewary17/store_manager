@@ -2,6 +2,9 @@
     Lazy-loaded contextual help drawer. Opened by the ? icon in the topbar.
     Fetches /help?key=<current page>&locale=<chosen> on demand. %>
 
+<%# Languages enabled for THIS org (English always; extras set by System Admin). %>
+<% help_locales = (current_user&.organisation&.help_locales.presence || ['en']) %>
+
 <style>
   #help-backdrop {
     position: fixed; inset: 0; background: rgba(0,0,0,0.45);
@@ -49,11 +52,15 @@
 <div id="help-drawer" role="dialog" aria-label="Help" aria-modal="true">
   <div class="help-head">
     <span class="help-head-title">Help</span>
-    <div class="help-locale-switch">
-      <button type="button" class="help-locale-btn" data-locale="en" onclick="setHelpLocale('en')">EN</button>
-      <button type="button" class="help-locale-btn" data-locale="bn" onclick="setHelpLocale('bn')">বাং</button>
-      <button type="button" class="help-locale-btn" data-locale="hi" onclick="setHelpLocale('hi')">हि</button>
-    </div>
+    <%# Locale switch — shown only when the org has more than English enabled. %>
+    <% if help_locales.size > 1 %>
+      <div class="help-locale-switch">
+        <% help_locales.each do |code| %>
+          <button type="button" class="help-locale-btn" data-locale="<%= code %>"
+                  onclick="setHelpLocale('<%= code %>')"><%= Organisation::HELP_LOCALE_LABELS[code] || code.upcase %></button>
+        <% end %>
+      </div>
+    <% end %>
     <button type="button" class="help-close" onclick="closeHelp()" aria-label="Close help">&times;</button>
   </div>
   <%# "Take a tour" CTA — shown only when the current page has a tour defined %>
@@ -74,7 +81,13 @@
 <script>
 (function() {
   var STORE = 'help_locale';
-  function getLocale() { return localStorage.getItem(STORE) || 'en'; }
+  // Languages this org has enabled (English always). A stale saved choice that
+  // is no longer enabled falls back to English.
+  var ALLOWED = <%= raw help_locales.to_json %>;
+  function getLocale() {
+    var l = localStorage.getItem(STORE) || 'en';
+    return ALLOWED.indexOf(l) >= 0 ? l : 'en';
+  }
   function setLocale(l) { localStorage.setItem(STORE, l); }
   var _cache = {};
 
@@ -102,19 +115,66 @@
   var HELP_TOURS = {
     'purchasing/digitise/new': {
       en: [
-        { element: '.sup-badge-bar', popover: { title: 'Step 1 — Choose supplier', description: 'Click here to pick Asian Paints, Shalimar Paints, or Others.' } },
-        { element: '#drop-zone',     popover: { title: 'Step 2 — Add the invoice', description: 'Drop a photo or PDF here, or click to choose. Several pages are fine.' } },
-        { element: '#submit-btn',    popover: { title: 'Step 3 — Upload', description: 'Click Upload. The app reads the bill in the background.' } }
+        { popover: { title: 'Scan a supplier bill', description: 'A quick tour — turn a paper bill into a purchase bill in 3 steps, no typing.' } },
+        { element: '.sup-badge-bar', popover: { title: 'Step 1 — Choose supplier', description: 'Click here to set who the bill is from: Asian Paints, Shalimar Paints, or Others. This helps the app match products correctly.', side: 'bottom', align: 'start' } },
+        { element: '#drop-zone',     popover: { title: 'Step 2 — Add the bill', description: 'Drag a file here or click to browse. Use a photo or a PDF — add every page if the bill has more than one.', side: 'top', align: 'start' } },
+        { element: '#submit-btn',    popover: { title: 'Step 3 — Scan with AI', description: 'Click Scan with AI. The app reads the bill in the background. When it shows Review on the Scan Bills page, open it to check and save.', side: 'top', align: 'start' } }
       ],
       bn: [
-        { element: '.sup-badge-bar', popover: { title: 'ধাপ ১ — সরবরাহকারী বেছে নিন', description: 'Asian Paints, Shalimar Paints বা Others বেছে নিতে এখানে ক্লিক করুন।' } },
-        { element: '#drop-zone',     popover: { title: 'ধাপ ২ — বিল যোগ করুন', description: 'এখানে ছবি বা PDF দিন, অথবা ক্লিক করে বেছে নিন। একাধিক পৃষ্ঠা চলবে।' } },
-        { element: '#submit-btn',    popover: { title: 'ধাপ ৩ — আপলোড করুন', description: 'Upload-এ ক্লিক করুন। অ্যাপ পেছনে বিলটি পড়বে।' } }
+        { popover: { title: 'সরবরাহকারীর বিল স্ক্যান করুন', description: 'ছোট্ট গাইড — ৩টি ধাপে কাগজের বিল থেকে পারচেজ বিল তৈরি করুন, টাইপ ছাড়াই।' } },
+        { element: '.sup-badge-bar', popover: { title: 'ধাপ ১ — সরবরাহকারী বেছে নিন', description: 'বিলটি কার কাছ থেকে তা এখানে ঠিক করুন: Asian Paints, Shalimar Paints বা Others। এতে পণ্য মেলাতে সুবিধা হয়।', side: 'bottom', align: 'start' } },
+        { element: '#drop-zone',     popover: { title: 'ধাপ ২ — বিল যোগ করুন', description: 'এখানে ফাইল টেনে আনুন বা ক্লিক করে বেছে নিন। ছবি বা PDF দিন — একাধিক পৃষ্ঠা হলে সব পৃষ্ঠা যোগ করুন।', side: 'top', align: 'start' } },
+        { element: '#submit-btn',    popover: { title: 'ধাপ ৩ — Scan with AI', description: 'Scan with AI-এ ক্লিক করুন। অ্যাপ পেছনে বিলটি পড়বে। Scan Bills পেজে Review দেখালে খুলে যাচাই করে সেভ করুন।', side: 'top', align: 'start' } }
       ],
       hi: [
-        { element: '.sup-badge-bar', popover: { title: 'चरण 1 — सप्लायर चुनें', description: 'Asian Paints, Shalimar Paints या Others चुनने के लिए यहाँ दबाएँ।' } },
-        { element: '#drop-zone',     popover: { title: 'चरण 2 — बिल जोड़ें', description: 'यहाँ फ़ोटो या PDF दें, या दबाकर चुनें। कई पन्ने भी चलेंगे।' } },
-        { element: '#submit-btn',    popover: { title: 'चरण 3 — अपलोड करें', description: 'Upload दबाएँ। ऐप ख़ुद बिल पढ़ लेगा।' } }
+        { popover: { title: 'सप्लायर का बिल स्कैन करें', description: 'छोटा गाइड — 3 चरणों में कागज़ के बिल से परचेज़ बिल बनाएँ, बिना टाइप किए।' } },
+        { element: '.sup-badge-bar', popover: { title: 'चरण 1 — सप्लायर चुनें', description: 'बिल किसका है यह यहाँ चुनें: Asian Paints, Shalimar Paints या Others। इससे प्रोडक्ट सही मिलते हैं।', side: 'bottom', align: 'start' } },
+        { element: '#drop-zone',     popover: { title: 'चरण 2 — बिल जोड़ें', description: 'यहाँ फ़ाइल खींचकर लाएँ या क्लिक करके चुनें। फ़ोटो या PDF दें — कई पन्ने हों तो सभी जोड़ें।', side: 'top', align: 'start' } },
+        { element: '#submit-btn',    popover: { title: 'चरण 3 — Scan with AI', description: 'Scan with AI दबाएँ। ऐप ख़ुद बिल पढ़ लेगा। Scan Bills पेज पर Review दिखे तो खोलकर जाँचें और सेव करें।', side: 'top', align: 'start' } }
+      ]
+    },
+    'purchasing/digitise/show': {
+      en: [
+        { popover: { title: 'Review the scanned bill', description: 'The AI has read the bill. Check the details, fix anything that is wrong, then save it as a purchase bill.' } },
+        { element: '.preview-panel', popover: { title: 'The original bill', description: 'This is your uploaded photo or PDF. Click it to enlarge and compare against the values on the right.', side: 'right', align: 'start' } },
+        { element: 'input[name="parsed_data[supplier][name]"]', popover: { title: 'Check the supplier name', description: 'Make sure the supplier name matches the bill. Click to edit if it is wrong.', side: 'bottom', align: 'start' } },
+        { element: 'input[name="parsed_data[supplier][gstin]"]', popover: { title: 'Check the GST number', description: 'Confirm the supplier GSTIN. A correct GSTIN ensures your input tax credit is recorded properly.', side: 'bottom', align: 'start' } },
+        { element: '.items-grid',    popover: { title: 'Check the line items', description: 'Each product the AI read, row by row. Click any cell to fix a value — the totals update on their own.', side: 'top', align: 'start' } },
+        { element: '[data-tour=col-desc]',    popover: { title: 'Description', description: 'The product name on the bill. Check it reads correctly so it matches the right product.', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-qty]',     popover: { title: 'Quantity', description: 'How many units (or packs) were billed. Make sure this matches the bill.', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-taxable]', popover: { title: 'Taxable value', description: 'The amount before GST, after any discount. GST is charged on this value.', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-total]',   popover: { title: 'Line total', description: 'Taxable value plus GST for that row. All line totals add up to the grand total below.', side: 'bottom', align: 'start' } },
+        { element: '#rec-banner',    popover: { title: 'Reconciliation', description: 'Tells you whether the line items add up to the bill total. Green means it matches; if not, correct the items above.', side: 'left', align: 'start' } },
+        { element: '#live-grand-total', popover: { title: 'Grand total', description: 'Updates live as you edit. It should match the total printed on the bill.', side: 'top', align: 'start' } },
+        { element: '#save-btn',      popover: { title: 'Save the bill', description: 'When everything looks right, click here to save it as a draft purchase bill.', side: 'bottom', align: 'start' } }
+      ],
+      bn: [
+        { popover: { title: 'স্ক্যান করা বিল যাচাই করুন', description: 'অ্যাপ বিলটি পড়ে ফেলেছে। তথ্য মিলিয়ে দেখুন, ভুল থাকলে ঠিক করুন, তারপর পারচেজ বিল হিসেবে সেভ করুন।' } },
+        { element: '.preview-panel', popover: { title: 'আসল বিল', description: 'এটি আপনার আপলোড করা ছবি বা PDF। বড় করে দেখতে ক্লিক করুন এবং ডান পাশের মানের সাথে মিলিয়ে নিন।', side: 'right', align: 'start' } },
+        { element: 'input[name="parsed_data[supplier][name]"]', popover: { title: 'সরবরাহকারীর নাম দেখুন', description: 'সরবরাহকারীর নাম বিলের সাথে মিলছে কিনা দেখুন। ভুল হলে ক্লিক করে ঠিক করুন।', side: 'bottom', align: 'start' } },
+        { element: 'input[name="parsed_data[supplier][gstin]"]', popover: { title: 'GST নম্বর দেখুন', description: 'সরবরাহকারীর GSTIN মিলিয়ে নিন। সঠিক GSTIN থাকলে আপনার ইনপুট ট্যাক্স ক্রেডিট ঠিকভাবে নথিভুক্ত হয়।', side: 'bottom', align: 'start' } },
+        { element: '.items-grid',    popover: { title: 'আইটেমগুলো দেখে নিন', description: 'অ্যাপ যে পণ্যগুলো পড়েছে, সারি ধরে ধরে। ভুল হলে যেকোনো ঘরে ক্লিক করে ঠিক করুন — মোট নিজে থেকেই আপডেট হবে।', side: 'top', align: 'start' } },
+        { element: '[data-tour=col-desc]',    popover: { title: 'বিবরণ (Description)', description: 'বিলে লেখা পণ্যের নাম। ঠিকভাবে পড়া হয়েছে কিনা দেখুন যাতে সঠিক পণ্যের সাথে মেলে।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-qty]',     popover: { title: 'পরিমাণ (Quantity)', description: 'কত একক (বা প্যাক) বিল করা হয়েছে। বিলের সাথে মিলিয়ে নিন।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-taxable]', popover: { title: 'করযোগ্য মূল্য (Taxable)', description: 'ছাড়ের পরে, GST-র আগের পরিমাণ। এর উপরেই GST ধরা হয়।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-total]',   popover: { title: 'লাইন মোট', description: 'ওই সারির করযোগ্য মূল্য + GST। সব লাইনের মোট মিলে নিচের গ্র্যান্ড টোটাল হয়।', side: 'bottom', align: 'start' } },
+        { element: '#rec-banner',    popover: { title: 'মিলকরণ (Reconciliation)', description: 'আইটেমের যোগফল বিলের মোটের সাথে মিলছে কিনা দেখায়। সবুজ মানে মিলেছে; না মিললে উপরের আইটেম ঠিক করুন।', side: 'left', align: 'start' } },
+        { element: '#live-grand-total', popover: { title: 'মোট টাকা', description: 'এডিট করার সাথে সাথে আপডেট হয়। এটি বিলে ছাপা মোটের সাথে মেলা উচিত।', side: 'top', align: 'start' } },
+        { element: '#save-btn',      popover: { title: 'বিল সেভ করুন', description: 'সব ঠিক থাকলে এখানে ক্লিক করে খসড়া পারচেজ বিল হিসেবে সেভ করুন।', side: 'bottom', align: 'start' } }
+      ],
+      hi: [
+        { popover: { title: 'स्कैन किया बिल जाँचें', description: 'ऐप ने बिल पढ़ लिया है। जानकारी जाँचें, कुछ ग़लत हो तो ठीक करें, फिर परचेज़ बिल के रूप में सेव करें।' } },
+        { element: '.preview-panel', popover: { title: 'असली बिल', description: 'यह आपकी अपलोड की गई फ़ोटो या PDF है। बड़ा करने के लिए दबाएँ और दाईं ओर के मानों से मिलाएँ।', side: 'right', align: 'start' } },
+        { element: 'input[name="parsed_data[supplier][name]"]', popover: { title: 'सप्लायर का नाम जाँचें', description: 'सप्लायर का नाम बिल से मिलता है या नहीं देखें। ग़लत हो तो दबाकर ठीक करें।', side: 'bottom', align: 'start' } },
+        { element: 'input[name="parsed_data[supplier][gstin]"]', popover: { title: 'GST नंबर जाँचें', description: 'सप्लायर का GSTIN मिलाएँ। सही GSTIN से आपका इनपुट टैक्स क्रेडिट सही दर्ज होता है।', side: 'bottom', align: 'start' } },
+        { element: '.items-grid',    popover: { title: 'लाइन आइटम जाँचें', description: 'ऐप ने जो प्रोडक्ट पढ़े, एक-एक पंक्ति। ग़लत हो तो किसी भी ख़ाने में दबाकर ठीक करें — कुल ख़ुद अपडेट होगा।', side: 'top', align: 'start' } },
+        { element: '[data-tour=col-desc]',    popover: { title: 'विवरण (Description)', description: 'बिल पर लिखा प्रोडक्ट का नाम। सही पढ़ा गया है या नहीं देखें ताकि सही प्रोडक्ट से मिले।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-qty]',     popover: { title: 'मात्रा (Quantity)', description: 'कितनी इकाई (या पैक) बिल हुई। बिल से मिलाएँ।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-taxable]', popover: { title: 'कर-योग्य मूल्य (Taxable)', description: 'छूट के बाद, GST से पहले की राशि। GST इसी पर लगता है।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=col-total]',   popover: { title: 'लाइन कुल', description: 'उस पंक्ति का कर-योग्य मूल्य + GST। सभी लाइन के कुल जुड़कर नीचे ग्रैंड टोटल बनता है।', side: 'bottom', align: 'start' } },
+        { element: '#rec-banner',    popover: { title: 'मिलान (Reconciliation)', description: 'बताता है कि आइटम का जोड़ बिल के कुल से मिलता है या नहीं। हरा यानी मिल गया; न मिले तो ऊपर के आइटम ठीक करें।', side: 'left', align: 'start' } },
+        { element: '#live-grand-total', popover: { title: 'कुल राशि', description: 'एडिट करते ही अपडेट होती है। यह बिल पर छपे कुल से मेल खानी चाहिए।', side: 'top', align: 'start' } },
+        { element: '#save-btn',      popover: { title: 'बिल सेव करें', description: 'सब ठीक लगे तो यहाँ दबाकर ड्राफ़्ट परचेज़ बिल के रूप में सेव करें।', side: 'bottom', align: 'start' } }
       ]
     }
   };
@@ -139,6 +199,11 @@
     var tour = HELP_TOURS[key];
     if (!tour) return;
     var steps = tour[getLocale()] || tour.en;
+    // Keep only steps whose anchor is actually on the page (element-less intro
+    // steps always stay). Makes a tour resilient if a section is absent — e.g.
+    // the review page is still processing, or has no reconciliation panel.
+    steps = steps.filter(function(s) { return !s.element || document.querySelector(s.element); });
+    if (!steps.length) return;
     closeHelp();
     ensureDriver(function() {
       var d = window.driver.js.driver({
