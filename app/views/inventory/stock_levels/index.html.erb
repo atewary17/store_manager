@@ -81,23 +81,19 @@
 </div>
 
 <%# ── Filters ── %>
-<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px">
-  <div style="position:relative;flex:1;min-width:200px;max-width:300px">
-    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
-         viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
-         color:var(--text-dim);pointer-events:none">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-    <input type="text" id="sl-search" value="<%= params[:q] %>"
-           placeholder="Search brand, product, code..."
-           style="width:100%;padding:8px 12px 8px 30px;background:var(--surface);
-                  border:1px solid var(--border);border-radius:6px;color:var(--text);
-                  font-size:13px;outline:none;box-sizing:border-box">
-  </div>
-
-  <%= form_with url: inventory_stock_levels_path, method: :get, local: true,
-        id: 'sl-filter-form', style: 'display:contents' do |f| %>
-    <input type="hidden" name="q" id="sl-q-hidden" value="<%= params[:q] %>">
+<%= form_with url: inventory_stock_levels_path, method: :get, local: true,
+      html: { id: 'sl-filter-form',
+              style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px' } do |f| %>
+    <div style="position:relative;flex:1;min-width:200px;max-width:300px">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
+           viewBox="0 0 24 24" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);
+           color:var(--text-dim);pointer-events:none">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="sl-search" name="q" value="<%= params[:q] %>"
+             placeholder="Search brand, product, code..."
+             class="form-control" style="padding-left:32px">
+    </div>
     <input type="hidden" name="view" id="sl-view-hidden" value="<%= params[:view] || 'card' %>">
     <%= f.select :category_id,
           options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
@@ -136,8 +132,7 @@
           params[:stock_status].present? || params[:q].present? %>
       <%= link_to 'Clear', inventory_stock_levels_path(view: params[:view]), class: 'btn btn-secondary btn-sm' %>
     <% end %>
-  <% end %>
-</div>
+<% end %>
 
 <% if @org_filter_active %>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 16px;
@@ -351,7 +346,6 @@
     searchInput.addEventListener('input', function() {
       clearTimeout(debTimer);
       debTimer = setTimeout(function() {
-        document.getElementById('sl-q-hidden').value = searchInput.value;
         document.getElementById('sl-filter-form').submit();
       }, 400);
     });
@@ -382,6 +376,8 @@
         } else {
           var tbody = document.querySelector('#sl-list-wrap table tbody');
           if (tbody) tbody.insertAdjacentHTML('beforeend', data.list_html || '');
+          // Label the newly-appended rows for the mobile card layout.
+          if (window.labelTableCards) labelTableCards(document.getElementById('sl-list-wrap'));
         }
 
         var shownEl = document.getElementById('sl-shown-count');

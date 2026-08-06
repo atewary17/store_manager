@@ -356,7 +356,7 @@
   </div>
 
   <%# Actions %>
-  <div style="display:flex;gap:12px;align-items:center;margin-bottom:40px">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:40px">
     <%= f.submit invoice.new_record? ? 'Review Invoice' : 'Update & Review',
           class: 'btn btn-primary', id: 'form-submit-btn' %>
     <%= link_to 'Cancel',

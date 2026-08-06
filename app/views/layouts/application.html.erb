@@ -4,6 +4,43 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StoreERP — <%= content_for?(:title) ? yield(:title) : 'Dashboard' %></title>
+
+  <%# ── PWA: installable + offline shell ── %>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StoreMgr">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script>
+    // Register the service worker (enables install + offline shell).
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/service-worker.js').catch(function () {});
+      });
+    }
+    // Custom install prompt — surface the "Install app" button when eligible.
+    var _deferredInstall = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      _deferredInstall = e;
+      var b = document.getElementById('pwa-install-btn');
+      if (b) b.style.display = 'inline-flex';
+    });
+    window.installPWA = function () {
+      if (!_deferredInstall) return;
+      _deferredInstall.prompt();
+      _deferredInstall.userChoice.finally(function () {
+        _deferredInstall = null;
+        var b = document.getElementById('pwa-install-btn');
+        if (b) b.style.display = 'none';
+      });
+    };
+    window.addEventListener('appinstalled', function () {
+      var b = document.getElementById('pwa-install-btn');
+      if (b) b.style.display = 'none';
+    });
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <%= yield :head if content_for?(:head) %>
@@ -903,6 +940,28 @@
       table.form-cards td[colspan] { text-align: center; }
       table.form-cards td[colspan]::before { content: none; }
     }
+
+    /* ── Phase 1.5: touch-friendly inputs & buttons on mobile ──
+       All scoped to the mobile breakpoint — desktop is untouched. */
+    @media (max-width: 900px) {
+      /* ≥16px font stops iOS Safari from auto-zooming when a field is focused;
+         44px min-height is a comfortable thumb target. !important beats the many
+         inline font-size styles set on individual inputs. */
+      input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file]),
+      select,
+      textarea {
+        font-size: 16px !important;
+        min-height: 44px;
+      }
+      textarea { min-height: 72px; }
+
+      /* Comfortable tap height for buttons. */
+      .btn { min-height: 44px; }
+
+      /* Primary / main actions go full-width & centred (small inline primaries,
+         e.g. "Apply" / "Save Configuration", keep their size via :not(.btn-sm)). */
+      .btn-primary:not(.btn-sm) { width: 100%; justify-content: center; }
+    }
   </style>
 </head>
 <body>
@@ -1474,7 +1533,18 @@
         <%= yield :breadcrumb %>
       </div>
       <%# ── Command palette trigger ── %>
-      <div style="margin-left:auto">
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <%# PWA install — shown only when the browser reports the app is installable %>
+        <button id="pwa-install-btn" type="button" onclick="installPWA()"
+                style="display:none;align-items:center;gap:6px;padding:7px 12px;
+                       background:var(--accent);color:#fff;border:none;border-radius:8px;
+                       cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span class="pwa-install-label">Install app</span>
+        </button>
         <button id="cmd-trigger"
                 onclick="openPalette()"
                 style="display:flex;align-items:center;gap:10px;padding:7px 14px;
