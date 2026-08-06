@@ -281,7 +281,7 @@
 
     <%# Table %>
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;min-width:820px">
+      <table style="width:100%;border-collapse:collapse;min-width:820px" class="form-cards">
         <thead>
           <tr style="background:var(--bg)">
             <% [
@@ -786,7 +786,23 @@
     btn.title         = empty ? 'Add at least one item before reviewing' : '';
   }
 
+  // Stamp per-cell labels for the mobile card layout (.form-cards). Row types
+  // differ (paint 9 cells; product/adhoc 8 with a colspan first cell), so map by
+  // row type rather than by header position.
+  var SALES_LABELS = {
+    paint:   ['Shade / Item', 'Base', 'Qty', 'Rate (₹)', 'Disc.', 'Taxable', 'GST', 'Amount (₹)', ''],
+    product: ['Product', 'Qty', 'Rate (₹)', 'Disc.', 'Taxable', 'GST', 'Amount (₹)', ''],
+    adhoc:   ['Description', 'Qty', 'Rate (₹)', 'Disc.', 'Taxable', 'GST', 'Amount (₹)', '']
+  };
+  function labelSalesRow(tr) {
+    var labels = SALES_LABELS[tr.dataset.type];
+    if (!labels) return;
+    var tds = tr.querySelectorAll(':scope > td');
+    for (var i = 0; i < tds.length; i++) tds[i].setAttribute('data-label', labels[i] || '');
+  }
+
   function wireRow(tr) {
+    labelSalesRow(tr);
     /* rate typed → forward calc (rate drives amount) */
     var rateEl = q(tr, '.rate-input');
     if (rateEl) {
