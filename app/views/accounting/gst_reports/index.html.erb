@@ -93,7 +93,8 @@
               font-size:13px;font-weight:600;color:var(--text)">
     Tax Head Breakdown — <%= @period_label %>
   </div>
-  <table style="width:100%;border-collapse:collapse">
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table class="table-sticky" style="width:100%;border-collapse:collapse">
     <thead>
       <tr style="background:var(--bg)">
         <% ['Tax Head', 'Output (Sales)', 'Input (Purchases)', 'Net Payable', 'Status'].each do |h| %>
@@ -156,6 +157,7 @@
       </tr>
     </tbody>
   </table>
+  </div>
 </div>
 
 <%# ── Quick links ── %>

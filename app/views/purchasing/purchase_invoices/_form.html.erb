@@ -238,7 +238,7 @@
     </div>
 
     <div style="overflow-x:auto;min-height:350px">
-      <table style="width:100%;border-collapse:collapse" id="items-table">
+      <table style="width:100%;border-collapse:collapse" id="items-table" class="form-cards">
         <thead>
           <tr style="background:var(--bg)">
             <%
@@ -337,7 +337,7 @@
     </div>
   </div>
 
-  <div style="display:flex;gap:12px;align-items:center">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <%= f.submit invoice.new_record? ? 'Save Draft' : 'Update Bill',
           id: 'invoice-submit-btn',
           class: 'btn btn-primary' %>
@@ -789,6 +789,8 @@
 
     setupProductAutocomplete(row);
     wireRowEvents(row);
+    // Label the new row's cells for the mobile card layout.
+    if (window.labelTableCards) labelTableCards(document.getElementById('items-table'));
   };
 
   // ══════════════════════════════════════════════════════════════

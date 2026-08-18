@@ -4,6 +4,43 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StoreERP — <%= content_for?(:title) ? yield(:title) : 'Dashboard' %></title>
+
+  <%# ── PWA: installable + offline shell ── %>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StoreMgr">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script>
+    // Register the service worker (enables install + offline shell).
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/service-worker.js').catch(function () {});
+      });
+    }
+    // Custom install prompt — surface the "Install app" button when eligible.
+    var _deferredInstall = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      _deferredInstall = e;
+      var b = document.getElementById('pwa-install-btn');
+      if (b) b.style.display = 'inline-flex';
+    });
+    window.installPWA = function () {
+      if (!_deferredInstall) return;
+      _deferredInstall.prompt();
+      _deferredInstall.userChoice.finally(function () {
+        _deferredInstall = null;
+        var b = document.getElementById('pwa-install-btn');
+        if (b) b.style.display = 'none';
+      });
+    };
+    window.addEventListener('appinstalled', function () {
+      var b = document.getElementById('pwa-install-btn');
+      if (b) b.style.display = 'none';
+    });
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <%= yield :head if content_for?(:head) %>
@@ -719,6 +756,212 @@
     .sidebar.collapsed .nav-section-header:hover::after { opacity: 1; }
     .main { transition: margin-left 0.22s cubic-bezier(0.4,0,0.2,1); }
     body.sidebar-collapsed .main { margin-left: 52px; }
+
+    /* ═══════════ MOBILE RESPONSIVE — Phase 0 (app shell + shared layer) ═══════════ */
+    /* Hamburger lives in the topbar; hidden on desktop, shown on mobile. */
+    .nav-hamburger {
+      display: none; align-items: center; justify-content: center;
+      width: 38px; height: 38px; flex-shrink: 0; padding: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); cursor: pointer;
+    }
+    .nav-hamburger:hover { color: var(--accent); border-color: var(--accent-dim); }
+    /* Dark scrim behind the off-canvas drawer. */
+    #mobileNavBackdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      opacity: 0; visibility: hidden; transition: opacity .2s ease; z-index: 99;
+    }
+    #mobileNavBackdrop.open { opacity: 1; visibility: visible; }
+
+    @media (max-width: 900px) {
+      /* Sidebar becomes an off-canvas drawer (slides in over the content). */
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform .22s ease;
+        box-shadow: 6px 0 28px rgba(0,0,0,0.28);
+      }
+      .sidebar.mobile-open { transform: translateX(0); }
+      /* Drawer always shows the full nav — ignore the desktop mini-collapse. */
+      .sidebar.collapsed { width: var(--sidebar-w); }
+      .collapse-btn { display: none; }
+
+      .main,
+      body.sidebar-collapsed .main { margin-left: 0 !important; }
+      .nav-hamburger { display: flex; }
+
+      /* Tighter shell spacing on phones. */
+      .topbar { padding: 0 12px; gap: 10px; }
+      .page-content { padding: 16px 14px; }
+
+      /* Command-palette trigger shrinks to a compact icon button. */
+      #cmd-trigger { min-width: 0 !important; padding: 7px 11px !important; }
+      #cmd-trigger > span, #cmd-trigger kbd { display: none !important; }
+
+      /* Page headers stack (title over actions). */
+      .page-header { flex-direction: column; align-items: stretch; gap: 12px; }
+
+      /* Stat/KPI grids collapse. !important overrides the per-page inline
+         grid-template-columns:repeat(N,1fr) many pages set. */
+      .stats-row { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+
+      /* Wide tables scroll horizontally instead of overflowing the viewport.
+         (Per-page table→card conversions come in Phase 2.) */
+      .table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+    }
+
+    /* ── Phase 1: stack form & detail grids on tablets/phones ── */
+    @media (max-width: 768px) {
+      /* Multi-column form rows collapse to a single column.
+         !important beats the per-page inline grid-template-columns overrides. */
+      .form-row,
+      .form-grid-2,
+      .detail-grid-2,
+      .os-grid { grid-template-columns: 1fr !important; }
+
+      /* Action button clusters (page headers, form footers) wrap. */
+      .page-header .actions,
+      .actions,
+      .form-actions { flex-wrap: wrap; }
+
+      /* Filter/toolbar rows wrap instead of overflowing. */
+      .filters,
+      .filter-bar,
+      .toolbar { flex-wrap: wrap; }
+    }
+
+    @media (max-width: 480px) {
+      .stats-row { grid-template-columns: 1fr !important; }
+      .page-title { font-size: 19px; }
+      .page-content { padding: 14px 11px; }
+    }
+
+    /* ── Phase 2: index tables → stacked cards on phones ──
+       Add class="table-cards" to a <table>. A JS labeler stamps each cell with
+       data-label from the matching <thead> header; here we render each row as a
+       card of "Label ......... value" pairs. Desktop is untouched. */
+    @media (max-width: 640px) {
+      table.table-cards { min-width: 0 !important; }
+      table.table-cards thead { display: none; }
+      table.table-cards,
+      table.table-cards tbody { display: block; width: 100%; }
+      table.table-cards tbody tr {
+        display: block;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        padding: 4px 2px;
+      }
+      table.table-cards tbody tr:hover td { background: transparent; }
+      table.table-cards td {
+        display: flex; align-items: center; justify-content: space-between; gap: 14px;
+        padding: 8px 12px !important;
+        border: none !important;
+        border-bottom: 1px solid var(--border) !important;
+        text-align: right;
+        font-size: 13px;
+        white-space: normal;
+      }
+      table.table-cards tbody tr td:last-child { border-bottom: none !important; }
+      /* Label from the header column. */
+      table.table-cards td::before {
+        content: attr(data-label);
+        font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+        text-transform: uppercase; color: var(--text-dim); font-weight: 600;
+        text-align: left; flex-shrink: 0; margin-right: auto;
+      }
+      /* Action / unlabeled columns: no label, keep content right-aligned. */
+      table.table-cards td[data-label=""]::before,
+      table.table-cards td:not([data-label])::before { content: none; }
+      /* Full-width rows (e.g. colspan "no results") render normally. */
+      table.table-cards td[colspan] { justify-content: center; text-align: center; }
+      table.table-cards td[colspan]::before { content: none; }
+    }
+
+    /* ── Phase 3: dense tables — freeze the first column while the rest scrolls ──
+       Add class="table-sticky" to a wide table (it must sit in a horizontally
+       scrollable container — .table-wrap scrolls on mobile, or an overflow-x:auto
+       wrapper). The identifier column stays pinned while the numbers scroll. */
+    @media (max-width: 900px) {
+      table.table-sticky { min-width: 520px; }
+      table.table-sticky th:first-child,
+      table.table-sticky td:first-child {
+        position: sticky; left: 0; z-index: 2;
+        background: var(--surface);
+        box-shadow: 1px 0 0 var(--border);   /* divider (collapsed borders don't render on sticky) */
+      }
+      table.table-sticky thead th:first-child { z-index: 3; background: var(--bg); }
+    }
+
+    /* ── Phase 4: editable line-item tables → stacked cards on phones ──
+       Add class="form-cards" to an editable <table> (e.g. invoice item entry).
+       The JS labeler stamps each cell from <thead>; here each row becomes a card
+       with a labelled, full-width input per field. Desktop table is untouched. */
+    @media (max-width: 900px) {
+      table.form-cards { min-width: 0 !important; }
+      table.form-cards thead { display: none; }
+      table.form-cards,
+      table.form-cards tbody { display: block; width: 100%; }
+      table.form-cards tbody tr {
+        display: block; position: relative;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 12px 12px;
+        margin-bottom: 12px;
+      }
+      table.form-cards td {
+        display: block; min-width: 0 !important;
+        border: none !important;
+        padding: 6px 0 !important;
+        text-align: left !important;
+        white-space: normal !important;
+      }
+      /* Field label above the input, from the header column. */
+      table.form-cards td::before {
+        content: attr(data-label);
+        display: block;
+        font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+        text-transform: uppercase; color: var(--text-dim); font-weight: 600;
+        margin-bottom: 4px;
+      }
+      table.form-cards td[data-label=""]::before,
+      table.form-cards td:not([data-label])::before { content: none; }
+      /* Inputs & selects fill the card width for easy tapping. */
+      table.form-cards td input:not([type=hidden]):not([type=checkbox]):not([type=radio]),
+      table.form-cards td select {
+        width: 100% !important; box-sizing: border-box;
+      }
+      /* Autocomplete dropdown spans the full card. */
+      table.form-cards td .ac-dropdown { left: 0; right: 0; }
+      /* Action column (delete) sits at the end, right-aligned. */
+      table.form-cards td:last-child { text-align: right !important; }
+      /* Full-width separator / page-boundary rows (colspan) span the card. */
+      table.form-cards td[colspan] { text-align: center; }
+      table.form-cards td[colspan]::before { content: none; }
+    }
+
+    /* ── Phase 1.5: touch-friendly inputs & buttons on mobile ──
+       All scoped to the mobile breakpoint — desktop is untouched. */
+    @media (max-width: 900px) {
+      /* ≥16px font stops iOS Safari from auto-zooming when a field is focused;
+         44px min-height is a comfortable thumb target. !important beats the many
+         inline font-size styles set on individual inputs. */
+      input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file]),
+      select,
+      textarea {
+        font-size: 16px !important;
+        min-height: 44px;
+      }
+      textarea { min-height: 72px; }
+
+      /* Comfortable tap height for buttons. */
+      .btn { min-height: 44px; }
+
+      /* Primary / main actions go full-width & centred (small inline primaries,
+         e.g. "Apply" / "Save Configuration", keep their size via :not(.btn-sm)). */
+      .btn-primary:not(.btn-sm) { width: 100%; justify-content: center; }
+    }
   </style>
 </head>
 <body>
@@ -1259,6 +1502,8 @@
     </div>
     <% end %>
   </aside>
+  <%# Scrim behind the mobile drawer — tap to close %>
+  <div id="mobileNavBackdrop" onclick="closeMobileNav()"></div>
   <% end %>
 
   <!-- MAIN -->
@@ -1278,11 +1523,28 @@
     </div>
   <% end %>
     <div class="topbar">
+      <%# Mobile drawer toggle — hidden on desktop via CSS %>
+      <button type="button" class="nav-hamburger" onclick="openMobileNav()" aria-label="Open menu">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
       <div class="breadcrumb">
         <%= yield :breadcrumb %>
       </div>
       <%# ── Command palette trigger ── %>
-      <div style="margin-left:auto">
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <%# PWA install — shown only when the browser reports the app is installable %>
+        <button id="pwa-install-btn" type="button" onclick="installPWA()"
+                style="display:none;align-items:center;gap:6px;padding:7px 12px;
+                       background:var(--accent);color:#fff;border:none;border-radius:8px;
+                       cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span class="pwa-install-label">Install app</span>
+        </button>
         <button id="cmd-trigger"
                 onclick="openPalette()"
                 style="display:flex;align-items:center;gap:10px;padding:7px 14px;
@@ -1456,6 +1718,73 @@
   (function() {
     if (localStorage.getItem('storeerp_sidebar') === '1') applySidebar(true);
   })();
+
+  // ── Mobile off-canvas drawer ──
+  var _mqMobile = window.matchMedia('(max-width: 900px)');
+  function isMobileNav() { return _mqMobile.matches; }
+
+  window.openMobileNav = function() {
+    var sb = document.getElementById('mainSidebar');
+    var bd = document.getElementById('mobileNavBackdrop');
+    if (!sb) return;
+    sb.classList.remove('collapsed');   // drawer always shows the full nav
+    sb.classList.add('mobile-open');
+    if (bd) bd.classList.add('open');
+  };
+  window.closeMobileNav = function() {
+    var sb = document.getElementById('mainSidebar');
+    var bd = document.getElementById('mobileNavBackdrop');
+    if (sb) sb.classList.remove('mobile-open');
+    if (bd) bd.classList.remove('open');
+  };
+
+  // On phones the desktop mini-collapse shouldn't apply — strip it so the
+  // drawer renders the full nav. Re-check when crossing the breakpoint.
+  function syncMobileNav() {
+    var sb = document.getElementById('mainSidebar');
+    if (!sb) return;
+    if (isMobileNav()) {
+      sb.classList.remove('collapsed');
+      document.body.classList.remove('sidebar-collapsed');
+    } else {
+      closeMobileNav();  // leaving mobile → ensure drawer state is cleared
+    }
+  }
+  (_mqMobile.addEventListener ? _mqMobile.addEventListener('change', syncMobileNav)
+                              : _mqMobile.addListener(syncMobileNav));
+  syncMobileNav();
+
+  // Close the drawer after tapping a real navigation link, and on Esc.
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('#mainSidebar a[href]').forEach(function(a) {
+      a.addEventListener('click', function() { if (isMobileNav()) closeMobileNav(); });
+    });
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeMobileNav();
+  });
+
+  // ── Phase 2: auto-label table cells for the mobile card layout ──
+  // For every <table class="table-cards">, copy each <thead> header onto the
+  // matching <td> as data-label, so the CSS card view can show "Label: value".
+  // One class per table is all a page needs — no per-cell markup.
+  window.labelTableCards = function(root) {
+    (root || document).querySelectorAll('table.table-cards, table.form-cards').forEach(function(tbl) {
+      var heads = Array.prototype.map.call(
+        tbl.querySelectorAll('thead th'),
+        function(th) { return th.textContent.trim(); }
+      );
+      if (!heads.length) return;
+      tbl.querySelectorAll('tbody tr').forEach(function(tr) {
+        // Count only <td> cells — a row may carry hidden <input> fields as direct
+        // children (e.g. Rails fields_for), which must not offset the mapping.
+        var tds = Array.prototype.filter.call(tr.children, function(c) { return c.tagName === 'TD'; });
+        if (tds.length !== heads.length) return;   // skip colspan/summary rows
+        for (var i = 0; i < tds.length; i++) tds[i].setAttribute('data-label', heads[i] || '');
+      });
+    });
+  };
+  document.addEventListener('DOMContentLoaded', function() { labelTableCards(); });
 
   // ── Theme ──
   var THEMES = ['dark', 'light', 'midnight', 'forest', 'ocean', 'warm', 'rose', 'sage', 'sky'];
