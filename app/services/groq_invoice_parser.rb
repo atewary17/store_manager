@@ -20,7 +20,15 @@ require 'openssl'
 
 class GroqInvoiceParser
   GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'.freeze
-  GROQ_MODEL   = 'meta-llama/llama-4-scout-17b-16e-instruct'.freeze
+
+  # Invoice scanning needs a VISION (multimodal) model — it sends the bill image.
+  # Llama 4 Scout was decommissioned by Groq on 2026-07-17. Its replacement for
+  # vision workloads is Qwen3.6 27B (multimodal; GPT-OSS 120B is text-only).
+  # Override via GROQ_VISION_MODEL as the catalogue changes — see
+  # https://console.groq.com/docs/models.
+  # ⚠ qwen/qwen3.6-27b is currently a *preview* model on Groq and could be pulled
+  #   at short notice; check the docs for the production-ready vision option.
+  GROQ_MODEL = (ENV['GROQ_VISION_MODEL'].presence || 'qwen/qwen3.6-27b').freeze
 
   def self.call(base64_data:, mime_type:, supplier_hint: nil)
     new(base64_data: base64_data, mime_type: mime_type, supplier_hint: supplier_hint).call
@@ -209,6 +217,10 @@ class GroqInvoiceParser
       model:       GROQ_MODEL,
       temperature: 0.1,
       max_tokens:  8192,
+      # Qwen3 is a reasoning model; without this it emits a <think>…</think> block
+      # instead of clean JSON (and burns the token budget thinking). "none" makes it
+      # answer directly. Harmless for non-reasoning models.
+      reasoning_effort: 'none',
       messages: [
         {
           role:    'user',
@@ -249,8 +261,18 @@ class GroqInvoiceParser
 
     outer = JSON.parse(response.body)
     text  = outer.dig('choices', 0, 'message', 'content').to_s.strip
+    # Reasoning models (e.g. Qwen3) may prepend a <think>…</think> block — drop it.
+    text  = text.sub(%r{\A\s*<think>.*?</think>\s*}mi, '').strip
+    # Strip markdown code fences the model sometimes wraps JSON in.
     text  = text.gsub(/\A```(?:json)?\s*/i, '').gsub(/\s*```\z/, '').strip
-    data  = JSON.parse(text)
+    data  =
+      begin
+        JSON.parse(text)
+      rescue JSON::ParserError
+        # Last resort: pull the outermost {…} object out of any surrounding prose.
+        snippet = text[/\{.*\}/m]
+        snippet ? JSON.parse(snippet) : raise
+      end
 
     { success: true, data: data, raw_response: text, error: nil }
 

@@ -178,10 +178,12 @@ class UsersController < ApplicationController
     )
   end
 
+  PROFILE_FIELDS = %i[first_name last_name phone_number password password_confirmation].freeze
+
   def profile_params
-    params.require(:user).permit(
-      :first_name, :last_name, :phone_number,
-      :password, :password_confirmation
-    )
+    # The profile form scopes fields under `user[...]`, but tolerate flat
+    # top-level params too (e.g. a stale/cached page) so saving never 400s.
+    source = params[:user].present? ? params.require(:user) : params
+    source.permit(*PROFILE_FIELDS)
   end
 end

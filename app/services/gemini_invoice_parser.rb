@@ -12,7 +12,24 @@
 #
 class GeminiInvoiceParser
 
-  GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent".freeze
+  # Vision models, tried in order. The free tier load-sheds individual models with
+  # HTTP 503 ("overloaded") unpredictably — a model that 503s now may be fine in a
+  # minute, and vice-versa — so we fall back through a chain rather than pinning one.
+  # Order = fastest/healthiest first. gemini-flash-lite-latest returns a full invoice
+  # extraction in ~6s; the heavier flash aliases are backups. Override with a
+  # comma-separated GEMINI_MODEL list to change or shorten the chain.
+  GEMINI_MODELS = (
+    ENV['GEMINI_MODEL'].presence&.split(',')&.map(&:strip).presence ||
+    %w[gemini-flash-lite-latest gemini-3.5-flash gemini-flash-latest]
+  ).freeze
+
+  def self.api_url_for(model)
+    "https://generativelanguage.googleapis.com/v1beta/models/#{model}:generateContent"
+  end
+
+  # Transient, server-side statuses worth retrying (overload / rate / gateway).
+  RETRYABLE_STATUS = [429, 500, 502, 503, 504].freeze
+  MAX_ATTEMPTS     = 2
 
   def self.call(base64_data:, mime_type:)
     new(base64_data: base64_data, mime_type: mime_type).call
@@ -27,11 +44,34 @@ class GeminiInvoiceParser
   def call
     raise "GEMINI_API_KEY not set" unless @api_key.present?
 
-    url  = "#{GEMINI_API_URL}?key=#{@api_key}"
     body = build_request_body
+    last_error = nil
 
-    response = make_request(url, body)
-    parse_response(response)
+    # Walk the model chain: on a transient/overload failure (503 etc.) or timeout,
+    # fall through to the next model instead of failing the whole scan.
+    GEMINI_MODELS.each do |model|
+      url = "#{self.class.api_url_for(model)}?key=#{@api_key}"
+      begin
+        response = make_request(url, body)
+      rescue Net::ReadTimeout, Net::OpenTimeout => e
+        last_error = "#{model}: #{e.class}"
+        Rails.logger.warn "[GeminiInvoiceParser] #{model} timed out — trying next model"
+        next
+      end
+
+      if RETRYABLE_STATUS.include?(response.code.to_i)
+        last_error = "#{model}: HTTP #{response.code}"
+        Rails.logger.warn "[GeminiInvoiceParser] #{model} returned #{response.code} — trying next model"
+        next
+      end
+
+      result = parse_response(response)
+      result[:model] = model if result.is_a?(Hash)
+      return result
+    end
+
+    { success: false, error: "All Gemini models unavailable (#{last_error})",
+      data: nil, raw_response: nil }
 
   rescue => e
     { success: false, error: e.message, data: nil, raw_response: nil }
@@ -118,7 +158,8 @@ class GeminiInvoiceParser
     uri  = URI.parse(url)
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl      = true
-    http.read_timeout = 120  # Gemini can be slow on large PDFs
+    http.read_timeout = 75   # if a model hangs, fail over to the next one rather than wait forever
+    http.open_timeout = 15
 
     # Ruby's OpenSSL on Mac/Windows sometimes can't verify Google's CRL chain.
     # We still use SSL (encrypted), we just skip the CRL revocation check.
@@ -129,7 +170,18 @@ class GeminiInvoiceParser
     req['Content-Type'] = 'application/json'
     req.body = body.to_json
 
-    http.request(req)
+    # Gemini can return 503 (overloaded) / 429 (rate) on demand spikes. Retry
+    # those transient errors with exponential backoff (2s, 4s, 8s) before failing.
+    attempt = 0
+    loop do
+      attempt += 1
+      response = http.request(req)
+      return response if !RETRYABLE_STATUS.include?(response.code.to_i) || attempt >= MAX_ATTEMPTS
+
+      wait = 2**attempt
+      Rails.logger.warn "[GeminiInvoiceParser] HTTP #{response.code} (attempt #{attempt}/#{MAX_ATTEMPTS}); retrying in #{wait}s"
+      sleep(wait)
+    end
   end
 
   def parse_response(response)

@@ -33,6 +33,7 @@ class InvoiceAiService
   # ── Provider registry — add new parsers here ──────────────────────────────
   PROVIDERS = {
     'groq'       => -> (b64, mime, hint) { GroqInvoiceParser.call(base64_data: b64, mime_type: mime, supplier_hint: hint) },
+    'gemini'     => -> (b64, mime, _hint) { GeminiInvoiceParser.call(base64_data: b64, mime_type: mime) },
     'openrouter' => -> (b64, mime, hint) { OpenRouterInvoiceParser.call(base64_data: b64, mime_type: mime) },
     'mock'       => -> (_b64, _mime, _hint) { mock_response }
   }.freeze

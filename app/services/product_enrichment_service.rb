@@ -19,8 +19,10 @@
 class ProductEnrichmentService
 
   GROQ_API_URL          = 'https://api.groq.com/openai/v1/chat/completions'.freeze
-  GROQ_MODEL            = 'meta-llama/llama-4-scout-17b-16e-instruct'.freeze  # supports json_object mode
-  GROQ_MODEL_FALLBACK   = 'llama3-8b-8192'.freeze  # fallback if scout unavailable
+  # Enrichment is TEXT-only (JSON mode), so Groq's recommended replacement for the
+  # decommissioned Llama 4 Scout works here. Override via GROQ_TEXT_MODEL.
+  GROQ_MODEL            = (ENV['GROQ_TEXT_MODEL'].presence || 'openai/gpt-oss-120b').freeze
+  GROQ_MODEL_FALLBACK   = (ENV['GROQ_TEXT_MODEL_FALLBACK'].presence || 'llama-3.3-70b-versatile').freeze
 
 
   # Prompt is built dynamically (not a template constant) so it can include
