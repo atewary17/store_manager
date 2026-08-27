@@ -23,6 +23,26 @@ module InvoiceScan
       def badge;         nil; end   # 'RECOMMENDED' | 'FREE' | 'RETIRED'
       def display_order; 99;  end
 
+      # Maximum pages this pipeline can handle in one scan, or nil for no
+      # limit. Enforced by the Runner *before* any API call, so a document the
+      # pipeline cannot process fails with an explanation rather than a raw
+      # provider error partway through.
+      def max_pages; nil; end
+
+      # Per-million-token prices, used to show an estimated cost next to a
+      # scan. nil means "unknown" — the UI shows tokens only.
+      def input_price_per_mtok;  nil; end
+      def output_price_per_mtok; nil; end
+
+      # Estimated cost of one scan, in the pricing currency (USD).
+      # Returns nil when this pipeline has no published pricing.
+      def estimated_cost(prompt_tokens:, completion_tokens:)
+        return nil if input_price_per_mtok.nil? || output_price_per_mtok.nil?
+
+        ((prompt_tokens.to_i     / 1_000_000.0) * input_price_per_mtok) +
+          ((completion_tokens.to_i / 1_000_000.0) * output_price_per_mtok)
+      end
+
       # ── Two flags, deliberately separate ──────────────────────────────────
       #
       # available?  — offer this in the admin picker.

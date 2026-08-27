@@ -22,10 +22,10 @@
 <%# ── Superadmin stats panel ── %>
 <% if current_user.super_admin? && @stats %>
   <%
-    providers_map   = @stats[:by_provider]  # already indexed by ai_provider key
+    providers_map   = @stats[:by_provider]  # indexed by pipeline slug
     today_map       = @stats[:today_by_provider]
-    limits          = @stats[:daily_limits]
-    active_provider = ENV['INVOICE_AI_PROVIDER']&.downcase || 'gemini'
+    token_map       = @stats[:today_tokens]
+    active_provider = @stats[:active_pipeline]
   %>
 
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
@@ -57,16 +57,19 @@
       </div>
     </div>
 
-    <%# Per-provider cards %>
-    <% [['groq',       'Groq Llama 4',      '#f0a500'],
-        ['openrouter', 'OpenRouter',        'var(--accent)'],
-        ['gemini',     'Gemini (legacy)',   'var(--text-dim)']].each do |key, label, color| %>
-      <% row       = providers_map[key]
+    <%# One card per registered pipeline — retired ones included, because past
+        scans still count against the totals shown here. %>
+    <% InvoiceScan::Pipelines::Registry.all.each do |pipeline| %>
+      <% key        = pipeline.slug
+         label      = pipeline.display_name
+         is_active  = active_provider == key
+         color      = key.to_s.start_with?('groq') ? '#f0a500' : 'var(--accent)'
+         row        = providers_map[key]
          used_today = today_map[key].to_i
-         limit      = limits[key]
-         remaining  = [limit - used_today, 0].max
-         pct_used   = limit > 0 ? [(used_today.to_f / limit * 100).round, 100].min : 0
-         is_active  = active_provider == key %>
+         tokens_today = token_map[key].to_i %>
+
+      <%# A pipeline nobody has ever used and which is not selected adds noise %>
+      <% next if row.nil? && !is_active %>
 
       <div style="background:var(--surface);border:1px solid <%= is_active ? color : 'var(--border)' %>;
                   border-radius:10px;padding:16px 20px;position:relative">
@@ -101,21 +104,25 @@
           </div>
         </div>
 
-        <%# Today's quota bar %>
-        <div style="font-size:10px;color:var(--text-dim);margin-bottom:5px">
-          Today: <strong style="color:var(--text)"><%= used_today %></strong> used ·
-          <strong style="color:<%= (limit > 0 && remaining < limit * 0.1) ? 'var(--danger)' : 'var(--success)' %>">
-            <%= remaining %> remaining
-          </strong>
-          <span style="color:var(--text-dim)">/ <%= limit.to_s.reverse.scan(/.{1,3}/).join(',').reverse %>/day</span>
+        <%# Today — tokens, not a daily request quota. Groq's free-tier limit is
+            per minute, so a requests-per-day bar told nobody anything useful. %>
+        <div style="font-size:10px;color:var(--text-dim);border-top:1px solid var(--border);
+                    padding-top:10px">
+          Today:
+          <strong style="color:var(--text)"><%= used_today %></strong>
+          <%= 'scan'.pluralize(used_today) %>
+          <% if tokens_today > 0 %>
+            · <strong style="color:var(--text)"><%= number_with_delimiter(tokens_today) %></strong> tokens
+          <% end %>
         </div>
-        <div style="background:var(--border);border-radius:99px;height:4px;overflow:hidden">
-          <div style="height:4px;border-radius:99px;width:<%= pct_used %>%;
-                      background:<%= pct_used > 90 ? 'var(--danger)' : pct_used > 60 ? 'var(--warning)' : color %>">
+        <% if row&.tokens_total.to_i > 0 %>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:3px">
+            All time: <strong style="color:var(--text)">
+              <%= number_with_delimiter(row.tokens_total) %></strong> tokens
           </div>
-        </div>
-        <div style="font-size:9px;color:var(--text-dim);margin-top:4px">
-          * Based on requests tracked in this app. Resets at midnight UTC.
+        <% end %>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:6px">
+          * Counted from provider-reported usage on scans in this app.
         </div>
       </div>
     <% end %>
@@ -190,11 +197,13 @@
             <% if current_user.super_admin? %>
               <td style="white-space:nowrap">
                 <% if imp.ai_provider.present? %>
-                  <% pc = imp.ai_provider == 'groq' ? '#f0a500' : 'var(--accent)' %>
-                  <span style="font-family:var(--mono);font-size:10px;font-weight:700;
+                  <% pc = imp.ai_provider.to_s.start_with?('groq') ? '#f0a500' : 'var(--accent)' %>
+                  <%# ai_provider holds a pipeline slug — show the readable name %>
+                  <span title="<%= imp.ai_provider %>"
+                        style="font-family:var(--mono);font-size:10px;font-weight:700;
                                color:<%= pc %>;border:1px solid var(--border);
-                               border-radius:4px;padding:2px 7px;text-transform:uppercase">
-                    <%= imp.ai_provider %>
+                               border-radius:4px;padding:2px 7px">
+                    <%= scan_pipeline_name(imp.ai_provider) %>
                   </span>
                 <% end %>
                 <%# Raw JSON button — show if any response exists (success or failed attempt) %>
@@ -215,6 +224,39 @@
                   <% end %>
                 <% elsif !imp.ai_provider.present? %>
                   <span style="color:var(--text-dim);font-size:12px">—</span>
+                <% end %>
+
+                <%# ── Token usage — super admin only, same column ── %>
+                <% summary = scan_token_summary(imp) %>
+                <% if summary %>
+                  <% breakdown = scan_token_breakdown(imp) %>
+                  <% cost      = scan_cost_estimate(imp) %>
+                  <div style="margin-top:4px;font-family:var(--mono);font-size:10px;
+                              color:var(--text-dim);line-height:1.5">
+                    <% if breakdown.size > 1 %>
+                      <details>
+                        <summary style="cursor:pointer;list-style:none">
+                          <%= summary %><%= " · #{cost}" if cost %>
+                          <span style="opacity:.6">· <%= breakdown.size %> pages</span>
+                        </summary>
+                        <div style="padding:3px 0 0 10px;border-left:1px solid var(--border);
+                                    margin-top:3px">
+                          <% breakdown.each do |page| %>
+                            <div>
+                              p<%= page[:page] %>:
+                              <%= number_with_delimiter(page[:total]) %> tok
+                              <span style="opacity:.65">
+                                (<%= number_with_delimiter(page[:prompt]) %> in /
+                                <%= number_with_delimiter(page[:completion]) %> out)
+                              </span>
+                            </div>
+                          <% end %>
+                        </div>
+                      </details>
+                    <% else %>
+                      <%= summary %><%= " · #{cost}" if cost %>
+                    <% end %>
+                  </div>
                 <% end %>
               </td>
             <% end %>

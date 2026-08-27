@@ -103,10 +103,26 @@ module InvoiceScan
           text  = text.sub(/\A<think>.*?<\/think>\s*/m, '').strip
           text  = text.gsub(/\A```(?:json)?\s*/i, '').gsub(/\s*```\z/, '').strip
 
-          { success: true, data: JSON.parse(text), raw_response: text, error: nil }
+          { success: true, data: JSON.parse(text), raw_response: text, error: nil,
+            usage: usage_from(outer) }
         rescue JSON::ParserError => e
+          # Tokens were still spent even though the response did not parse —
+          # report them so usage totals stay honest.
           { success: false, data: nil, raw_response: text.to_s,
-            error: "JSON parse failed: #{e.message}" }
+            error: "JSON parse failed: #{e.message}",
+            usage: usage_from(outer) }
+        end
+
+        # Groq returns OpenAI-shaped usage on every successful response.
+        def usage_from(payload)
+          u = payload.is_a?(Hash) ? payload['usage'] : nil
+          return { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } if u.blank?
+
+          {
+            prompt_tokens:     u['prompt_tokens'].to_i,
+            completion_tokens: u['completion_tokens'].to_i,
+            total_tokens:      u['total_tokens'].to_i
+          }
         end
       end
     end

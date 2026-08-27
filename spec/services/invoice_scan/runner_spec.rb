@@ -97,6 +97,47 @@ RSpec.describe InvoiceScan::Runner do
     expect(result[:data]['_meta']['pages_scanned']).to eq 1
   end
 
+  context 'when the document has more pages than the pipeline allows' do
+    class SinglePagePipeline < InvoiceScan::Pipelines::Base
+      def slug;         'stub_single_page'; end
+      def display_name; 'Stub Single Page'; end
+      def max_pages;    1; end
+      def stages
+        [{ role: :ocr,       engine: StubOcr,        config: {} },
+         { role: :structure, engine: StubStructurer, config: {} }]
+      end
+    end
+
+    let(:two_pages) { [['a', 'image/jpeg'], ['b', 'image/jpeg']] }
+
+    before do
+      allow_any_instance_of(InvoiceScan::Document).to receive(:pages).and_return(two_pages)
+      allow_any_instance_of(InvoiceScan::Document).to receive(:preview_image).and_return(nil)
+    end
+
+    it 'fails before calling any engine' do
+      expect_any_instance_of(StubOcr).not_to receive(:call)
+
+      run(SinglePagePipeline.new)
+    end
+
+    it 'explains the limit and what to do about it' do
+      result = run(SinglePagePipeline.new)
+
+      expect(result[:success]).to be false
+      expect(result[:error]).to include '1 page per invoice'
+      expect(result[:error]).to include 'this file has 2'
+      expect(result[:error]).to include 'administrator'
+    end
+
+    it 'allows a document within the limit' do
+      allow_any_instance_of(InvoiceScan::Document)
+        .to receive(:pages).and_return([['a', 'image/jpeg']])
+
+      expect(run(SinglePagePipeline.new)[:success]).to be true
+    end
+  end
+
   context 'when a stage fails' do
     class FailingStage < InvoiceScan::Engines::Base
       def self.role; :structure; end

@@ -20,21 +20,24 @@ class Purchasing::DigitiseController < Purchasing::BaseController
     @imports = base.includes(:user, :purchase_invoice).recent.limit(50)
 
     if current_user.super_admin?
-      today      = Date.current.beginning_of_day
-      active_prov = ENV.fetch('INVOICE_AI_PROVIDER', 'groq').downcase
+      today       = Date.current.beginning_of_day
+      active_prov = @organisation.scan_pipeline_slug
 
-      by_provider_raw = base.group(
-        Arel.sql("COALESCE(ai_provider, '#{active_prov}')")
-      ).select(Arel.sql(
-        "COALESCE(ai_provider, '#{active_prov}') as ai_provider, " \
+      # Bound, not interpolated: active_prov now comes from the organisation's
+      # settings jsonb rather than an env var, so it must not reach SQL raw.
+      coalesce = ActiveRecord::Base.sanitize_sql_array(
+        ['COALESCE(ai_provider, ?)', active_prov]
+      )
+
+      by_provider_raw = base.group(Arel.sql(coalesce)).select(Arel.sql(
+        "#{coalesce} as ai_provider, " \
         "count(*) as total_count, " \
         "sum(case when status in ('review','confirmed') then 1 else 0 end) as success_count, " \
-        "sum(case when status = 'failed' then 1 else 0 end) as failed_count"
+        "sum(case when status = 'failed' then 1 else 0 end) as failed_count, " \
+        "coalesce(sum(total_tokens), 0) as tokens_total"
       ))
 
-      today_by_provider_raw = base.where('created_at >= ?', today)
-                                  .group(Arel.sql("COALESCE(ai_provider, '#{active_prov}')"))
-                                  .count
+      scoped_today = base.where('created_at >= ?', today)
 
       @stats = {
         total:             base.count,
@@ -42,8 +45,11 @@ class Purchasing::DigitiseController < Purchasing::BaseController
         failed:            base.where(status: 'failed').count,
         pending:           base.where(status: %w[pending processing retrying]).count,
         by_provider:       by_provider_raw.index_by(&:ai_provider),
-        today_by_provider: today_by_provider_raw,
-        daily_limits:      { 'groq' => 14_400, 'openrouter' => 999, 'gemini' => 1_500 }
+        today_by_provider: scoped_today.group(Arel.sql(coalesce)).count,
+        today_tokens:      scoped_today.group(Arel.sql(coalesce)).sum(:total_tokens),
+        tokens_all_time:   base.sum(:total_tokens),
+        tokens_today:      scoped_today.sum(:total_tokens),
+        active_pipeline:   active_prov
       }
     end
   end

@@ -63,7 +63,8 @@ class DigitiseImportJob < ApplicationJob
         ai_provider:    result[:provider] || provider,
         page_count:     meta['page_count'].presence || 1,
         pages_scanned:  meta['pages_scanned'].presence || 1,
-        preview_image:  result[:preview_image]   # base64 JPEG of page 1, nil for plain images
+        preview_image:  result[:preview_image],  # base64 JPEG of page 1, nil for plain images
+        **token_usage(result)
       )
     else
       is_rate_limit = result[:error].to_s.include?('429')
@@ -73,7 +74,11 @@ class DigitiseImportJob < ApplicationJob
         status:        can_retry ? 'pending' : 'failed',
         raw_response:  result[:raw_response].to_s,
         error_message: result[:error],
-        attempt_log:   new_log
+        attempt_log:   new_log,
+        # A failed scan can still have spent tokens — a page that reached the
+        # model and returned unparseable JSON is billed. A 413 is rejected
+        # before inference and correctly records zero.
+        **token_usage(result)
       )
 
       if can_retry
@@ -97,5 +102,21 @@ class DigitiseImportJob < ApplicationJob
       attempt_log:   new_log
     )
     raise
+  end
+
+  private
+
+  # Provider-reported token usage, flattened onto the import so the digitise
+  # index can display it without a join. Missing usage records zero rather
+  # than nil, so "not yet measured" and "cost nothing" stay distinguishable
+  # only by the scan's status.
+  def token_usage(result)
+    usage = result[:usage] || {}
+
+    {
+      prompt_tokens:     usage[:prompt_tokens].to_i,
+      completion_tokens: usage[:completion_tokens].to_i,
+      total_tokens:      usage[:total_tokens].to_i
+    }
   end
 end

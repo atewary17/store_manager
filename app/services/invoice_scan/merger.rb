@@ -18,12 +18,17 @@ module InvoiceScan
     def call
       successful = @page_results.select { |r| r[:success] && r[:data].present? }
 
+      # Totalled across every page, including failed ones — a page that reached
+      # the model and came back unparseable still cost tokens.
+      usage = total_usage
+
       if successful.empty?
         return {
           success:      false,
           error:        @page_results.map { |r| r[:error] }.compact.join(' | '),
           data:         nil,
-          raw_response: @page_results.first&.dig(:raw_response)
+          raw_response: @page_results.first&.dig(:raw_response),
+          usage:        usage
         }
       end
 
@@ -50,12 +55,15 @@ module InvoiceScan
           'supplier_hint'    => @context.supplier_hint,
           'validation_flags' => validation[:flags],
           'validation_valid' => validation[:valid],
+          'usage'            => usage.stringify_keys,
           'pages_data'       => successful.map { |r|
             {
               'page_num'    => r[:page_num],
               'item_count'  => (r[:data]['items'] || []).size,
               'page_number' => r[:data].dig('header', 'page_number'),
-              'total_pages' => r[:data].dig('header', 'total_pages')
+              'total_pages' => r[:data].dig('header', 'total_pages'),
+              # Per-page breakdown behind the headline total.
+              'usage'       => (r[:usage] || {}).stringify_keys
             }
           }
         }
@@ -65,11 +73,23 @@ module InvoiceScan
         success:      true,
         data:         merged_data,
         raw_response: successful.map { |r| r[:raw_response] }.join("\n---page---\n"),
-        error:        nil
+        error:        nil,
+        usage:        usage
       }
     end
 
     private
+
+    def total_usage
+      @page_results.each_with_object(
+        { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+      ) do |result, sum|
+        u = result[:usage] || {}
+        sum[:prompt_tokens]     += u[:prompt_tokens].to_i
+        sum[:completion_tokens] += u[:completion_tokens].to_i
+        sum[:total_tokens]      += u[:total_tokens].to_i
+      end
+    end
 
     # Resolve unit_rate from rate_per_pack where the arithmetic agrees.
     def resolve_unit_rates(items)

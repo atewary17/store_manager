@@ -8,6 +8,7 @@ module InvoiceScan
     class Registry
       PRESETS = [
         InvoiceScan::Pipelines::GroqQwenVision,
+        InvoiceScan::Pipelines::GroqQwenVisionLite,
         InvoiceScan::Pipelines::GroqLlamaScout
       ].freeze
 
