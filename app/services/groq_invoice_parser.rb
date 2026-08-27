@@ -20,7 +20,10 @@ require 'openssl'
 
 class GroqInvoiceParser
   GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'.freeze
-  GROQ_MODEL   = 'meta-llama/llama-4-scout-17b-16e-instruct'.freeze
+  # Vision model. Llama 4 Scout was decommissioned by Groq on 17 Jul 2026;
+  # Qwen 3.6 27B is Groq's recommended multimodal replacement.
+  # Overridable via env so the next deprecation is a config change, not a deploy.
+  GROQ_MODEL   = ENV.fetch('GROQ_VISION_MODEL', 'qwen/qwen3.6-27b').freeze
 
   def self.call(base64_data:, mime_type:, supplier_hint: nil)
     new(base64_data: base64_data, mime_type: mime_type, supplier_hint: supplier_hint).call
