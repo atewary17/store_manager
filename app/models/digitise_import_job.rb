@@ -17,7 +17,11 @@ class DigitiseImportJob < ApplicationJob
     user_pref     = import.user&.preferences&.dig('ai_provider').presence
     supplier_hint = import.parsed_data&.dig('supplier', 'name').presence
 
-    provider = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase
+    # The organisation's configured scanning process decides what runs. A user
+    # preference is only honoured for super admins — see InvoiceAiService.
+    provider = import.organisation&.scan_pipeline_slug ||
+               InvoiceScan::Pipelines::Registry::DEFAULT
+
     result = ExternalApiLog.record(
       service:         provider,
       operation:       'invoice_parse',
@@ -30,7 +34,9 @@ class DigitiseImportJob < ApplicationJob
         base64_data:   base64_data,
         mime_type:     import.file_content_type,
         user_pref:     user_pref,
-        supplier_hint: supplier_hint
+        supplier_hint: supplier_hint,
+        organisation:  import.organisation,
+        user:          import.user
       )
     end
 
@@ -52,7 +58,9 @@ class DigitiseImportJob < ApplicationJob
         raw_response:   result[:raw_response],
         error_message:  nil,
         attempt_log:    new_log,
-        ai_provider:    result[:provider] || ENV['INVOICE_AI_PROVIDER'] || 'groq',
+        # Records the pipeline slug that actually ran, so an import can always
+        # show what read it — including after that pipeline is retired.
+        ai_provider:    result[:provider] || provider,
         page_count:     meta['page_count'].presence || 1,
         pages_scanned:  meta['pages_scanned'].presence || 1,
         preview_image:  result[:preview_image]   # base64 JPEG of page 1, nil for plain images

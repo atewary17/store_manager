@@ -2,25 +2,25 @@
 #
 # Unified entry point for AI invoice extraction.
 #
-# SUPPORTED PROVIDERS:
-#   groq        → Groq Llama 4 Scout (PRIMARY — free, ~14,400 req/day, WORKING ✅)
-#   openrouter  → OpenRouter (FALLBACK — $1 free credit, many models)
-#   mock        → Returns fake data (local dev, no API calls)
+# Which scanning process runs is chosen per organisation by a super admin on
+# the organisation page, and stored in organisations.settings['ai_pipeline'].
 #
-# ADDING A NEW PROVIDER:
-#   1. Create app/services/<name>_invoice_parser.rb implementing:
-#        MyParser.call(base64_data:, mime_type:) → { success:, data:, error:,
-#                                                     raw_response:, provider:,
-#                                                     preview_image: }
-#      The data hash must include a '_meta' key:
-#        '_meta' => { 'pages_scanned' => n, 'page_count' => n, 'pages_data' => [...] }
-#   2. Register it in the PROVIDERS map below.
-#   3. Set INVOICE_AI_PROVIDER=<name> in env or user preferences.
+# RESOLUTION ORDER (first match wins):
+#   1. the organisation's configured pipeline   ← admin policy, normally wins
+#   2. a super admin's personal override        ← testing only
+#   3. INVOICE_SCAN_PIPELINE env                ← server default
+#   4. Pipelines::Registry::DEFAULT
+#
+# A non-super-admin's preferences are deliberately ignored: the point of the
+# org setting is that one admin decides for the whole organisation.
+#
+# ADDING A SCANNING PROCESS:
+#   Create an InvoiceScan::Pipelines::* class and register it in
+#   InvoiceScan::Pipelines::Registry. It then appears in the admin picker on
+#   its own — no change to this file or to the organisation view.
 #
 # SETUP (config/local_env.yml):
-#   INVOICE_AI_PROVIDER: "groq"
 #   GROQ_API_KEY: "gsk_your_key_here"
-#   OPENROUTER_API_KEY: "sk-or-your_key_here"   # optional fallback
 #
 require 'net/http'
 require 'uri'
@@ -30,55 +30,60 @@ require 'openssl'
 
 class InvoiceAiService
 
-  # ── Provider registry — add new parsers here ──────────────────────────────
-  PROVIDERS = {
-    'groq'       => -> (b64, mime, hint) { GroqInvoiceParser.call(base64_data: b64, mime_type: mime, supplier_hint: hint) },
-    'openrouter' => -> (b64, mime, hint) { OpenRouterInvoiceParser.call(base64_data: b64, mime_type: mime, supplier_hint: hint) },
-    'mock'       => -> (_b64, _mime, _hint) { mock_response }
-  }.freeze
+  MOCK = 'mock'.freeze
 
   # ── Primary call ───────────────────────────────────────────────────────────
   #
-  # Returns the provider result hash, always including:
+  # Returns the result hash, always including:
   #   :success        Boolean
   #   :data           Hash  (nil on failure)
   #   :error          String (nil on success)
   #   :raw_response   String
-  #   :provider       String
-  #   :preview_image  String|nil  (base64 JPEG, set by parsers that generate it)
+  #   :provider       String — the pipeline slug that actually ran
+  #   :pipeline       String — same value; :provider kept for existing callers
+  #   :preview_image  String|nil  (base64 JPEG, for PDFs)
   #
-  def self.call(base64_data:, mime_type:, user_pref: nil, supplier_hint: nil)
-    provider_key = resolve_provider(user_pref)
-    handler      = PROVIDERS[provider_key] || PROVIDERS['groq']
+  def self.call(base64_data:, mime_type:, user_pref: nil, supplier_hint: nil,
+                organisation: nil, user: nil)
+    if mock?(user_pref)
+      return mock_response.merge(provider: MOCK, pipeline: MOCK)
+    end
 
-    result = handler.call(base64_data, mime_type, supplier_hint)
-    result.merge(provider: provider_key)
-  end
+    pipeline = resolve_pipeline(organisation: organisation, user: user, user_pref: user_pref)
 
-  # ── Page-level abstraction (for providers that process one page at a time) ─
-  #
-  # Future providers that want per-page control can override this.
-  # Currently Groq handles multi-page internally in GroqInvoiceParser.
-  #
-  def self.parse_page(base64_image:, mime_type:, page_num: 1, provider: nil, supplier_hint: nil)
-    provider_key = resolve_provider(provider)
-    handler      = PROVIDERS[provider_key] || PROVIDERS['groq']
+    result = InvoiceScan::Runner.call(
+      pipeline:    pipeline,
+      base64_data: base64_data,
+      mime_type:   mime_type,
+      context:     InvoiceScan::Context.build(
+        supplier_hint: supplier_hint,
+        organisation:  organisation
+      )
+    )
 
-    result = handler.call(base64_image, mime_type, supplier_hint)
-    result.merge(provider: provider_key, page_num: page_num)
+    result.merge(provider: pipeline.slug)
   end
 
   # ── Helpers ────────────────────────────────────────────────────────────────
 
-  def self.resolve_provider(user_pref)
-    key = (user_pref.presence || ENV['INVOICE_AI_PROVIDER'] || 'groq').downcase.strip
-    unless PROVIDERS.key?(key)
-      Rails.logger.warn "[InvoiceAiService] Unknown provider '#{key}', falling back to groq"
-      key = 'groq'
-    end
-    key
+  def self.mock?(user_pref)
+    user_pref.to_s.downcase.strip == MOCK ||
+      ENV['INVOICE_AI_PROVIDER'].to_s.downcase.strip == MOCK
   end
-  private_class_method :resolve_provider
+  private_class_method :mock?
+
+  # Organisation policy wins. A personal override is honoured only for super
+  # admins, so an ordinary user cannot opt out of what their admin configured.
+  def self.resolve_pipeline(organisation:, user: nil, user_pref: nil)
+    if user&.super_admin? && user_pref.present?
+      return InvoiceScan::Pipelines::Registry.for(user_pref)
+    end
+
+    return organisation.scan_pipeline if organisation.respond_to?(:scan_pipeline)
+
+    InvoiceScan::Pipelines::Registry.for(ENV['INVOICE_SCAN_PIPELINE'])
+  end
+  private_class_method :resolve_pipeline
 
   def self.mock_response
     Rails.logger.info '[InvoiceAiService] MOCK MODE'
