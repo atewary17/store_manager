@@ -113,4 +113,6 @@ dump.rdb
 # files are also untracked (git ignores rules for files already in the index).
 .env
 .env.*
+# Templates carry placeholders only, and must be committed.
 !.env.example
+!.env.*.example
