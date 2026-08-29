@@ -26,9 +26,14 @@ class OpenRouterInvoiceParser
   FREE_MODEL = 'meta-llama/llama-3.2-11b-vision-instruct:free'.freeze
   PAID_MODEL = 'meta-llama/llama-4-scout'.freeze
 
-  def initialize(base64_data:, mime_type:)
-    @base64_data = base64_data
-    @mime_type   = mime_type
+  def self.call(base64_data:, mime_type:, supplier_hint: nil)
+    new(base64_data: base64_data, mime_type: mime_type, supplier_hint: supplier_hint).call
+  end
+
+  def initialize(base64_data:, mime_type:, supplier_hint: nil)
+    @base64_data   = base64_data
+    @mime_type     = mime_type
+    @supplier_hint = supplier_hint
   end
 
   def call
@@ -108,8 +113,9 @@ class OpenRouterInvoiceParser
   private
 
   def prompt
-    # Generic invoice-scan prompt (same one Groq uses when no supplier is known).
-    InvoiceScan::PromptLoader.for_supplier(nil)
+    # Brand-specific invoice-scan prompt, falling back to generic.txt when the
+    # supplier is unknown — same lookup every other parser uses.
+    InvoiceScan::PromptLoader.for_supplier(@supplier_hint)
   end
 
   def error_result(msg)

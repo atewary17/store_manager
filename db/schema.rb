@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_01_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_27_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
@@ -114,6 +114,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_01_000001) do
     t.integer "page_count", comment: "Total pages the AI detected in the uploaded file"
     t.integer "pages_scanned", comment: "Number of pages actually sent to AI"
     t.text "preview_image", comment: "Base64 JPEG of page 1 for the review preview panel"
+    t.integer "prompt_tokens", comment: "Input tokens billed for this scan (prompt + image), summed across pages"
+    t.integer "completion_tokens", comment: "Output tokens generated, summed across pages"
+    t.integer "total_tokens", comment: "prompt_tokens + completion_tokens, as reported by the provider"
     t.index ["organisation_id"], name: "index_digitise_imports_on_organisation_id"
     t.index ["purchase_invoice_id"], name: "index_digitise_imports_on_purchase_invoice_id"
     t.index ["session_id"], name: "index_digitise_imports_on_session_id"

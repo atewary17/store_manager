@@ -46,6 +46,32 @@ class Organisation < ApplicationRecord
     update!(settings: settings.merge(key.to_s => value))
   end
 
+  # ── Invoice scanning pipeline ─────────────────────────────────────────────
+  #
+  # Which scanning process this org uses, set by a super admin on the org page.
+  #
+  # Orgs configured before pipelines existed stored a bare provider name in
+  # settings['ai_provider']. Map those forward so nobody has to re-pick after
+  # deploy — every legacy value was some form of single-pass vision extraction,
+  # which is what groq_qwen_vision now is.
+  LEGACY_PROVIDER_MAP = {
+    'groq'       => 'groq_qwen_vision',
+    'gemini'     => 'groq_qwen_vision',
+    'openrouter' => 'groq_qwen_vision',
+    'mock'       => 'groq_qwen_vision'
+  }.freeze
+
+  def scan_pipeline
+    InvoiceScan::Pipelines::Registry.for(scan_pipeline_slug)
+  end
+
+  def scan_pipeline_slug
+    settings['ai_pipeline'].presence ||
+      LEGACY_PROVIDER_MAP[settings['ai_provider'].to_s] ||
+      ENV['INVOICE_SCAN_PIPELINE'].presence ||
+      InvoiceScan::Pipelines::Registry::DEFAULT
+  end
+
   # ── Org product filter ────────────────────────────────────────────────────
   # The filter is built by OrgProductFilterService and stored in settings.
   # It is strictly scoped to this org — never shared across orgs.

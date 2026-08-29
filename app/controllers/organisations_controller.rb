@@ -42,6 +42,7 @@ class OrganisationsController < ApplicationController
       invoice_number_format
       invoice_number_start
       ai_provider
+      ai_pipeline
       tinting_prompt_enabled
       tinting_prompt_threshold_litres
       tinting_prompt_action
@@ -57,6 +58,17 @@ class OrganisationsController < ApplicationController
     # Coerce numeric string values
     %w[tinting_prompt_threshold_litres].each do |num_key|
       updates[num_key] = updates[num_key].to_f if updates.key?(num_key)
+    end
+
+    # Only accept pipelines that exist and are currently selectable — this
+    # rejects retired presets (which stay resolvable for historical imports
+    # but must never be chosen for new scans) and anything hand-crafted.
+    if updates.key?('ai_pipeline') && updates['ai_pipeline'].present?
+      selectable = InvoiceScan::Pipelines::Registry.available.map(&:slug)
+      unless selectable.include?(updates['ai_pipeline'])
+        render json: { error: 'That scanning process is not available.' },
+               status: :unprocessable_entity and return
+      end
     end
 
     # Validate format value
