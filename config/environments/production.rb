@@ -49,7 +49,10 @@ Rails.application.configure do
   # config.assume_ssl = true
 
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  config.force_ssl = true
+  # Defaults to on, so deployed behaviour is unchanged. Set FORCE_SSL=false to
+  # run the production image locally over plain HTTP — with it on and no TLS
+  # terminator in front, every request redirects to https and loops forever.
+  config.force_ssl = ENV.fetch('FORCE_SSL', 'true') == 'true'
 
   # Log to STDOUT by default
   config.logger = ActiveSupport::Logger.new(STDOUT)
