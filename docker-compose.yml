@@ -1,0 +1,80 @@
+# docker-compose.yml — local production-mode stack.
+#
+# Runs the app exactly as it will run on OCI, minus TLS: Postgres, a Puma web
+# container, and a separate GoodJob worker. Plain HTTP on port 3000.
+#
+#   cp .env.docker.example .env      # then fill in the real values
+#   docker compose build
+#   docker compose up -d db
+#   docker compose run --rm web bundle exec rails db:prepare
+#   docker compose up -d
+#
+# A reverse proxy (Caddy) and TLS are added separately at deploy time.
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: store_manager
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: store_manager_production
+    ports:
+      # Exposed so you can psql from the host while testing. Remove this line
+      # on the server — nothing outside the compose network needs it.
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # web and worker wait for this before starting, so they never boot against
+      # a database that is still initialising.
+      test: ["CMD-SHELL", "pg_isready -U store_manager -d store_manager_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Rails web (Puma) ──────────────────────────────────────────────────────
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:${POSTGRES_PASSWORD:-devpassword}@db:5432/store_manager_production}
+      # Jobs run in the worker container, so Puma must not also run them.
+      GOOD_JOB_EXECUTION_MODE: external
+    ports:
+      - "3000:3000"
+    volumes:
+      # Active Storage writes to Rails.root/storage; without this, uploads
+      # vanish when the container is replaced.
+      - storage_data:/app/storage
+    # Puma (2 workers x 4 threads) plus headroom. Jobs are not running here.
+    mem_limit: 2g
+
+  # ── GoodJob worker ────────────────────────────────────────────────────────
+  # Separate from web so an invoice scan cannot stall page loads. One A4 page at
+  # 300 DPI peaks at ~513MB in ImageMagick, so this gets the larger allowance —
+  # and if it does exhaust it, the OOM kills a job, not the web server.
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://store_manager:${POSTGRES_PASSWORD:-devpassword}@db:5432/store_manager_production}
+      GOOD_JOB_EXECUTION_MODE: external
+    volumes:
+      - storage_data:/app/storage
+    command: bundle exec good_job start
+    mem_limit: 3g
+
+volumes:
+  postgres_data:
+  storage_data:
