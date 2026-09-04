@@ -176,6 +176,90 @@
         { element: '#live-grand-total', popover: { title: 'कुल राशि', description: 'एडिट करते ही अपडेट होती है। यह बिल पर छपे कुल से मेल खानी चाहिए।', side: 'top', align: 'start' } },
         { element: '#save-btn',      popover: { title: 'बिल सेव करें', description: 'सब ठीक लगे तो यहाँ दबाकर ड्राफ़्ट परचेज़ बिल के रूप में सेव करें।', side: 'bottom', align: 'start' } }
       ]
+    },
+    'purchasing/purchase_invoices/new': {
+      en: [
+        { popover: { title: 'Enter a bill by hand', description: 'A quick tour of the purchase bill form. If you have a photo of the bill, Scan Invoice is faster.' } },
+        { element: '#supplier-ac-wrap', popover: { title: 'Step 1 — Choose the supplier', description: 'Start typing the name and pick from the list. Their state decides whether the bill gets CGST + SGST or IGST.', side: 'bottom', align: 'start' } },
+        { element: '#purchase_invoice_invoice_number', popover: { title: 'Step 2 — Bill details', description: 'Copy the invoice number exactly as printed, then set the invoice and delivery dates.', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=pi-add-row]', popover: { title: 'Step 3 — Add each item', description: 'Click Add Row for every product on the bill.', side: 'left', align: 'start' } },
+        { element: '#items-tbody', popover: { title: 'Fill in the line', description: 'Pick the product, then enter quantity, rate and GST %. The line total works itself out.', side: 'top', align: 'start' } },
+        { element: '#grand-total', popover: { title: 'Step 4 — Check the total', description: 'This must match the total printed on the paper bill. If it does not, something has been typed wrong.', side: 'top', align: 'start' } },
+        { element: '#invoice-submit-btn', popover: { title: 'Step 5 — Save the draft', description: 'This saves your work but does not change stock. Open the saved bill and click Confirm to add the goods to stock.', side: 'top', align: 'start' } }
+      ],
+      bn: [
+        { popover: { title: 'হাতে বিল লিখুন', description: 'ক্রয় বিল ফর্মের ছোট্ট গাইড। বিলের ছবি থাকলে Scan Invoice আরও দ্রুত।' } },
+        { element: '#supplier-ac-wrap', popover: { title: 'ধাপ ১ — সাপ্লায়ার বাছুন', description: 'নাম টাইপ করে তালিকা থেকে বেছে নিন। তাঁদের রাজ্যই ঠিক করে বিলে CGST + SGST বসবে নাকি IGST।', side: 'bottom', align: 'start' } },
+        { element: '#purchase_invoice_invoice_number', popover: { title: 'ধাপ ২ — বিলের বিবরণ', description: 'বিল নম্বর ঠিক যেমন ছাপা আছে তেমনই লিখুন, তারপর বিলের ও ডেলিভারির তারিখ দিন।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=pi-add-row]', popover: { title: 'ধাপ ৩ — প্রতিটি আইটেম যোগ করুন', description: 'বিলের প্রতিটি পণ্যের জন্য Add Row ক্লিক করুন।', side: 'left', align: 'start' } },
+        { element: '#items-tbody', popover: { title: 'সারিটি পূরণ করুন', description: 'পণ্য বেছে নিন, তারপর পরিমাণ, দর ও GST % লিখুন। সারির মোট নিজে থেকেই হয়ে যায়।', side: 'top', align: 'start' } },
+        { element: '#grand-total', popover: { title: 'ধাপ ৪ — মোট মিলিয়ে নিন', description: 'এটি কাগজের বিলে ছাপা মোটের সঙ্গে মিলতে হবে। না মিললে কোথাও ভুল টাইপ হয়েছে।', side: 'top', align: 'start' } },
+        { element: '#invoice-submit-btn', popover: { title: 'ধাপ ৫ — ড্রাফট সেভ করুন', description: 'এতে কাজ সেভ হয়, স্টক বদলায় না। সেভ করা বিল খুলে Confirm ক্লিক করলে মাল স্টকে যোগ হয়।', side: 'top', align: 'start' } }
+      ],
+      hi: [
+        { popover: { title: 'बिल हाथ से भरें', description: 'ख़रीद बिल फ़ॉर्म का छोटा गाइड। बिल की फ़ोटो हो तो Scan Invoice ज़्यादा तेज़ है।' } },
+        { element: '#supplier-ac-wrap', popover: { title: 'चरण 1 — सप्लायर चुनें', description: 'नाम टाइप करके सूची में से चुनें। उनका राज्य ही तय करता है कि बिल पर CGST + SGST लगेगा या IGST।', side: 'bottom', align: 'start' } },
+        { element: '#purchase_invoice_invoice_number', popover: { title: 'चरण 2 — बिल का विवरण', description: 'बिल नंबर बिल्कुल वैसा ही लिखें जैसा छपा है, फिर बिल और डिलीवरी की तारीख़ें भरें।', side: 'bottom', align: 'start' } },
+        { element: '[data-tour=pi-add-row]', popover: { title: 'चरण 3 — हर आइटम जोड़ें', description: 'बिल के हर प्रोडक्ट के लिए Add Row दबाएँ।', side: 'left', align: 'start' } },
+        { element: '#items-tbody', popover: { title: 'पंक्ति भरें', description: 'प्रोडक्ट चुनें, फिर मात्रा, दर और GST % भरें। पंक्ति का कुल ख़ुद बन जाता है।', side: 'top', align: 'start' } },
+        { element: '#grand-total', popover: { title: 'चरण 4 — कुल मिलाएँ', description: 'यह काग़ज़ी बिल पर छपे कुल से मेल खाना चाहिए। न मिले तो कहीं कुछ ग़लत टाइप हुआ है।', side: 'top', align: 'start' } },
+        { element: '#invoice-submit-btn', popover: { title: 'चरण 5 — ड्राफ़्ट सेव करें', description: 'इससे काम सेव होता है, स्टॉक नहीं बदलता। सेव किया बिल खोलकर Confirm दबाने पर माल स्टॉक में जुड़ता है।', side: 'top', align: 'start' } }
+      ]
+    },
+    'sales/sales_invoices/new': {
+      en: [
+        { popover: { title: 'Make a customer bill', description: 'A quick tour of the sales invoice form. Nothing leaves your stock until you review and confirm.' } },
+        { element: '#customer-search-input', popover: { title: 'Step 1 — Choose the customer', description: 'Start typing the name and pick from the list. For a cash sale with no regular customer, use Walk-in Customer.', side: 'bottom', align: 'start' } },
+        { element: '#referrer-search-input', popover: { title: 'Credit a referrer', description: 'If a painter or contractor sent this customer, name them here. Their totals build up on the Referrers page.', side: 'bottom', align: 'start' } },
+        { element: '.add-row-btn.paint', popover: { title: 'Step 2 — Add what they are buying', description: 'Shade / Paint for tinted paint, Product for anything off the shelf, Ad-hoc for a one-off line.', side: 'bottom', align: 'start' } },
+        { element: '#items-tbody', popover: { title: 'Fill in each line', description: 'Pick the product and shade, then quantity and rate. For paint, type the shade name if it is not in the list.', side: 'top', align: 'start' } },
+        { element: '#grand-total', popover: { title: 'Step 3 — Check the total', description: 'Taxable, GST and the grand total update as you type.', side: 'top', align: 'start' } },
+        { element: '#form-submit-btn', popover: { title: 'Step 4 — Review, then confirm', description: 'This saves a draft and opens a preview showing current stock and what will be deducted. Confirm from there to finish the bill.', side: 'top', align: 'start' } }
+      ],
+      bn: [
+        { popover: { title: 'ক্রেতার বিল তৈরি করুন', description: 'বিক্রয় বিল ফর্মের ছোট্ট গাইড। যাচাই করে Confirm না করা পর্যন্ত স্টক থেকে কিছুই যায় না।' } },
+        { element: '#customer-search-input', popover: { title: 'ধাপ ১ — ক্রেতা বাছুন', description: 'নাম টাইপ করে তালিকা থেকে বেছে নিন। নিয়মিত ক্রেতা ছাড়া নগদ বিক্রির জন্য Walk-in Customer বাছুন।', side: 'bottom', align: 'start' } },
+        { element: '#referrer-search-input', popover: { title: 'রেফারার যুক্ত করুন', description: 'কোনো রংমিস্ত্রি বা ঠিকাদার এই ক্রেতাকে পাঠিয়ে থাকলে তাঁর নাম এখানে দিন। Referrers পেজে তাঁদের হিসাব জমা হয়।', side: 'bottom', align: 'start' } },
+        { element: '.add-row-btn.paint', popover: { title: 'ধাপ ২ — তাঁরা যা কিনছেন যোগ করুন', description: 'টিন্ট করা রঙের জন্য Shade / Paint, তাক থেকে নেওয়া জিনিসের জন্য Product, এককালীন লাইনের জন্য Ad-hoc।', side: 'bottom', align: 'start' } },
+        { element: '#items-tbody', popover: { title: 'প্রতিটি সারি পূরণ করুন', description: 'পণ্য ও শেড বেছে নিন, তারপর পরিমাণ ও দর। রঙের ক্ষেত্রে শেড তালিকায় না থাকলে নাম লিখে দিন।', side: 'top', align: 'start' } },
+        { element: '#grand-total', popover: { title: 'ধাপ ৩ — মোট দেখে নিন', description: 'টাইপ করার সঙ্গে সঙ্গেই করযোগ্য মূল্য, GST ও গ্র্যান্ড টোটাল আপডেট হয়।', side: 'top', align: 'start' } },
+        { element: '#form-submit-btn', popover: { title: 'ধাপ ৪ — যাচাই, তারপর Confirm', description: 'এতে ড্রাফট সেভ হয় এবং একটি প্রিভিউ খোলে যেখানে বর্তমান স্টক ও কতটা কমবে দেখা যায়। সেখান থেকে Confirm করলে বিল সম্পূর্ণ হয়।', side: 'top', align: 'start' } }
+      ],
+      hi: [
+        { popover: { title: 'ग्राहक का बिल बनाएँ', description: 'बिक्री बिल फ़ॉर्म का छोटा गाइड। जाँचकर Confirm करने तक स्टॉक से कुछ नहीं निकलता।' } },
+        { element: '#customer-search-input', popover: { title: 'चरण 1 — ग्राहक चुनें', description: 'नाम टाइप करके सूची में से चुनें। बिना नियमित ग्राहक वाली नक़द बिक्री के लिए Walk-in Customer चुनें।', side: 'bottom', align: 'start' } },
+        { element: '#referrer-search-input', popover: { title: 'रेफ़रर जोड़ें', description: 'किसी पेंटर या ठेकेदार ने यह ग्राहक भेजा हो तो उनका नाम यहाँ दें। Referrers पेज पर उनका हिसाब जुड़ता जाता है।', side: 'bottom', align: 'start' } },
+        { element: '.add-row-btn.paint', popover: { title: 'चरण 2 — जो वे ख़रीद रहे हैं जोड़ें', description: 'टिंट किए पेंट के लिए Shade / Paint, शेल्फ़ की चीज़ के लिए Product, एक बार की पंक्ति के लिए Ad-hoc।', side: 'bottom', align: 'start' } },
+        { element: '#items-tbody', popover: { title: 'हर पंक्ति भरें', description: 'प्रोडक्ट और शेड चुनें, फिर मात्रा और दर। पेंट के लिए शेड सूची में न हो तो नाम टाइप कर दें।', side: 'top', align: 'start' } },
+        { element: '#grand-total', popover: { title: 'चरण 3 — कुल जाँचें', description: 'टाइप करते ही करयोग्य राशि, GST और ग्रैंड टोटल अपडेट होते रहते हैं।', side: 'top', align: 'start' } },
+        { element: '#form-submit-btn', popover: { title: 'चरण 4 — जाँचें, फिर Confirm', description: 'इससे ड्राफ़्ट सेव होकर एक प्रीव्यू खुलता है जिसमें मौजूदा स्टॉक और कितना घटेगा दिखता है। वहीं से Confirm करने पर बिल पूरा होता है।', side: 'top', align: 'start' } }
+      ]
+    },
+    'inventory/tinting_machine/show': {
+      en: [
+        { popover: { title: 'Tinting machine slots', description: 'Keep the colourant levels here up to date — the machine cannot tell the app what it has used.' } },
+        { element: '#tm-canvas', popover: { title: 'The machine', description: 'Each canister, coloured by what is loaded and filled to its current level. Drag to rotate, scroll to zoom. Reset straightens the view — it changes nothing.', side: 'bottom', align: 'start' } },
+        { element: '#load-slot', popover: { title: 'Load a canister — pick the slot', description: 'Choose which slot you are filling.', side: 'right', align: 'start' } },
+        { element: '#load-product-id', popover: { title: 'Choose the colourant', description: 'Pick the product that goes into that slot.', side: 'right', align: 'start' } },
+        { element: '#load-volume', popover: { title: 'Enter the volume', description: 'How much is in the canister, in millilitres. This becomes its full level.', side: 'right', align: 'start' } },
+        { element: '[data-tour=tm-slots]', popover: { title: 'The slot list', description: 'Every slot with its level. Each + or − tap moves 25% of that canister. Reload refills with the same product; Remove takes the canister out.', side: 'left', align: 'start' } }
+      ],
+      bn: [
+        { popover: { title: 'টিন্টিং মেশিনের স্লট', description: 'এখানকার কালারেন্টের মাত্রা আপডেট রাখুন — মেশিন নিজে থেকে অ্যাপকে কিছু জানায় না।' } },
+        { element: '#tm-canvas', popover: { title: 'মেশিনটি', description: 'প্রতিটি ক্যানিস্টার, যা লোড করা আছে তার রঙে এবং বর্তমান মাত্রা অনুযায়ী ভরা। ঘোরাতে টানুন, জুম করতে স্ক্রল করুন। Reset শুধু দৃষ্টিকোণ সোজা করে — কিছু বদলায় না।', side: 'bottom', align: 'start' } },
+        { element: '#load-slot', popover: { title: 'ক্যানিস্টার লোড — স্লট বাছুন', description: 'কোন স্লট ভরছেন তা বেছে নিন।', side: 'right', align: 'start' } },
+        { element: '#load-product-id', popover: { title: 'কালারেন্ট বাছুন', description: 'ওই স্লটে কোন পণ্য যাবে বেছে নিন।', side: 'right', align: 'start' } },
+        { element: '#load-volume', popover: { title: 'আয়তন লিখুন', description: 'ক্যানিস্টারে কতটা আছে, মিলিলিটারে। এটিই তার পূর্ণ মাত্রা হবে।', side: 'right', align: 'start' } },
+        { element: '[data-tour=tm-slots]', popover: { title: 'স্লটের তালিকা', description: 'প্রতিটি স্লট ও তার মাত্রা। + বা − প্রতিবার চাপলে ওই ক্যানিস্টারের ২৫% বদলায়। Reload আগের পণ্যই ভরে দেয়; Remove ক্যানিস্টার খুলে নেয়।', side: 'left', align: 'start' } }
+      ],
+      hi: [
+        { popover: { title: 'टिंटिंग मशीन के स्लॉट', description: 'यहाँ कलरेंट का स्तर अपडेट रखें — मशीन ऐप को ख़ुद कुछ नहीं बताती।' } },
+        { element: '#tm-canvas', popover: { title: 'मशीन', description: 'हर कनस्तर, जो लोड है उसी रंग में और मौजूदा स्तर तक भरा हुआ। घुमाने के लिए खींचें, ज़ूम के लिए स्क्रॉल करें। Reset सिर्फ़ नज़रिया सीधा करता है — कुछ बदलता नहीं।', side: 'bottom', align: 'start' } },
+        { element: '#load-slot', popover: { title: 'कनस्तर लोड करें — स्लॉट चुनें', description: 'आप कौन-सा स्लॉट भर रहे हैं यह चुनें।', side: 'right', align: 'start' } },
+        { element: '#load-product-id', popover: { title: 'कलरेंट चुनें', description: 'उस स्लॉट में कौन-सा प्रोडक्ट जाएगा चुनें।', side: 'right', align: 'start' } },
+        { element: '#load-volume', popover: { title: 'मात्रा भरें', description: 'कनस्तर में कितना है, मिलीलीटर में। यही उसका पूरा स्तर बनेगा।', side: 'right', align: 'start' } },
+        { element: '[data-tour=tm-slots]', popover: { title: 'स्लॉट की सूची', description: 'हर स्लॉट और उसका स्तर। + या − हर बार दबाने पर उस कनस्तर का 25% बदलता है। Reload वही प्रोडक्ट दोबारा भरता है; Remove कनस्तर निकाल देता है।', side: 'left', align: 'start' } }
+      ]
     }
   };
 
