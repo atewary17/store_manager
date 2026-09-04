@@ -19,8 +19,10 @@
 class ProductEnrichmentService
 
   GROQ_API_URL          = 'https://api.groq.com/openai/v1/chat/completions'.freeze
-  GROQ_MODEL            = 'meta-llama/llama-4-scout-17b-16e-instruct'.freeze  # supports json_object mode
-  GROQ_MODEL_FALLBACK   = 'llama3-8b-8192'.freeze  # fallback if scout unavailable
+  # Text-only enrichment — no images, so this does not need a vision model.
+  # gpt-oss-120b supports structured outputs and costs ~1/4 of the vision tier.
+  GROQ_MODEL            = ENV.fetch('GROQ_TEXT_MODEL', 'openai/gpt-oss-120b').freeze
+  GROQ_MODEL_FALLBACK   = ENV.fetch('GROQ_TEXT_MODEL_FALLBACK', 'openai/gpt-oss-20b').freeze
 
 
   # Prompt is built dynamically (not a template constant) so it can include
@@ -155,7 +157,7 @@ class ProductEnrichmentService
       Rails.logger.info "[ProductEnrichmentService] Response is JSON — parsing directly"
     else
       Rails.logger.warn "[ProductEnrichmentService] Response is conversational text — will use fallback parser"
-      Rails.logger.warn "[ProductEnrichmentService] HINT: Check your local model name. Should be 'meta-llama/llama-4-scout-17b-16e-instruct'"
+      Rails.logger.warn "[ProductEnrichmentService] HINT: Check your local model name. Should be '#{GROQ_MODEL}'"
     end
 
     parse_enrichment(text).merge(

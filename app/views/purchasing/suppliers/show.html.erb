@@ -40,7 +40,7 @@
 <%# Stats %>
 <div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
   <div class="stat-card">
-    <div class="stat-label">Confirmed Invoices</div>
+    <div class="stat-label">Confirmed Bills</div>
     <div class="stat-value accent"><%= @invoice_count %></div>
   </div>
   <div class="stat-card">
@@ -102,7 +102,7 @@
         </div>
       </div>
       <div class="detail-field">
-        <label>Last Invoice</label>
+        <label>Last Bill</label>
         <div class="value"><%= @last_invoice&.strftime('%d %b %Y') || '—' %></div>
       </div>
       <% if @supplier.address.present? %>
@@ -135,7 +135,7 @@
     <table>
       <thead>
         <tr>
-          <th>Invoice</th>
+          <th>Bill</th>
           <th>Date</th>
           <th>Delivery</th>
           <th style="text-align:right">Amount</th>

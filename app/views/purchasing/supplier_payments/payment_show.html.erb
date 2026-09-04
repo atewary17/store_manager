@@ -101,20 +101,20 @@
   <div class="detail-card" style="margin-bottom:20px">
     <div class="detail-section">
       <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>Purchase Invoice</span>
+        <span>Purchase Bill</span>
         <%= link_to 'Open Invoice →', purchasing_purchase_invoice_path(@invoice),
               style: "font-size:12px;color:var(--accent);text-decoration:none;font-weight:400" %>
       </div>
       <div class="detail-grid">
         <div class="detail-field">
-          <label>Invoice Number</label>
+          <label>Bill Number</label>
           <div class="value mono">
             <%= link_to @invoice.display_number, purchasing_purchase_invoice_path(@invoice),
                   style: "color:var(--accent);text-decoration:none" %>
           </div>
         </div>
         <div class="detail-field">
-          <label>Invoice Date</label>
+          <label>Bill Date</label>
           <div class="value mono"><%= @invoice.invoice_date&.strftime('%d %b %Y') || '—' %></div>
         </div>
         <div class="detail-field">
@@ -129,7 +129,7 @@
           </div>
         </div>
         <div class="detail-field">
-          <label>Invoice Total</label>
+          <label>Bill Total</label>
           <div class="value mono">₹ <%= number_with_precision(@invoice.total_amount, precision: 2, delimiter: ',') %></div>
         </div>
         <div class="detail-field">
@@ -176,7 +176,7 @@
     <% all_payments = @invoice.purchase_payments.order(payment_date: :asc) %>
     <% if all_payments.size > 1 %>
       <div class="detail-section">
-        <div class="detail-section-title">All Payments on This Invoice</div>
+        <div class="detail-section-title">All Payments on This Bill</div>
         <% all_payments.each do |p| %>
           <div style="display:flex;align-items:center;gap:14px;padding:10px 0;
                       border-bottom:1px solid var(--border);

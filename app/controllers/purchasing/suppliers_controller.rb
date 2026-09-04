@@ -74,7 +74,7 @@ class Purchasing::SuppliersController < Purchasing::BaseController
       redirect_to purchasing_suppliers_path, notice: 'Supplier deleted.'
     else
       redirect_to purchasing_suppliers_path,
-        alert: 'Cannot delete — supplier has purchase invoices.'
+        alert: 'Cannot delete — supplier has purchase bills.'
     end
   end
 

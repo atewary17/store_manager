@@ -39,9 +39,20 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
     @invoice.organisation = @organisation
     @invoice.user         = current_user
 
+    # Stamp supplier_hint from the form-level selector into each item's metadata.
+    # The item metadata field carries it through resolve_product for supplier-aware matching.
+    # Items built from the form already have metadata[supplier_hint] set via the hidden field,
+    # but we enforce it here to ensure nothing is missed.
+    supplier_hint = params[:supplier_hint].to_s.strip.presence
+    if supplier_hint
+      @invoice.purchase_invoice_items.each do |item|
+        item.metadata = item.metadata.merge('supplier_hint' => supplier_hint)
+      end
+    end
+
     if @invoice.save
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        notice: 'Invoice saved as draft.'
+        notice: 'Bill saved as draft.'
     else
       load_form_data
       render :new, status: :unprocessable_entity
@@ -51,7 +62,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   # GET /purchasing/purchase_invoices/:id/edit
   def edit
     redirect_to purchasing_purchase_invoice_path(@invoice),
-      alert: 'Confirmed invoices cannot be edited.' if @invoice.confirmed?
+      alert: 'Confirmed bills cannot be edited.' if @invoice.confirmed?
     # Do NOT build blank rows on edit — existing items are already loaded.
     # User clicks "+ Add Row" button to add more items.
     load_form_data
@@ -61,12 +72,12 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def update
     if @invoice.confirmed?
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        alert: 'Confirmed invoices cannot be edited.' and return
+        alert: 'Confirmed bills cannot be edited.' and return
     end
 
     if @invoice.update(invoice_params)
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        notice: 'Invoice updated.'
+        notice: 'Bill updated.'
     else
       load_form_data
       render :edit, status: :unprocessable_entity
@@ -77,10 +88,10 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def destroy
     if @invoice.confirmed?
       redirect_to purchasing_purchase_invoices_path,
-        alert: 'Confirmed invoices cannot be deleted.' and return
+        alert: 'Confirmed bills cannot be deleted.' and return
     end
     @invoice.destroy
-    redirect_to purchasing_purchase_invoices_path, notice: 'Draft invoice deleted.'
+    redirect_to purchasing_purchase_invoices_path, notice: 'Draft bill deleted.'
   end
 
   # POST /purchasing/purchase_invoices/:id/confirm
@@ -110,7 +121,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
         Rails.logger.warn("[ActivityLog] purchase confirm #{@invoice.id}: #{e.message}")
       end
       redirect_to purchasing_purchase_invoice_path(@invoice),
-        notice: "Invoice confirmed. Stock updated for #{@invoice.purchase_invoice_items.matched.count} product(s)."
+        notice: "Bill confirmed. Stock updated for #{@invoice.purchase_invoice_items.matched.count} product(s)."
     else
       redirect_to purchasing_purchase_invoice_path(@invoice),
         alert: "Could not confirm: #{@invoice.errors.full_messages.join(', ')}"
@@ -121,7 +132,7 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
   def update_due_date
     if @invoice.fully_paid?
       return redirect_to purchasing_purchase_invoice_path(@invoice),
-        alert: 'Invoice is fully paid — due date cannot be changed.'
+        alert: 'Bill is fully paid — due date cannot be changed.'
     end
 
     new_date = params.dig(:purchase_invoice, :payment_due_date).presence
@@ -130,48 +141,91 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       notice: new_date ? 'Due date updated.' : 'Due date cleared.'
   end
 
+  # Columns the product autocomplete searches. Each typed word must appear in at
+  # least one of these (description, codes, or the readable pack size), so e.g.
+  # "white 1 litre" matches a product named "...White..." with pack size "1 Litre".
+  PRODUCT_SEARCH_COLUMNS = [
+    'LOWER(products.description)',
+    'LOWER(products.material_code)',
+    'LOWER(products.product_code)',
+    'LOWER(products.pack_code)',
+    "LOWER(products.metadata->>'pack_size_desc')"
+  ].freeze
+
   # TODO Step 7 — sales filter will be tightened to catalogue_status: approved
   # GET /purchasing/purchase_invoices/product_search
   def product_search
     q = params[:q].to_s.strip
     return render json: [] if q.length < 2
 
-    q_like = "%#{q.downcase}%"
+    supplier_hint = params[:supplier_hint].to_s.strip
 
-    # Active products enrolled in this org
-    active_products = Product.for_org(@organisation)
-      .where(active: true)
-      .includes(:brand, :base_uom)
-      .where(
-        'LOWER(products.description) LIKE :q
-         OR LOWER(products.material_code) LIKE :q
-         OR LOWER(products.product_code)  LIKE :q
-         OR LOWER(products.pack_code)     LIKE :q',
-        q: q_like
-      )
-      .limit(10)
+    # Scope to the supplier's brand when a hint is provided — keeps autocomplete relevant.
+    brand_filter = case supplier_hint
+                   when 'asian_paints'
+                     Brand.where('LOWER(name) = ?', 'asian paints').first
+                   when 'shalimar_paints'
+                     Brand.where('LOWER(name) LIKE ?', '%shalimar%').first
+                   end
 
-    # AI-enriched pending products for this org (purchase only — never in sales)
-    pending_products = Product
+    active_base = Product.for_org(@organisation).where(active: true).includes(:brand, :base_uom)
+    active_base = active_base.where(brand: brand_filter) if brand_filter
+    active_products = token_search(active_base, q).limit(10)
+
+    # AI-enriched pending products (same brand scope if applicable)
+    pending_base = Product
       .joins(:organisation_products)
       .where(organisation_products: { organisation_id: @organisation.id })
       .where(active: false)
       .where("products.metadata->>'source' = 'ai_enrichment'")
       .includes(:brand, :base_uom)
-      .where(
-        'LOWER(products.description) LIKE :q
-         OR LOWER(products.material_code) LIKE :q',
-        q: q_like
-      )
-      .limit(5)
+    pending_base = pending_base.where(brand: brand_filter) if brand_filter
+    pending_products = token_search(pending_base, q).limit(5)
 
-    results = active_products.map { |p| format_product(p, 'matched') } +
+    results = active_products.map  { |p| format_product(p, 'matched') } +
               pending_products.map { |p| format_product(p, 'pending') }
 
     render json: results
   end
 
+  # GET /purchasing/purchase_invoices/match_product
+  # Live supplier-aware auto-match — mirrors the digitise matcher exactly.
+  # The same Suppliers::Registry matcher used on the scan-review screen runs here
+  # so manual entry matches by AP material_code / Shalimar product_code+pack /
+  # Generic description, with identical criteria.
+  def match_product
+    supplier_hint = params[:supplier_hint].to_s.strip
+    meta = {
+      'material_code' => params[:material_code].to_s.strip,
+      'description'   => params[:description].to_s.strip,
+      'pack_size'     => params[:pack_size].to_s.strip,
+      'supplier_hint' => supplier_hint
+    }
+
+    profile = Suppliers::Registry.for(supplier_hint)
+    product = profile.matcher.find_product(meta, @organisation)
+
+    if product
+      render json: { matched: true, product: format_product(product, 'matched') }
+    else
+      render json: { matched: false }
+    end
+  end
+
   private
+
+  # Token-split search: split the query on whitespace; every token must match at
+  # least one of PRODUCT_SEARCH_COLUMNS (AND across tokens, OR across columns).
+  # This makes multi-word "name + size" searches work, e.g. "white 1 litre".
+  def token_search(scope, query)
+    ors = PRODUCT_SEARCH_COLUMNS.map { |c| "#{c} LIKE ?" }.join(' OR ')
+    query.downcase.split(/\s+/).reject(&:blank?).each do |token|
+      like  = "%#{token}%"
+      binds = Array.new(PRODUCT_SEARCH_COLUMNS.size, like)
+      scope = scope.where(ors, *binds)
+    end
+    scope
+  end
 
   def format_product(p, status)
     half_gst = (p.gst_rate.to_f / 2).round(2)
@@ -182,7 +236,9 @@ class Purchasing::PurchaseInvoicesController < Purchasing::BaseController
       label:         label,
       description:   p.description,
       material_code: p.material_code,
+      product_code:  p.product_code,
       pack_code:     p.pack_code,
+      pack_size:     p.metadata['pack_size_desc'],
       uom:           p.base_uom&.short_name,
       gst_rate:      p.gst_rate.to_f,
       cgst:          half_gst,

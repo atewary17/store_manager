@@ -48,7 +48,7 @@
 
   <td style="padding:6px;text-align:center;font-family:var(--mono);font-size:11px;white-space:nowrap">
     <span style="color:<%= display_uom && display_uom != '—' ? 'var(--success)' : 'var(--text-dim)' %>"
-          title="<%= display_uom && display_uom != '—' ? 'From product table' : 'From invoice' %>">
+          title="<%= display_uom && display_uom != '—' ? 'From product table' : 'From bill' %>">
       <%= display_uom %>
     </span>
     <input type="hidden" name="parsed_data[items][<%= idx %>][unit]" value="<%= display_uom %>">
@@ -129,7 +129,7 @@
       <button type="button"
               class="exclude-btn"
               onclick="excludeItem(<%= idx %>)"
-              title="Remove this item from the invoice"
+              title="Remove this item from the bill"
               style="background:none;border:none;cursor:pointer;padding:2px 4px;
                      color:var(--text-dim);font-size:15px;line-height:1;border-radius:3px;
                      transition:color .15s">×</button>

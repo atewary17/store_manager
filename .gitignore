@@ -107,5 +107,12 @@ dump.rdb
 # Ignore build files but keep directory
 /app/assets/builds/*
 !/app/assets/builds/.keep.env
+
+# Environment files — never commit. A leaked GEMINI_API_KEY in a committed
+# .env is what got that key revoked; these rules only take effect because the
+# files are also untracked (git ignores rules for files already in the index).
 .env
-.env
+.env.*
+# Templates carry placeholders only, and must be committed.
+!.env.example
+!.env.*.example

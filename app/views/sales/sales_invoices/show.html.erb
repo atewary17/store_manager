@@ -262,6 +262,8 @@
     .pmt-summary { grid-template-columns: 1fr 1fr; }
     .pmt-cell:nth-child(2) { border-right: none; }
     .pmt-cell:nth-child(3) { grid-column: span 2; border-right: none; border-top: 1px solid var(--border); }
+    /* Payment-history rows: 7 dense columns → wrap so nothing overflows. */
+    .pmt-row { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
   }
 </style>
 
@@ -453,7 +455,8 @@
           <%= @invoice.sales_invoice_items.size %> item<%= @invoice.sales_invoice_items.size == 1 ? '' : 's' %>
         </span>
       </div>
-      <table class="li-table">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table class="li-table table-cards">
         <thead>
           <tr>
             <th>Product / Description</th>
@@ -516,6 +519,7 @@
           <% end %>
         </tbody>
       </table>
+      </div>
     </div>
 
     <%# ── Payments card (confirmed invoices only) ── %>

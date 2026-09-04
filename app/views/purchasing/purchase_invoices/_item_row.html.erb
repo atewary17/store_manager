@@ -28,18 +28,30 @@
               end
   gst_pct   = gst_rate
 
-  # Prefer stored taxable/tax amounts if already calculated (confirmed invoices)
-  if item.taxable_amount.to_f > 0
-    total_pre = item.taxable_amount.to_f
-    gst_amt   = item.tax_amount.to_f
-  else
-    total_pre = gst_pct > 0 ? (payable / (1 + gst_pct / 100.0)).round(2) : payable
-    gst_amt   = (payable - total_pre).round(2)
+  # ── Taxable-driven (same identity as the digitise review screen) ──────────
+  #   gross    = qty × unit_rate
+  #   taxable  = gross × (1 − disc%/100)
+  #   gst_amt  = taxable × gst%/100
+  #   payable  = taxable + gst_amt
+  # Unit rate is the editable source; total is computed (editable for override).
+  unit_rate = item.unit_rate.to_f
+  if unit_rate.zero? && item.taxable_amount.to_f > 0 && qty > 0
+    # Back-fill rate for legacy/confirmed rows that only stored taxable.
+    base      = discount > 0 ? (item.taxable_amount.to_f / (1 - discount / 100.0)) : item.taxable_amount.to_f
+    unit_rate = (base / qty).round(4)
   end
 
-  subtotal  = discount > 0 ? (total_pre / (1 - discount / 100.0)).round(2) : total_pre
-  unit_rate = qty > 0 ? (subtotal / qty).round(4) : item.unit_rate.to_f
-  disc_amt  = discount > 0 ? (subtotal - total_pre).round(2) : 0
+  gross     = (qty * unit_rate).round(2)
+  if item.taxable_amount.to_f > 0
+    total_pre = item.taxable_amount.to_f
+    gst_amt   = item.tax_amount.to_f > 0 ? item.tax_amount.to_f : (total_pre * gst_pct / 100.0).round(2)
+  else
+    disc_amt_calc = discount > 0 ? (gross * discount / 100.0).round(2) : 0
+    total_pre     = (gross - disc_amt_calc).round(2)
+    gst_amt       = (total_pre * gst_pct / 100.0).round(2)
+  end
+  disc_amt  = discount > 0 ? (gross - total_pre).round(2) : 0
+  payable   = (total_pre + gst_amt).round(2)
 
 %>
 <tr data-row="<%= idx %>"
@@ -47,16 +59,6 @@
 
   <%= f.hidden_field :id %>
   <%= f.hidden_field :_destroy, value: item.marked_for_destruction? ? '1' : '0', class: 'destroy-input' %>
-  <%# Preserve metadata keys that the form doesn't re-send, so they survive the update %>
-  <% if item.persisted? %>
-    <input type="hidden"
-           name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][material_code]"
-           value="<%= item.metadata['material_code'] %>">
-  <% end %>
-  <%# Always preserve raw_description so unmatched item names survive saves %>
-  <input type="hidden" class="raw-desc-field"
-         name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][raw_description]"
-         value="<%= item.metadata['raw_description'] %>">
   <%# Hidden fields for proper columns — written on form submit, finalised by confirm! %>
   <%= f.hidden_field :taxable_amount,   class: 'taxable-field',     value: total_pre > 0 ? total_pre : '' %>
   <%= f.hidden_field :tax_amount,       class: 'tax-field',         value: gst_amt  > 0 ? gst_amt  : '' %>
@@ -67,11 +69,32 @@
   <td style="padding:14px 16px;min-width:260px">
     <div class="autocomplete-wrap" style="position:relative">
       <%= f.hidden_field :product_id, class: 'product-id-input' %>
+      <%# These three fields MUST live inside .autocomplete-wrap so wrap.querySelector() finds them %>
+      <input type="hidden" class="raw-desc-field"
+             name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][raw_description]"
+             value="<%= item.metadata['raw_description'] %>">
+      <input type="hidden" class="supplier-hint-field"
+             name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][supplier_hint]"
+             value="<%= item.metadata['supplier_hint'] %>">
+      <input type="hidden" class="material-code-hidden"
+             name="purchase_invoice[purchase_invoice_items_attributes][<%= idx %>][metadata][material_code]"
+             value="<%= item.metadata['material_code'] %>">
 
+      <%# Single product field — search by name OR code (placeholder set per
+          supplier by applySupplierUiToRow). The product_search autocomplete
+          already matches on name, material_code, product_code and pack_code. %>
+      <%
+        hint_val = item.metadata['supplier_hint'].to_s
+        ph = case hint_val
+             when 'asian_paints'    then 'Material code or product name…'
+             when 'shalimar_paints' then 'Product code or product name…'
+             else                        'Search product by name…'
+             end
+      %>
       <div style="display:flex;align-items:center;gap:6px">
         <input type="text"
                class="product-search-input"
-               placeholder="Search by name, code…"
+               placeholder="<%= ph %>"
                autocomplete="off"
                value="<%= item.product ? [item.product.brand&.name, item.product.pack_code, item.product.description].compact_blank.join(' — ') : (item.metadata['raw_description'].presence || '') %>"
                style="flex:1;background:var(--bg);border:1px solid var(--border);
@@ -86,15 +109,25 @@
         <% end %>
       </div>
 
-      <div class="product-meta-line"
-           style="font-family:var(--mono);font-size:12px;color:var(--text-dim);
-                  margin-top:2px;min-height:14px">
-        <% if item.product %>
-          <% parts = [] %>
-          <% parts << "M: #{item.product.material_code}" if item.product.material_code.present? %>
-          <% parts << "Pack: #{item.product.pack_code}"  if item.product.pack_code.present? %>
-          <%= parts.join('  ·  ') %>
-        <% end %>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
+        <div class="product-meta-line"
+             style="font-family:var(--mono);font-size:11px;color:var(--text-dim);min-height:14px">
+          <% if item.product %>
+            <% parts = [] %>
+            <% parts << "M: #{item.product.material_code}" if item.product.material_code.present? %>
+            <% parts << "Pack: #{item.product.pack_code}"  if item.product.pack_code.present? %>
+            <%= parts.join('  ·  ') %>
+          <% end %>
+        </div>
+        <%# Match status badge — JS updates this dynamically %>
+        <div class="match-status-badge"
+             style="display:<%= item.product.present? ? 'flex' : 'none' %>;
+                    align-items:center;padding:2px 7px;border-radius:4px;
+                    border:1px solid rgba(74,222,128,0.25);background:rgba(74,222,128,0.08)">
+          <span style="color:var(--success);font-size:10px;font-weight:700">
+            <%= item.product.present? ? '✓ Matched' : '' %>
+          </span>
+        </div>
       </div>
 
       <div class="ac-dropdown"
@@ -123,14 +156,15 @@
                   font-family:var(--mono);font-size:12.5px;outline:none;text-align:right' %>
   </td>
 
-  <%# ══ 4. Unit Rate (read-only, calculated) ══ %>
-  <td style="padding:14px 12px;text-align:right;font-family:var(--mono);
-             font-size:12.5px;color:var(--text-dim)">
-    <%= f.hidden_field :unit_rate, class: 'rate-input',
-          value: unit_rate > 0 ? unit_rate.round(4) : '' %>
-    <span class="rate-display">
-      <%= unit_rate > 0 ? number_with_precision(unit_rate, precision: 2) : '—' %>
-    </span>
+  <%# ══ 4. Unit Rate (editable — drives taxable & total) ══ %>
+  <td style="padding:14px 12px">
+    <%= f.number_field :unit_rate,
+          class: 'rate-input',
+          value: unit_rate > 0 ? unit_rate.round(4) : '',
+          placeholder: '0.00', min: 0, step: 'any',
+          style: 'width:90px;background:var(--bg);border:1px solid var(--border);
+                  border-radius:5px;padding:9px 10px;color:var(--text);
+                  font-family:var(--mono);font-size:12.5px;outline:none;text-align:right' %>
   </td>
 
   <%# ══ 5. Discount % ══ %>

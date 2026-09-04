@@ -13,8 +13,9 @@
   inv_format   = cfg['invoice_number_format'].presence || 'serial_only'
   inv_start    = cfg['invoice_number_start'].presence || '1'
   inv_counter  = cfg['invoice_number_counter']
-  org_ai       = cfg['ai_provider'].to_s
-  global_ai    = ENV['INVOICE_AI_PROVIDER'] || 'gemini'
+  # Resolved server-side (org setting -> legacy ai_provider -> env -> default),
+  # so the picker always shows a concrete pipeline rather than "server default".
+  org_pipeline = @organisation.scan_pipeline_slug
 
   tinting_enabled   = cfg['tinting_prompt_enabled'] == true
   tinting_threshold = cfg['tinting_prompt_threshold_litres'].presence || '8'
@@ -304,7 +305,7 @@
               <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
             </svg>
           </div>
-          AI Provider — Invoice Scanning
+          Invoice Scanning Process
         </div>
         <span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:100px;
                      background:rgba(245,158,11,.1);color:var(--warning);
@@ -312,44 +313,44 @@
       </div>
       <div class="os-card-body">
         <p style="font-size:12px;color:var(--text-dim);margin:0 0 14px">
-          Sets the default AI provider for all users in this organisation.
-          Individual users can override this in their profile.
-          Global server default is <strong><%= global_ai.upcase %></strong>.
+          Sets how scanned purchase invoices are read for everyone in this
+          organisation. Supplier-specific rules apply to whichever process you pick.
         </p>
 
+        <%# Options come from InvoiceScan::Pipelines::Registry — adding a pipeline
+            makes it appear here with no change to this view. %>
         <div id="ai-opts">
-          <label class="ai-opt <%= org_ai.blank? ? 'active' : '' %>">
-            <input type="radio" name="org_ai" value="">
-            <div>
-              <div class="ai-opt-title">
-                Use global server default
-                <span style="font-size:11px;font-weight:400;color:var(--text-dim);margin-left:4px">
-                  (currently: <%= global_ai.upcase %>)
-                </span>
+          <% InvoiceScan::Pipelines::Registry.available.each do |pipeline| %>
+            <label class="ai-opt <%= 'active' if org_pipeline == pipeline.slug %>">
+              <input type="radio" name="org_pipeline" value="<%= pipeline.slug %>"
+                     <%= 'checked' if org_pipeline == pipeline.slug %>>
+              <div>
+                <div class="ai-opt-title">
+                  <%= pipeline.display_name %>
+                  <% if pipeline.badge.present? %>
+                    <span class="badge-free"><%= pipeline.badge %></span>
+                  <% end %>
+                </div>
+                <div class="ai-opt-desc"><%= pipeline.tagline %></div>
               </div>
-              <div class="ai-opt-desc">Follows the server environment variable</div>
-            </div>
-          </label>
-          <label class="ai-opt <%= org_ai == 'groq' ? 'active' : '' %>">
-            <input type="radio" name="org_ai" value="groq" <%= 'checked' if org_ai == 'groq' %>>
-            <div>
-              <div class="ai-opt-title">Groq — Llama 4 Scout <span class="badge-free">FREE</span></div>
-              <div class="ai-opt-desc">Fast free tier, up to ~14,400 requests/day. Best for most orgs.</div>
-            </div>
-          </label>
-          <label class="ai-opt <%= org_ai == 'openrouter' ? 'active' : '' %>">
-            <input type="radio" name="org_ai" value="openrouter" <%= 'checked' if org_ai == 'openrouter' %>>
-            <div>
-              <div class="ai-opt-title">OpenRouter — Llama 3.2 Vision <span class="badge-free">FREE</span></div>
-              <div class="ai-opt-desc">
-                Requires <code style="font-family:var(--mono)">OPENROUTER_API_KEY</code> on the server.
+            </label>
+          <% end %>
+
+          <%# Registered but not usable — shown inert so an admin can see the
+              option exists and what it needs, rather than wondering. %>
+          <% InvoiceScan::Pipelines::Registry.unavailable.each do |pipeline| %>
+            <label class="ai-opt" style="opacity:.55;cursor:not-allowed">
+              <input type="radio" name="org_pipeline" value="<%= pipeline.slug %>" disabled>
+              <div>
+                <div class="ai-opt-title"><%= pipeline.display_name %></div>
+                <div class="ai-opt-desc"><%= pipeline.unavailable_reason %></div>
               </div>
-            </div>
-          </label>
+            </label>
+          <% end %>
         </div>
 
         <div class="os-save-row">
-          <button class="btn btn-primary btn-sm" onclick="saveAiConfig()">Save Provider</button>
+          <button class="btn btn-primary btn-sm" onclick="saveAiConfig()">Save Scanning Process</button>
           <span class="os-toast" id="ai-toast">&#10003; Saved</span>
         </div>
       </div>
@@ -649,8 +650,9 @@
 
   // ── save AI config ────────────────────────────────────────
   function saveAiConfig() {
-    const provider = document.querySelector('#ai-opts input[type=radio]:checked')?.value || '';
-    patchSettings({ 'ai_provider': provider }, 'ai-toast');
+    const pipeline = document.querySelector('#ai-opts input[type=radio]:checked')?.value || '';
+    if (!pipeline) return;
+    patchSettings({ 'ai_pipeline': pipeline }, 'ai-toast');
   }
 
   // ── Tinting config ────────────────────────────────────────
