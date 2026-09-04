@@ -9,6 +9,9 @@ Rails.application.routes.draw do
     post '/users/force_login', to: 'users/sessions#force_login', as: :force_login_user_session
   end
 
+  # In-app help manual (lazy-loaded by the help drawer) — any logged-in user
+  get '/help', to: 'help#show', as: :help
+
   # User profile — any logged-in user
   get   '/profile',           to: 'users#profile',           as: :profile
   patch '/profile',           to: 'users#update_profile',    as: :update_profile

@@ -123,6 +123,24 @@ class Organisation < ApplicationRecord
     build_invoice_number(counter)
   end
 
+  # ── Help / user-manual languages ─────────────────────────────────────────
+  # English is always available. A System Admin enables extra languages per org;
+  # the Help drawer + guided tours then expose only the enabled set.
+  # Stored in settings['help_locales']. Add a future language by extending this
+  # map (and SUPPORTED_LOCALES in HelpController + dropping app/help/<code>/*.md).
+  HELP_LOCALE_LABELS     = { 'en' => 'EN', 'hi' => 'हि', 'bn' => 'বাং' }.freeze
+  SUPPORTED_HELP_LOCALES = HELP_LOCALE_LABELS.keys.freeze   # %w[en hi bn]
+
+  # Canonical enabled list: always includes 'en', only supported codes, en first.
+  def help_locales
+    stored = Array(settings['help_locales']).map { |c| c.to_s.downcase }
+    SUPPORTED_HELP_LOCALES.select { |l| l == 'en' || stored.include?(l) }
+  end
+
+  def help_locale_enabled?(code)
+    help_locales.include?(code.to_s.downcase)
+  end
+
   # ── Tinting counter ─────────────────────────────────────────────────────
   # Returns a hash of { "base_product_id_string" => total_litres } covering
   # all paint sales since the most recent tinting_update log.

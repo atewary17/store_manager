@@ -32,6 +32,7 @@ gem 'mini_magick'   # ImageMagick wrapper for invoice image preprocessing
 gem 'caxlsx', '~> 3.4'
 gem 'caxlsx_rails', '~> 0.6'
 gem 'lograge'       # condense noisy per-request logs into one line so errors stand out
+gem 'kramdown'      # render help-manual Markdown to HTML (pure Ruby, no native deps)
 
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ]
