@@ -1039,19 +1039,20 @@
               <% [
                 ['#',                                              '28px',  'center'],
                 (generic ? nil : [pack_based ? 'Product Code' : 'Material Code', '90px', 'left']),
-                ['Description',                                    'auto',  'left'],
+                ['Description',                                    'auto',  'left',   'col-desc'],
                 ['HSN',                                            '58px',  'center'],
-                [pack_based ? 'Packs'     : 'Qty',                 '58px',  'right'],
+                [pack_based ? 'Packs'     : 'Qty',                 '58px',  'right',  'col-qty'],
                 ['UOM',                                            '46px',  'center'],
                 [pack_based ? 'Rate/Pack' : 'Rate/Unit',           '72px',  'right'],
                 [generic ? 'Disc %' : 'Disc Rs.',                  '62px',  'right'],
-                ['Taxable',                                        '72px',  'right'],
+                ['Taxable',                                        '72px',  'right',  'col-taxable'],
                 ['GST%',                                           '46px',  'center'],
-                ['Total (Rs.)',                                    '82px',  'right'],
+                ['Total (Rs.)',                                    '82px',  'right',  'col-total'],
                 ['Status',                                         '56px',  'center'],
-              ].compact.each do |lbl, w, align| %>
+              ].compact.each do |lbl, w, align, tkey| %>
                 <% sticky = (lbl == 'Status') ? 'position:sticky;right:0;background:var(--bg);z-index:2;' : '' %>
-                <th style="min-width:<%= w %>;padding:7px 6px;text-align:<%= align %>;
+                <th <%= tkey ? "data-tour=#{tkey}".html_safe : '' %>
+                    style="min-width:<%= w %>;padding:7px 6px;text-align:<%= align %>;
                            font-family:var(--mono);font-size:10px;letter-spacing:.07em;
                            text-transform:uppercase;color:var(--text-dim);
                            border-bottom:1px solid var(--border);white-space:nowrap;<%= sticky %>"><%= lbl %></th>
