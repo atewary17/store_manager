@@ -475,7 +475,10 @@
         </div>
       </div>
 
-      <%# How it works %>
+      <%# How it works — super admin only. These steps name the internal
+          pipeline (extraction prompts, vision model), which is implementation
+          detail an ordinary user cannot act on. %>
+      <% if current_user.super_admin? %>
       <div class="form-card">
         <div class="form-section">
           <div class="form-section-title">How it works</div>
@@ -500,6 +503,7 @@
           </div>
         </div>
       </div>
+      <% end %>
     </div>
 
     <%# RIGHT — scanner animation panel %>
@@ -548,6 +552,9 @@
 
       <div class="scan-status">Scanning bill…</div>
 
+      <%# Tech-stack badges and the pipeline checklist — super admin only.
+          These name the tools behind the scan; a shop user does not need them. %>
+      <% if current_user.super_admin? %>
       <div class="scanner-tags" style="margin-top:16px">
         <span class="scanner-tag"
               style="background:rgba(79,142,247,0.1);color:var(--accent);border:1px solid rgba(79,142,247,0.25)">
@@ -575,6 +582,7 @@
           <span style="color:var(--success)">✓</span> Math validation
         </div>
       </div>
+      <% end %>
     </div>
 
   </div><%# end grid %>
